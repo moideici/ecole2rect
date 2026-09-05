@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets
  */
 class EcoleDirecteClient(
     private val apiBase: String = "https://api.ecoledirecte.com/v3",
-    private val apiVersion: String = "4.100.6",
+    private val apiVersion: String = "4.75.0",
 ) {
     private var cookie: String? = null
     var token: String? = null
@@ -32,7 +32,10 @@ class EcoleDirecteClient(
             .put("uuid", "")
             .put("fa", trustedAnswer?.let { JSONArray().put(it.toJson()) } ?: JSONArray())
 
-        val response = postLogin(payload)
+        val response = postLogin(
+            payload = payload,
+            reuseVerificationSession = trustedAnswer != null && token != null,
+        )
         return when (response.body.optInt("code")) {
             ApiCode.OK -> {
                 token = response.body.optString("token").takeIf { it.isNotBlank() } ?: response.headers["x-token"]
@@ -52,13 +55,66 @@ class EcoleDirecteClient(
         }
     }
 
+    /**
+     * Python's json.dumps(...), with its default `", "` and `": "` separators and
+     * ensure_ascii=True, for the small JSON values used by this API.
+     */
+    private fun JSONObject.toPythonJson(): String = buildString {
+        append('{')
+        keys().asSequence().toList().forEachIndexed { index, key ->
+            if (index > 0) append(", ")
+            append(pythonQuote(key))
+            append(": ")
+            append(opt(key).toPythonJsonValue())
+        }
+        append('}')
+    }
+
+    private fun Any?.toPythonJsonValue(): String = when (this) {
+        null, JSONObject.NULL -> "null"
+        is JSONObject -> toPythonJson()
+        is JSONArray -> buildString {
+            append('[')
+            for (index in 0 until length()) {
+                if (index > 0) append(", ")
+                append(opt(index).toPythonJsonValue())
+            }
+            append(']')
+        }
+        is String -> pythonQuote(this)
+        is Boolean -> if (this) "true" else "false"
+        is Number -> toString()
+        else -> pythonQuote(toString())
+    }
+
+    private fun pythonQuote(value: String): String = buildString {
+        append('"')
+        value.forEach { character ->
+            when (character) {
+                '"' -> append("\\\"")
+                '\\' -> append("\\\\")
+                '\b' -> append("\\b")
+                '\u000C' -> append("\\f")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> {
+                    if (character.code < 0x20 || character.code > 0x7E) {
+                        append("\\u")
+                        append(character.code.toString(16).padStart(4, '0'))
+                    } else {
+                        append(character)
+                    }
+                }
+            }
+        }
+        append('"')
+    }
+
     fun completeSecurityQuestion(choice: String, identifier: String, password: String): LoginResult {
         val xToken = token ?: return LoginResult.Failure("Session de vérification absente.")
         val twoFa = twoFactorToken ?: return LoginResult.Failure("Jeton de vérification absent.")
-        val answer = JSONObject().put(
-            "choix",
-            Base64.encodeToString(choice.toByteArray(Charsets.UTF_8), Base64.NO_WRAP),
-        )
+        val answer = JSONObject().put("choix", choice)
         val response = post(
             path = "/connexion/doubleauth.awp",
             verb = "post",
@@ -106,8 +162,23 @@ class EcoleDirecteClient(
         }
     }
 
-    private fun postLogin(payload: JSONObject): Response =
-        post("/login.awp", null, payload, mapOf("X-GTK" to freshGtk()))
+    private fun postLogin(payload: JSONObject, reuseVerificationSession: Boolean): Response {
+        if (reuseVerificationSession) {
+            val verificationToken = token
+                ?: throw EcoleDirecteException("Jeton de vérification absent.")
+            val gtk = cookie?.substringAfter("GTK=", "")?.substringBefore(";")
+                ?.takeIf { it.isNotBlank() }
+                ?: throw EcoleDirecteException("Cookie GTK absent.")
+            return post(
+                path = "/login.awp",
+                verb = null,
+                payload = payload,
+                headers = mapOf("X-GTK" to gtk, "X-Token" to verificationToken),
+                includeVersion = false,
+            )
+        }
+        return post("/login.awp", null, payload, mapOf("X-GTK" to freshGtk()))
+    }
 
     private fun freshGtk(): String {
         val connection = openConnection("/login.awp?gtk=1&v=$apiVersion", "GET")
@@ -128,14 +199,21 @@ class EcoleDirecteClient(
         verb: String?,
         payload: JSONObject,
         headers: Map<String, String> = emptyMap(),
+        includeVersion: Boolean = true,
     ): Response {
-        val query = if (verb == null) "?v=$apiVersion" else "?verbe=$verb&v=$apiVersion"
+        val query = when {
+            verb != null -> "?verbe=$verb&v=$apiVersion"
+            includeVersion -> "?v=$apiVersion"
+            else -> ""
+        }
         val connection = openConnection("$path$query", "POST")
         return try {
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
             cookie?.let { connection.setRequestProperty("Cookie", it) }
-            val encodedPayload = percentEncode(payload.toString())
+            // requests.post(data={"data": json.dumps(payload)}) uses Python's
+            // default JSON separators and application/x-www-form-urlencoded.
+            val encodedPayload = formEncode(payload.toPythonJson())
             val body = "data=$encodedPayload"
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val httpStatus = connection.responseCode
@@ -167,8 +245,8 @@ class EcoleDirecteClient(
             // Match the browser-like fingerprint required by the current API/WAF.
             setRequestProperty(
                 "User-Agent",
-                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
-                    "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
             )
             setRequestProperty("Accept", "application/json, text/plain, */*")
             setRequestProperty("Origin", "https://www.ecoledirecte.com")
@@ -229,7 +307,7 @@ class EcoleDirecteClient(
 }
 
 data class TrustedAnswer(val cn: String, val cv: String) {
-    fun toJson(): JSONObject = JSONObject().put("cn", cn).put("cv", cv).put("uniq", false)
+    fun toJson(): JSONObject = JSONObject().put("cn", cn).put("cv", cv)
 }
 
 data class Lesson(
@@ -253,12 +331,16 @@ class EcoleDirecteException(message: String, cause: Throwable? = null) : Runtime
 private fun redactSecrets(value: String): String =
     value.replace(Regex("(?i)(motdepasse|password|token|x-token|2fa-token|cookie|set-cookie)\"?\\s*[:=]\\s*\"?[^\",}\\s]+"), "$1=<masqué>")
 
-private fun percentEncode(value: String): String {
+private fun formEncode(value: String): String {
     val bytes = value.toByteArray(StandardCharsets.UTF_8)
     val hex = "0123456789ABCDEF"
     return buildString(bytes.size * 3) {
         bytes.forEach { byte ->
             val unsigned = byte.toInt() and 0xFF
+            if (unsigned == 0x20) {
+                append('+')
+                return@forEach
+            }
             if (unsigned in 0x30..0x39 || unsigned in 0x41..0x5A || unsigned in 0x61..0x7A ||
                 unsigned == '-'.code || unsigned == '_'.code || unsigned == '.'.code || unsigned == '~'.code
             ) {
