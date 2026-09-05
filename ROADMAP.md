@@ -45,25 +45,25 @@ ensuite les modules absents, puis l'approfondissement, enfin la qualité et la d
 - [x] **Recherche globale** depuis l'accueil : matières, devoirs, notes, messages.
 - [x] **Export ICS** de l'emploi du temps vers le calendrier du téléphone.
 - [x] **Journal d'erreurs** consultable dans les réglages, sans secrets.
-- [ ] **Widgets configurables** : choisir la matière ou la période affichée à la pose.
-- [ ] **Balayage horizontal** entre les jours de l'emploi du temps.
+- [x] **Widgets configurables** : choisir la matière ou la période affichée à la pose.
+- [x] **Balayage horizontal** entre les jours de l'emploi du temps.
 
 ## P3 — qualité, robustesse, distribution
 
-- [ ] **Tests d'interface** sur les parcours principaux.
-- [ ] **Lint en intégration continue** (Android Lint, échec sur erreur).
-- [ ] **Réessai avec temporisation** sur les pannes réseau passagères.
-- [ ] **Build release signé** et publication de l'APK en artefact.
-- [ ] **Verrouillage biométrique** de l'application.
+- [x] **Tests d'interface** sur les parcours principaux.
+- [x] **Lint en intégration continue** (Android Lint, échec sur erreur).
+- [x] **Réessai avec temporisation** sur les pannes réseau passagères.
+- [x] **Build release signé** et publication de l'APK en artefact.
+- [x] **Verrouillage biométrique** de l'application.
 - [ ] **Extraction de `core` en module multiplateforme.** Le code est déjà sans dépendance
       Android ; le passage en module KMP demande une chaîne de build iOS qu'on ne peut pas
       valider ici. La frontière est prête, la migration ne l'est pas.
 
 ## P4 — finitions
 
-- [ ] **Couleurs dynamiques Material You** et icône monochrome.
-- [ ] **Raccourcis d'application** (appui long sur l'icône).
-- [ ] **Tirer pour rafraîchir** sur les écrans de liste.
+- [x] **Couleurs dynamiques Material You** et icône monochrome.
+- [x] **Raccourcis d'application** (appui long sur l'icône).
+- [x] **Tirer pour rafraîchir** sur les écrans de liste.
 - [ ] **Audit d'accessibilité** : libellés, tailles de police, contrastes.
 
 ## Ce qui restera à faire avec un compte réel

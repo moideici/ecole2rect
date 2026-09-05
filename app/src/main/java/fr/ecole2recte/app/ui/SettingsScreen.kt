@@ -82,6 +82,8 @@ fun SettingsScreen(
     onSelectAccount: (Account) -> Unit,
     onDiagnostics: (Boolean) -> Unit,
     onNotifications: ((NotificationSettings) -> NotificationSettings) -> Unit,
+    onBiometricLock: (Boolean) -> Unit,
+    onDynamicColor: (Boolean) -> Unit,
     onRefresh: () -> Unit,
     onSignOut: () -> Unit,
 ) {
@@ -184,6 +186,15 @@ fun SettingsScreen(
                     FilterPill(choice.label, selected = settings.theme == choice) { onTheme(choice) }
                 }
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Spacer(Modifier.height(8.dp))
+                SettingsSwitch(
+                    title = "Couleurs du fond d'écran",
+                    description = "Reprendre la palette du système plutôt que l'indigo de l'application.",
+                    checked = settings.dynamicColor,
+                    onCheckedChange = onDynamicColor,
+                )
+            }
         }
 
         NotificationsSection(settings.notifications, onNotifications)
@@ -238,6 +249,16 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(14.dp))
+            SettingsSwitch(
+                title = "Verrouiller l'application",
+                description = if (canLock(context)) {
+                    "Demander l'empreinte ou le code de l'appareil à l'ouverture."
+                } else {
+                    "Aucun verrou n'est configuré sur cet appareil."
+                },
+                checked = settings.biometricLock,
+                onCheckedChange = { wanted -> if (!wanted || canLock(context)) onBiometricLock(wanted) },
+            )
             SettingsRow(
                 title = "Journal des erreurs",
                 description = "Ce qui a échoué depuis le lancement, sans mot de passe ni jeton.",

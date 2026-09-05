@@ -208,6 +208,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setBiometricLock(enabled: Boolean) = updateSettings { it.copy(biometricLock = enabled) }
 
+    fun setDynamicColor(enabled: Boolean) = updateSettings { it.copy(dynamicColor = enabled) }
+
     private fun updateSettings(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { repository.updateSettings(transform) }
     }

@@ -2,6 +2,7 @@ package fr.ecole2recte.app.data
 
 import android.content.Context
 import fr.ecole2recte.app.core.protocol.EcoleDirecteApi
+import fr.ecole2recte.app.core.protocol.RetryingHttpEngine
 import fr.ecole2recte.app.core.repo.SchoolRepository
 
 /**
@@ -17,7 +18,11 @@ class AppContainer(context: Context) {
     val snapshots = FileSnapshotStore(applicationContext)
     val settings = PreferencesSettingsStore(applicationContext)
 
-    val api = EcoleDirecteApi(AndroidHttpEngine())
+    /**
+     * Le transport est enveloppé : une coupure d'une demi-seconde ne doit pas coûter une
+     * synchronisation entière, mais un refus du serveur n'est jamais rejoué.
+     */
+    val api = EcoleDirecteApi(RetryingHttpEngine(AndroidHttpEngine()))
 
     val repository = SchoolRepository(
         api = api,

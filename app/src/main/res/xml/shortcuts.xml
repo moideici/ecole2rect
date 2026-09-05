@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Appui long sur l'icône : les trois écrans qu'on ouvre en marchant. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_notification"
+        android:shortcutId="planning"
+        android:shortcutShortLabel="@string/shortcut_timetable">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="fr.ecole2recte.app.MainActivity"
+            android:targetPackage="fr.ecole2recte.app">
+            <extra
+                android:name="fr.ecole2recte.app.DESTINATION"
+                android:value="TIMETABLE" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_notification"
+        android:shortcutId="devoirs"
+        android:shortcutShortLabel="@string/shortcut_homework">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="fr.ecole2recte.app.MainActivity"
+            android:targetPackage="fr.ecole2recte.app">
+            <extra
+                android:name="fr.ecole2recte.app.DESTINATION"
+                android:value="HOMEWORK" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_notification"
+        android:shortcutId="notes"
+        android:shortcutShortLabel="@string/shortcut_grades">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="fr.ecole2recte.app.MainActivity"
+            android:targetPackage="fr.ecole2recte.app">
+            <extra
+                android:name="fr.ecole2recte.app.DESTINATION"
+                android:value="GRADES" />
+        </intent>
+    </shortcut>
+</shortcuts>

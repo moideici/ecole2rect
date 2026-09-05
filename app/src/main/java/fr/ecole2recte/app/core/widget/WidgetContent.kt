@@ -84,6 +84,20 @@ data class WidgetPayload(
     val empty: Boolean = false,
 )
 
+/**
+ * Réglages posés à l'installation d'un widget.
+ *
+ * Un widget d'écran d'accueil est choisi une fois et regardé mille : qu'il montre la moyenne
+ * générale ou celle d'une matière précise change tout, et personne ne veut rouvrir
+ * l'application pour ça.
+ */
+data class WidgetOptions(val subject: String? = null) {
+    companion object {
+        /** Les seuls widgets qui ont quelque chose à configurer aujourd'hui. */
+        val CONFIGURABLE = setOf(WidgetKind.AVERAGE)
+    }
+}
+
 object WidgetContent {
 
     /** Nombre maximum de lignes tenant dans un widget 2×2 sans devenir illisible. */
@@ -95,10 +109,11 @@ object WidgetContent {
         settings: AppSettings,
         now: LocalDateTime,
         zone: ZoneId = ZoneId.systemDefault(),
+        options: WidgetOptions = WidgetOptions(),
     ): WidgetPayload {
         val today = now.toLocalDate()
         return when (kind) {
-            WidgetKind.AVERAGE -> average(kind, snapshot, today)
+            WidgetKind.AVERAGE -> average(kind, snapshot, settings, today, options)
             WidgetKind.HOMEWORK_COUNT -> homeworkCount(kind, snapshot, settings, today)
             WidgetKind.UNREAD -> unread(kind, snapshot, settings)
             WidgetKind.COUNTDOWN -> countdown(kind, snapshot, settings, now)
@@ -118,7 +133,27 @@ object WidgetContent {
 
     // ── 1×1 ──────────────────────────────────────────────────────────────────
 
-    private fun average(kind: WidgetKind, snapshot: SchoolSnapshot, today: java.time.LocalDate): WidgetPayload {
+    private fun average(
+        kind: WidgetKind,
+        snapshot: SchoolSnapshot,
+        settings: AppSettings,
+        today: java.time.LocalDate,
+        options: WidgetOptions,
+    ): WidgetPayload {
+        val subject = options.subject
+        if (subject != null) {
+            val value = Insights.subjectAverages(snapshot, today)
+                .firstOrNull { it.first == subject }
+                ?.second
+                ?: return empty(kind, "MOYENNE", "—", subject)
+            return WidgetPayload(
+                kind = kind,
+                label = "MOYENNE",
+                title = number(value),
+                subtitle = subject,
+                accent = SubjectPalette.colorFor(subject, settings.subjectColors),
+            )
+        }
         val average = Insights.generalAverage(snapshot, today)
             ?: return empty(kind, "MOYENNE", "—", "aucune note")
         return WidgetPayload(

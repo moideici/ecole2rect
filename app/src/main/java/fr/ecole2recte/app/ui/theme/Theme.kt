@@ -1,9 +1,12 @@
 package fr.ecole2recte.app.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -11,6 +14,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -121,16 +125,33 @@ private val AppTypography = Typography().run {
     )
 }
 
+/**
+ * @param dynamicColor reprend les couleurs du fond d'écran (Android 12+). Désactivé par
+ *   défaut : l'indigo fait partie de l'identité de l'application, et les teintes du système
+ *   n'ont aucune raison de bien cohabiter avec les couleurs de matières.
+ */
 @Composable
-fun Ecole2recteTheme(choice: ThemeChoice = ThemeChoice.SYSTEM, content: @Composable () -> Unit) {
+fun Ecole2recteTheme(
+    choice: ThemeChoice = ThemeChoice.SYSTEM,
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit,
+) {
     val dark = when (choice) {
         ThemeChoice.SYSTEM -> isSystemInDarkTheme()
         ThemeChoice.LIGHT -> false
         ThemeChoice.DARK -> true
     }
+    val context = LocalContext.current
+    val colors = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+
+        dark -> DarkScheme
+        else -> LightScheme
+    }
     CompositionLocalProvider(LocalAppPalette provides if (dark) DarkPalette else LightPalette) {
         MaterialTheme(
-            colorScheme = if (dark) DarkScheme else LightScheme,
+            colorScheme = colors,
             typography = AppTypography,
             content = content,
         )

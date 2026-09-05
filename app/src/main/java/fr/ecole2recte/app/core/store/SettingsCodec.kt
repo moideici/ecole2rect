@@ -43,6 +43,7 @@ object SettingsCodec {
         settings.selectedAccountId?.let { put("selectedAccountId", it) }
         put("showDiagnostics", settings.showDiagnostics)
         put("biometricLock", settings.biometricLock)
+        put("dynamicColor", settings.dynamicColor)
         put("notified", JSONArray(settings.notified))
         put(
             "notifications",
@@ -80,6 +81,7 @@ object SettingsCodec {
             selectedAccountId = root.optString("selectedAccountId").takeIf { it.isNotBlank() },
             showDiagnostics = root.optBoolean("showDiagnostics", false),
             biometricLock = root.optBoolean("biometricLock", false),
+            dynamicColor = root.optBoolean("dynamicColor", false),
             notified = root.optJSONArray("notified").stringSet().toList(),
             notifications = root.optJSONObject("notifications")?.let { entry ->
                 NotificationSettings(

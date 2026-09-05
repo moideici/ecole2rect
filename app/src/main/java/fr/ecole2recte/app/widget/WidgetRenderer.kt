@@ -9,6 +9,7 @@ import fr.ecole2recte.app.MainActivity
 import fr.ecole2recte.app.R
 import fr.ecole2recte.app.core.widget.WidgetContent
 import fr.ecole2recte.app.core.widget.WidgetKind
+import fr.ecole2recte.app.core.widget.WidgetOptions
 import fr.ecole2recte.app.core.widget.WidgetPayload
 import fr.ecole2recte.app.core.widget.WidgetShape
 
@@ -39,8 +40,19 @@ object WidgetRenderer {
         R.id.widget_day_name_6 to R.id.widget_day_value_6,
     )
 
-    fun render(context: Context, kind: WidgetKind, data: WidgetData.Loaded): RemoteViews {
-        val payload = WidgetContent.payload(kind, data.snapshot, data.settings, data.now)
+    fun render(
+        context: Context,
+        kind: WidgetKind,
+        data: WidgetData.Loaded,
+        options: WidgetOptions = WidgetOptions(),
+    ): RemoteViews {
+        val payload = WidgetContent.payload(
+            kind = kind,
+            snapshot = data.snapshot,
+            settings = data.settings,
+            now = data.now,
+            options = options,
+        )
         val views = when (kind.shape) {
             WidgetShape.TILE -> tile(context, payload)
             WidgetShape.ROW -> row(context, payload)

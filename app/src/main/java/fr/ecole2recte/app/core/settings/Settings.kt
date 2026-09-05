@@ -83,6 +83,8 @@ data class AppSettings(
     val notified: List<String> = emptyList(),
     /** Verrouillage de l'application par empreinte ou code de l'appareil. */
     val biometricLock: Boolean = false,
+    /** Reprendre les couleurs du fond d'écran (Android 12+) au lieu de l'indigo de la marque. */
+    val dynamicColor: Boolean = false,
 ) {
 
     /** Widgets visibles, dans l'ordre choisi ; les nouveaux widgets arrivent à la fin. */

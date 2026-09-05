@@ -109,6 +109,54 @@ class ToolsTest {
     }
 
     @Test
+    fun `une panne passagere est reessayee, un refus ne l est pas`() {
+        var calls = 0
+        val waits = mutableListOf<Long>()
+        val flaky = object : fr.ecole2recte.app.core.protocol.HttpEngine {
+            override fun execute(
+                request: fr.ecole2recte.app.core.protocol.HttpRequest,
+            ): fr.ecole2recte.app.core.protocol.HttpResponse {
+                calls++
+                if (calls < 3) throw fr.ecole2recte.app.core.protocol.NetworkFailure("tunnel")
+                return fr.ecole2recte.app.core.protocol.HttpResponse(200, emptyMap(), "ok")
+            }
+        }
+        val engine = fr.ecole2recte.app.core.protocol.RetryingHttpEngine(
+            delegate = flaky,
+            attempts = 3,
+            sleep = { waits += it },
+        )
+
+        val response = engine.execute(
+            fr.ecole2recte.app.core.protocol.HttpRequest("https://exemple/x", "GET"),
+        )
+
+        assertEquals("ok", response.body)
+        assertEquals(3, calls)
+        assertEquals(2, waits.size)
+        assertTrue("l'attente doit croître", waits[1] > waits[0])
+    }
+
+    @Test
+    fun `un reseau definitivement absent finit par echouer`() {
+        val dead = object : fr.ecole2recte.app.core.protocol.HttpEngine {
+            override fun execute(
+                request: fr.ecole2recte.app.core.protocol.HttpRequest,
+            ): fr.ecole2recte.app.core.protocol.HttpResponse =
+                throw fr.ecole2recte.app.core.protocol.NetworkFailure("coupé")
+        }
+        val engine = fr.ecole2recte.app.core.protocol.RetryingHttpEngine(dead, attempts = 2, sleep = {})
+
+        var thrown = false
+        try {
+            engine.execute(fr.ecole2recte.app.core.protocol.HttpRequest("https://exemple/x", "GET"))
+        } catch (error: fr.ecole2recte.app.core.protocol.NetworkFailure) {
+            thrown = true
+        }
+        assertTrue(thrown)
+    }
+
+    @Test
     fun `le journal d erreurs expurge et reste borne`() {
         val log = ErrorLog(capacity = 3)
 

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ecole2recte</string>
+    <string name="shortcut_timetable">Emploi du temps</string>
+    <string name="shortcut_homework">Devoirs</string>
+    <string name="shortcut_grades">Notes</string>
 
     <string name="widget_average_label">Moyenne générale</string>
     <string name="widget_average_description">La moyenne de la période en cours, en un chiffre.</string>

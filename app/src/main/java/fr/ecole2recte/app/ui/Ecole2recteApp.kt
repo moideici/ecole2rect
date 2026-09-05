@@ -11,12 +11,14 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,7 +74,15 @@ fun Ecole2recteApp(viewModel: MainViewModel, request: NavigationRequest? = null)
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val auth by viewModel.auth.collectAsStateWithLifecycle()
 
-    Ecole2recteTheme(settings.theme) {
+    // Le déverrouillage vaut pour la session : on ne redemande pas l'empreinte à chaque
+    // retour d'un autre écran, ce qui rendrait le verrou insupportable et donc désactivé.
+    var unlocked by rememberSaveable { mutableStateOf(false) }
+
+    Ecole2recteTheme(settings.theme, settings.dynamicColor) {
+        if (settings.biometricLock && !unlocked) {
+            BiometricGate(onUnlocked = { unlocked = true })
+            return@Ecole2recteTheme
+        }
         when (auth) {
             // Le tout premier instant, avant même d'avoir relu le disque : un écran vide
             // clignoterait, une marque calme vaut mieux.
@@ -124,6 +134,7 @@ private fun LoginRoute(viewModel: MainViewModel) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationRequest?) {
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
@@ -193,7 +204,12 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                 openDetail(Detail.Homework(item.id))
             }
             when (val current = detail) {
-                null -> when (destination) {
+                // Tirer vers le bas synchronise : le geste attendu partout ailleurs.
+                null -> PullToRefreshBox(
+                    isRefreshing = sync.running,
+                    onRefresh = { viewModel.refresh() },
+                ) {
+                    when (destination) {
                     Destination.HOME -> HomeScreen(
                         snapshot = snapshot,
                         settings = settings,
@@ -252,6 +268,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         loadingMore = loadingMore,
                         onRefresh = { viewModel.refresh(setOf(DataSection.MESSAGES)) },
                     )
+                    }
                 }
 
                 is Detail.Homework -> HomeworkDetailScreen(
@@ -302,6 +319,8 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     onSelectAccount = viewModel::selectAccount,
                     onDiagnostics = viewModel::setDiagnosticsVisible,
                     onNotifications = viewModel::setNotifications,
+                    onBiometricLock = viewModel::setBiometricLock,
+                    onDynamicColor = viewModel::setDynamicColor,
                     onRefresh = { viewModel.refresh() },
                     onSignOut = viewModel::signOut,
                 )

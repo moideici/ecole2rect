@@ -2,6 +2,7 @@ package fr.ecole2recte.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,11 +56,19 @@ import fr.ecole2recte.app.ui.components.StatePlaceholder
 import fr.ecole2recte.app.ui.components.SubjectDot
 import fr.ecole2recte.app.ui.components.Tag
 import fr.ecole2recte.app.ui.components.subjectColor
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 
 private enum class TimetableMode(val label: String) { DAY("Jour"), WEEK("Semaine") }
+
+/** Le jour d'école suivant : le dimanche n'existe pas dans un emploi du temps. */
+private fun nextSchoolDay(date: LocalDate): LocalDate =
+    if (date.dayOfWeek == DayOfWeek.SATURDAY) date.plusDays(2) else date.plusDays(1)
+
+private fun previousSchoolDay(date: LocalDate): LocalDate =
+    if (date.dayOfWeek == DayOfWeek.MONDAY) date.minusDays(2) else date.minusDays(1)
 
 /**
  * L'emploi du temps.
@@ -87,7 +97,29 @@ fun TimetableScreen(
     val lessons = Insights.lessonsOn(snapshot.lessons, selectedDay)
     val homework = Insights.homeworkDueOn(snapshot.homework, selectedDay)
 
-    LazyColumn(contentPadding = PaddingValues(bottom = 28.dp)) {
+    // Balayer horizontalement change de jour, comme dans un agenda. Le samedi mène au lundi
+    // suivant : personne n'a cours le dimanche, et une journée vide n'est pas une étape.
+    val swipe = Modifier.pointerInput(selectedDay, mode) {
+        var travelled = 0f
+        val threshold = 56.dp.toPx()
+        detectHorizontalDragGestures(
+            onDragStart = { travelled = 0f },
+            onDragEnd = {
+                if (mode == TimetableMode.DAY && kotlin.math.abs(travelled) > threshold) {
+                    val target = if (travelled < 0) nextSchoolDay(selectedDay) else previousSchoolDay(selectedDay)
+                    selectedDay = target
+                    if (target.isBefore(weekStart) || target.isAfter(weekStart.plusDays(5))) {
+                        weekStart = Dates.startOfWeek(target)
+                    }
+                }
+            },
+        ) { _, amount -> travelled += amount }
+    }
+
+    LazyColumn(
+        modifier = swipe,
+        contentPadding = PaddingValues(bottom = 28.dp),
+    ) {
         item("header") {
             ScreenHeader(
                 eyebrow = "Emploi du temps",

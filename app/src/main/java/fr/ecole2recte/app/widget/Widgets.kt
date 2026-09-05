@@ -17,9 +17,21 @@ abstract class Ecole2recteWidget(private val kind: WidgetKind) : AppWidgetProvid
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         val data = WidgetData.load(context)
+        val options = WidgetOptionsStore(context)
         appWidgetIds.forEach { id ->
-            runCatching { appWidgetManager.updateAppWidget(id, WidgetRenderer.render(context, kind, data)) }
+            runCatching {
+                appWidgetManager.updateAppWidget(
+                    id,
+                    WidgetRenderer.render(context, kind, data, options.read(id)),
+                )
+            }
         }
+    }
+
+    /** Un widget retiré emporte ses réglages : rien ne doit survivre à sa disparition. */
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        WidgetOptionsStore(context).forget(appWidgetIds)
+        super.onDeleted(context, appWidgetIds)
     }
 }
 
@@ -81,9 +93,13 @@ object WidgetUpdater {
                 manager.getAppWidgetIds(ComponentName(context, provider))
             }.getOrNull() ?: IntArray(0)
             if (ids.isEmpty()) return@forEach
-            val views = runCatching { WidgetRenderer.render(context, kind, data) }.getOrNull()
-                ?: return@forEach
-            ids.forEach { id -> runCatching { manager.updateAppWidget(id, views) } }
+            val options = WidgetOptionsStore(context)
+            ids.forEach { id ->
+                val views = runCatching {
+                    WidgetRenderer.render(context, kind, data, options.read(id))
+                }.getOrNull()
+                if (views != null) runCatching { manager.updateAppWidget(id, views) }
+            }
         }
     }
 }

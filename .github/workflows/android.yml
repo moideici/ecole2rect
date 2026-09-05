@@ -48,6 +48,16 @@ jobs:
           path: app/build/reports/tests/testDebugUnitTest
           if-no-files-found: ignore
 
+      # Le lint attrape ce que le compilateur laisse passer : ressources manquantes,
+      # accessibilité, appels d'API trop récents pour le minSdk.
+      - name: Lint
+        run: gradle --no-daemon lintDebug
+
+      # Les tests d'interface demandent un appareil ; la CI en vérifie au moins la
+      # compilation, ce qui suffit à repérer une signature d'écran cassée.
+      - name: Compilation des tests d'interface
+        run: gradle --no-daemon assembleDebugAndroidTest
+
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
 
@@ -57,3 +67,28 @@ jobs:
           name: ecole2recte-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      # APK release : signé par la vraie clé si les secrets existent, par la clé de
+      # débogage sinon — dans les deux cas, on vérifie que le build release passe.
+      - name: Build release APK
+        env:
+          RELEASE_STORE_FILE: ${{ secrets.RELEASE_STORE_FILE }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: gradle --no-daemon assembleRelease
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecole2recte-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: warn
+
+      - name: Rapport de lint
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-lint
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
