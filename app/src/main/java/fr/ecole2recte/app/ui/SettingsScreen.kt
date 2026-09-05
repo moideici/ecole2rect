@@ -42,11 +42,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.BuildConfig
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
+import fr.ecole2recte.app.core.auth.SecurityAnswer
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.AuthState
+import fr.ecole2recte.app.core.repo.AutoAnswerState
 import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.repo.SyncState
 import fr.ecole2recte.app.core.settings.AppSettings
@@ -76,10 +81,13 @@ fun SettingsScreen(
     snapshot: SchoolSnapshot,
     settings: AppSettings,
     sync: SyncState,
+    autoAnswer: AutoAnswerState,
     onClose: () -> Unit,
     onOpenDetail: (Detail) -> Unit,
     onTheme: (ThemeChoice) -> Unit,
     onSelectAccount: (Account) -> Unit,
+    onBirthDate: (String, SecurityAnswer.BirthDate) -> Unit,
+    onForgetAnswer: (String) -> Unit,
     onDiagnostics: (Boolean) -> Unit,
     onNotifications: ((NotificationSettings) -> NotificationSettings) -> Unit,
     onBiometricLock: (Boolean) -> Unit,
@@ -113,13 +121,26 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    // Un parent doit voir d'un coup d'œil sous quel compte il est connecté :
+                    // c'est ce qui explique pourquoi la messagerie est la sienne et pourquoi
+                    // une coche de devoir ne quitte pas l'appareil.
+                    if (account?.viewedByFamily == true) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            account.familyName.takeIf { it.isNotBlank() }
+                                ?.let { "Vue parent · connecté en tant que $it" }
+                                ?: "Vue parent",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
             val others = signedIn?.accounts.orEmpty().filter { it.id != account?.id }
             if (others.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "Autres profils de cette connexion",
+                    if (account?.viewedByFamily == true) "Autres enfants suivis" else "Autres profils de cette connexion",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -134,11 +155,28 @@ fun SettingsScreen(
                     ) {
                         SubjectDot(MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(10.dp))
-                        Text(other.displayName, style = MaterialTheme.typography.bodyMedium)
+                        Column {
+                            Text(other.displayName, style = MaterialTheme.typography.bodyMedium)
+                            other.className.takeIf { it.isNotBlank() }?.let { className ->
+                                Text(
+                                    className,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+
+        AutoAnswerSection(
+            profiles = signedIn?.accounts.orEmpty().ifEmpty { listOfNotNull(account) },
+            state = autoAnswer,
+            parentView = account?.viewedByFamily == true,
+            onBirthDate = onBirthDate,
+            onForget = onForgetAnswer,
+        )
 
         SettingsSection("Scolarité") {
             SettingsRow(
@@ -311,6 +349,155 @@ fun SettingsScreen(
  * l'utilisateur allume l'interrupteur — pas au premier lancement, où elle n'aurait aucun
  * sens et serait refusée d'un réflexe.
  */
+
+/**
+ * Ce que l'application sait répondre à la place de l'utilisateur.
+ *
+ * La promesse « on se connecte une fois » repose sur deux informations : la date de
+ * naissance de chaque élève suivi, et les réponses déjà validées. Toutes deux appartiennent
+ * à l'utilisateur : elles sont donc visibles, corrigeables et effaçables ici — pas enfouies
+ * dans un stockage dont on ne saurait rien.
+ */
+@Composable
+private fun AutoAnswerSection(
+    profiles: List<Account>,
+    state: AutoAnswerState,
+    parentView: Boolean,
+    onBirthDate: (String, SecurityAnswer.BirthDate) -> Unit,
+    onForget: (String) -> Unit,
+) {
+    SettingsSection("Connexion automatique") {
+        Text(
+            if (parentView) {
+                "ÉcoleDirecte peut reposer sa question de sécurité à tout moment, et elle porte " +
+                    "sur la date de naissance de l'enfant. Renseignée ici, l'application " +
+                    "reconnaît la bonne proposition et se reconnecte sans vous déranger."
+            } else {
+                "ÉcoleDirecte peut reposer sa question de sécurité à tout moment. Ta date de " +
+                    "naissance renseignée ici, l'application reconnaît la bonne proposition et " +
+                    "se reconnecte sans rien te demander."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        profiles.forEach { profile ->
+            BirthDateRow(
+                name = profile.firstName.ifBlank { profile.displayName }.ifBlank { "Élève" },
+                stored = state.birthDates.forName(profile.firstName)
+                    .takeIf { it.isFilled }
+                    ?: state.birthDates.forQuestion(""),
+                onChange = { date -> onBirthDate(profile.firstName, date) },
+            )
+        }
+
+        val remembered = state.remembered
+        if (remembered.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Réponses mémorisées",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            remembered.forEach { answer ->
+                val validity = "${Dates.dayAndMonth(answer.validUntil)} ${answer.validUntil.year}"
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            answer.readableQuestion,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            "« ${answer.answer} » · valable jusqu'au $validity",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Oublier",
+                        modifier = Modifier
+                            .clickable { onForget(answer.question) }
+                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Aucune réponse n'est devinée : seules une date que vous avez saisie ou une réponse " +
+                "que vous avez validée sont rejouées, et une seule fois par connexion. Refusée, " +
+                "elle est oubliée et la question vous revient.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Trois champs pour une date, avec le nom de l'élève qu'elle concerne. */
+@Composable
+private fun BirthDateRow(
+    name: String,
+    stored: SecurityAnswer.BirthDate,
+    onChange: (SecurityAnswer.BirthDate) -> Unit,
+) {
+    // La valeur n'est reprise du stockage qu'au premier affichage : sans cela, l'écriture
+    // asynchrone qui suit chaque frappe pourrait remettre l'ancien contenu sous les doigts.
+    var value by remember(name) { mutableStateOf(stored) }
+    Spacer(Modifier.height(12.dp))
+    Text(
+        "Date de naissance de $name",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DateField("Jour", value.day, 2, Modifier.weight(1f)) {
+            value = value.copy(day = it)
+            onChange(value)
+        }
+        DateField("Mois", value.month, 2, Modifier.weight(1f)) {
+            value = value.copy(month = it)
+            onChange(value)
+        }
+        DateField("Année", value.year, 4, Modifier.weight(1.3f)) {
+            value = value.copy(year = it)
+            onChange(value)
+        }
+    }
+}
+
+@Composable
+private fun DateField(
+    label: String,
+    value: String,
+    maxLength: Int,
+    modifier: Modifier,
+    onChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        // Un jour ne s'écrit pas avec des lettres : filtrer à la saisie évite une date
+        // impossible à rapprocher d'une proposition.
+        onValueChange = { raw -> onChange(raw.filter(Char::isDigit).take(maxLength)) },
+        modifier = modifier,
+        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+    )
+}
+
 @Composable
 private fun NotificationsSection(
     settings: NotificationSettings,

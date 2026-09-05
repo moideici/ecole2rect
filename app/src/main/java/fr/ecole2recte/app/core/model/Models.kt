@@ -11,7 +11,15 @@ import java.time.LocalDateTime
  * change, seule la couche de parsing bouge — l'interface et le cache restent identiques.
  */
 
-/** Un compte renvoyé par la connexion (élève ou famille). */
+/**
+ * Un profil consultable : un élève, vu par lui-même ou par ses parents.
+ *
+ * Une connexion parent ne donne pas un compte, mais une famille et ses enfants. Comme tout
+ * le reste de l'application parle d'un élève — son emploi du temps, ses notes, ses devoirs —
+ * chaque enfant devient ici un profil à part entière, qui se souvient seulement de la
+ * famille par laquelle on le regarde : c'est elle qui porte la messagerie, et c'est elle qui
+ * change le ton de l'interface.
+ */
 data class Account(
     val id: String,
     val type: String,
@@ -19,11 +27,21 @@ data class Account(
     val lastName: String,
     val className: String = "",
     val schoolName: String = "",
+    /** Compte famille par lequel cet élève est consulté ; null quand l'élève est connecté. */
+    val familyId: String? = null,
+    /** Nom du responsable connecté, à ne jamais confondre avec celui de l'enfant. */
+    val familyName: String = "",
 ) {
     val displayName: String get() = listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ")
 
     /** Les endpoints élève ne répondent pas pour un compte famille : on le sait au type. */
     val isStudent: Boolean get() = type.equals("E", ignoreCase = true)
+
+    /** Vrai quand c'est un parent qui regarde : l'application se met alors à vouvoyer. */
+    val viewedByFamily: Boolean get() = !familyId.isNullOrBlank()
+
+    /** Propriétaire de la boîte aux lettres : la famille pour un parent, l'élève sinon. */
+    val mailboxId: String get() = familyId?.takeIf { it.isNotBlank() } ?: id
 
     val initials: String
         get() = (firstName.take(1) + lastName.take(1)).uppercase().ifBlank { "É" }

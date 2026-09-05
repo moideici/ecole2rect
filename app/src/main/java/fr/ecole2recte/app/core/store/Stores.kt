@@ -1,5 +1,7 @@
 package fr.ecole2recte.app.core.store
 
+import fr.ecole2recte.app.core.auth.AnswerMemory
+import fr.ecole2recte.app.core.auth.BirthDates
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.protocol.TrustedAnswer
 import fr.ecole2recte.app.core.settings.AppSettings
@@ -12,16 +14,22 @@ import fr.ecole2recte.app.core.settings.AppSettings
  */
 
 /**
- * Identifiants nécessaires à la reconnexion silencieuse.
+ * Tout ce qu'il faut pour se reconnecter sans rien demander.
  *
  * Le mot de passe est indispensable : l'API ne délivre pas de jeton de rafraîchissement, et
- * exige une connexion complète dès que le jeton expire. Il est donc stocké chiffré et n'est
- * jamais écrit dans un journal ni dans un diagnostic.
+ * exige une connexion complète dès que le jeton expire. S'y ajoute de quoi franchir une
+ * question de sécurité reposée entre-temps — la réponse validée par le serveur, les dates de
+ * naissance saisies et les réponses déjà choisies. Rien de tout cela n'est un secret
+ * partagé : ce sont des informations que l'utilisateur a lui-même données. Elles sont
+ * pourtant chiffrées comme le mot de passe, et n'apparaissent jamais dans un journal, un
+ * diagnostic ni une sauvegarde.
  */
 data class SavedCredentials(
     val identifier: String,
     val password: String,
     val trustedAnswer: TrustedAnswer? = null,
+    val birthDates: BirthDates = BirthDates(),
+    val answers: AnswerMemory = AnswerMemory(),
 )
 
 interface CredentialStore {

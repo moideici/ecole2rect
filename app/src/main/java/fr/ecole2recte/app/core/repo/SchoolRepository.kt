@@ -1,5 +1,10 @@
 package fr.ecole2recte.app.core.repo
 
+import fr.ecole2recte.app.core.auth.AnswerMemory
+import fr.ecole2recte.app.core.auth.AutoAnswer
+import fr.ecole2recte.app.core.auth.BirthDates
+import fr.ecole2recte.app.core.auth.RememberedAnswer
+import fr.ecole2recte.app.core.auth.SecurityAnswer
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.Attachment
@@ -41,7 +46,16 @@ sealed interface AuthState {
      * clignoterait pour disparaître aussitôt.
      */
     data class Connecting(val silent: Boolean = false) : AuthState
-    data class SecurityQuestion(val question: String, val choices: List<String>) : AuthState
+    /**
+     * ÉcoleDirecte pose sa question et l'application n'a pas su y répondre seule. [notice]
+     * dit pourquoi quand une réponse automatique vient d'être refusée : sans cela,
+     * l'utilisateur verrait la question réapparaître sans comprendre.
+     */
+    data class SecurityQuestion(
+        val question: String,
+        val choices: List<String>,
+        val notice: String? = null,
+    ) : AuthState
     data class SignedIn(val account: Account, val accounts: List<Account>) : AuthState
     data class Failed(
         val message: String,
@@ -49,6 +63,16 @@ sealed interface AuthState {
         val diagnostic: String? = null,
     ) : AuthState
 }
+
+/**
+ * Ce que l'application sait répondre à la place de l'utilisateur, tel que les réglages
+ * l'affichent. Les dates de naissance et les réponses mémorisées lui appartiennent : il doit
+ * pouvoir les voir, les corriger et les effacer.
+ */
+data class AutoAnswerState(
+    val birthDates: BirthDates = BirthDates(),
+    val remembered: List<RememberedAnswer> = emptyList(),
+)
 
 /** État de la synchronisation, section par section. */
 data class SyncState(
@@ -112,8 +136,23 @@ class SchoolRepository(
     /** Une seule synchronisation à la fois : l'API n'aime pas les appels concurrents. */
     private val syncLock = Mutex()
 
+    private val _autoAnswer = MutableStateFlow(AutoAnswerState())
+    val autoAnswer: StateFlow<AutoAnswerState> = _autoAnswer.asStateFlow()
+
     /** Identifiants de la connexion en cours, le temps de la double authentification. */
     private var pending: SavedCredentials? = null
+
+    /** Question posée en ce moment : c'est elle qu'on mémorise avec la réponse validée. */
+    private var pendingQuestion: LoginOutcome.SecurityQuestion? = null
+
+    /**
+     * Une seule réponse automatique par tentative de connexion. Enchaîner les essais
+     * ressemblerait à du forçage, et ÉcoleDirecte bloque les comptes pour moins que ça.
+     */
+    private var autoAnswerUsed = false
+
+    /** Message à afficher avec la question quand la réponse enregistrée vient d'être refusée. */
+    private var questionNotice: String? = null
 
     val currentAccount: Account? get() = (_auth.value as? AuthState.SignedIn)?.account
 
@@ -131,6 +170,7 @@ class SchoolRepository(
             snapshots.read(profile)?.let { _snapshot.value = it }
         }
         val saved = withContext(io) { credentials.read() }
+        publishAutoAnswer(saved)
         if (saved == null) {
             _auth.value = AuthState.SignedOut
             return
@@ -139,31 +179,70 @@ class SchoolRepository(
         signInWith(saved, persist = false)
     }
 
-    suspend fun signIn(identifier: String, password: String) {
+    /**
+     * Connexion demandée par l'utilisateur.
+     *
+     * La date de naissance saisie rejoint le trousseau chiffré : c'est elle qui permettra,
+     * des semaines plus tard et sans personne devant l'écran, de reconnaître la bonne
+     * proposition si ÉcoleDirecte repose sa question.
+     */
+    suspend fun signIn(
+        identifier: String,
+        password: String,
+        birthDate: SecurityAnswer.BirthDate = SecurityAnswer.BirthDate(),
+    ) {
         _auth.value = AuthState.Connecting()
         val saved = withContext(io) { credentials.read() }
             ?.takeIf { it.identifier == identifier && it.password == password }
+        val known = saved?.birthDates ?: BirthDates()
         signInWith(
-            SavedCredentials(identifier, password, saved?.trustedAnswer),
+            SavedCredentials(
+                identifier = identifier,
+                password = password,
+                trustedAnswer = saved?.trustedAnswer,
+                // Une date laissée vide n'efface pas celle déjà connue : se reconnecter sans
+                // la ressaisir ne doit pas faire perdre la réponse automatique.
+                birthDates = if (birthDate.isFilled) known.with(BirthDates.DEFAULT_KEY, birthDate) else known,
+                answers = saved?.answers ?: AnswerMemory(),
+            ),
             persist = true,
         )
     }
 
-    /** Envoie la réponse choisie par l'utilisateur à la question de sécurité. */
+    /**
+     * Envoie la réponse choisie par l'utilisateur, et la retient.
+     *
+     * La retenir n'est pas un détail : c'est ce qui fait qu'on ne repose pas la même question
+     * à chaque expiration de jeton. Elle vaut jusqu'à la rentrée suivante, parce qu'une
+     * classe change d'année en année.
+     */
     suspend fun answerSecurityQuestion(choice: String) {
         val credentialsInProgress = pending ?: run {
             _auth.value = AuthState.SignedOut
             return
         }
+        val question = pendingQuestion?.question
         _auth.value = AuthState.Connecting()
         val outcome = withContext(io) {
             api.answerSecurityQuestion(choice, credentialsInProgress.identifier, credentialsInProgress.password)
         }
-        handleOutcome(outcome, credentialsInProgress, persist = true)
+        val updated = if (outcome is LoginOutcome.Success && question != null) {
+            credentialsInProgress.copy(
+                answers = credentialsInProgress.answers
+                    .remembering(question, choice, today())
+                    .purged(today()),
+            )
+        } else {
+            credentialsInProgress
+        }
+        pending = updated
+        handleOutcome(outcome, updated, persist = true)
     }
 
     private suspend fun signInWith(saved: SavedCredentials, persist: Boolean) {
         pending = saved
+        autoAnswerUsed = false
+        questionNotice = null
         val outcome = withContext(io) {
             api.login(saved.identifier, saved.password, saved.trustedAnswer)
         }
@@ -182,12 +261,13 @@ class SchoolRepository(
                     return
                 }
                 val answer = api.approvedAnswer ?: saved.trustedAnswer
+                val kept = saved.copy(trustedAnswer = answer, answers = saved.answers.purged(today()))
                 withContext(io) {
-                    if (persist || answer != saved.trustedAnswer) {
-                        credentials.save(saved.copy(trustedAnswer = answer))
-                    }
+                    if (persist || kept != saved) credentials.save(kept)
                 }
+                publishAutoAnswer(kept)
                 pending = null
+                pendingQuestion = null
                 _sync.update { it.copy(offline = false) }
                 _auth.value = AuthState.SignedIn(account, outcome.accounts)
                 // Le cache lu au démarrage peut être celui d'un autre profil : si le compte
@@ -199,8 +279,11 @@ class SchoolRepository(
                 rememberAccount(account)
             }
 
-            is LoginOutcome.SecurityQuestion ->
-                _auth.value = AuthState.SecurityQuestion(outcome.question, outcome.choices)
+            is LoginOutcome.SecurityQuestion -> {
+                pending = saved
+                val answered = autoAnswer(outcome, saved)
+                if (answered == null) showQuestion(outcome) else handleOutcome(answered, saved, persist)
+            }
 
             is LoginOutcome.Failure -> {
                 // Hors ligne avec des données en cache : on ouvre l'application en lecture
@@ -220,6 +303,88 @@ class SchoolRepository(
         }
     }
 
+    /**
+     * Tente de franchir la question de sécurité sans déranger personne.
+     *
+     * Renvoie l'issue de la connexion relancée, ou `null` quand l'application n'a rien de
+     * légitime à répondre — la question part alors à l'utilisateur. Une réponse mémorisée
+     * refusée est effacée sur-le-champ : elle a cessé d'être vraie, la garder ferait échouer
+     * toutes les connexions suivantes.
+     */
+    private suspend fun autoAnswer(
+        question: LoginOutcome.SecurityQuestion,
+        saved: SavedCredentials,
+    ): LoginOutcome? {
+        if (autoAnswerUsed) return null
+        val decision = AutoAnswer.decide(
+            question = question.question,
+            choices = question.choices,
+            birthDates = saved.birthDates,
+            memory = saved.answers,
+            today = today(),
+        ) ?: return null
+        autoAnswerUsed = true
+        val outcome = withContext(io) {
+            api.answerSecurityQuestion(decision.answer, saved.identifier, saved.password)
+        }
+        if (outcome is LoginOutcome.Failure && outcome.kind != ApiErrorKind.NETWORK) {
+            if (decision.source == AutoAnswer.Source.REMEMBERED) {
+                val cleaned = saved.copy(answers = saved.answers.forgetting(question.question))
+                pending = cleaned
+                withContext(io) { credentials.save(cleaned) }
+                publishAutoAnswer(cleaned)
+            }
+            questionNotice = when (decision.source) {
+                AutoAnswer.Source.REMEMBERED ->
+                    "La réponse enregistrée n'a pas été acceptée : choisis-la à nouveau."
+
+                AutoAnswer.Source.BIRTH_DATE ->
+                    "La proposition correspondant à la date de naissance a été refusée. Vérifie la date dans les réglages."
+            }
+            // Un refus n'est jamais une panne réseau : c'est le genre de changement qu'on
+            // veut retrouver dans le journal quand l'API bouge.
+            errorLog.record("Question de sécurité", "Réponse automatique refusée", null)
+            return null
+        }
+        return outcome
+    }
+
+    private fun showQuestion(outcome: LoginOutcome.SecurityQuestion) {
+        pendingQuestion = outcome
+        _auth.value = AuthState.SecurityQuestion(outcome.question, outcome.choices, questionNotice)
+        questionNotice = null
+    }
+
+    private fun publishAutoAnswer(saved: SavedCredentials?) {
+        _autoAnswer.value = AutoAnswerState(
+            birthDates = saved?.birthDates ?: BirthDates(),
+            remembered = saved?.answers?.valid(today()).orEmpty(),
+        )
+    }
+
+    /**
+     * Enregistre la date de naissance d'un élève suivi.
+     *
+     * Un parent qui suit deux enfants a deux dates à donner : la question de sécurité nomme
+     * l'enfant concerné, et c'est ce nom qui sert de clé. Sans nom, la date vaut par défaut.
+     */
+    suspend fun setBirthDate(name: String, birthDate: SecurityAnswer.BirthDate) {
+        val saved = withContext(io) { credentials.read() } ?: return
+        val updated = saved.copy(birthDates = saved.birthDates.with(name, birthDate))
+        withContext(io) { credentials.save(updated) }
+        if (pending?.identifier == updated.identifier) pending = updated
+        publishAutoAnswer(updated)
+    }
+
+    /** Oublie une réponse mémorisée : la question sera reposée à la prochaine occasion. */
+    suspend fun forgetAnswer(question: String) {
+        val saved = withContext(io) { credentials.read() } ?: return
+        val updated = saved.copy(answers = saved.answers.forgetting(question))
+        withContext(io) { credentials.save(updated) }
+        if (pending?.identifier == updated.identifier) pending = updated
+        publishAutoAnswer(updated)
+    }
+
     private fun pickAccount(accounts: List<Account>): Account? {
         val preferred = _settings.value.selectedAccountId
         return accounts.firstOrNull { it.id == preferred && it.isStudent }
@@ -229,8 +394,11 @@ class SchoolRepository(
 
     private fun rememberAccount(account: Account) {
         _snapshot.update { it.copy(account = account) }
-        if (_settings.value.selectedAccountId != account.id) {
-            updateSettingsBlocking { it.copy(selectedAccountId = account.id) }
+        val current = _settings.value
+        if (current.selectedAccountId != account.id || current.parentAccount != account.viewedByFamily) {
+            updateSettingsBlocking {
+                it.copy(selectedAccountId = account.id, parentAccount = account.viewedByFamily)
+            }
         }
     }
 
@@ -258,6 +426,10 @@ class SchoolRepository(
     suspend fun signOut() {
         api.clearSession()
         pending = null
+        pendingQuestion = null
+        autoAnswerUsed = false
+        questionNotice = null
+        _autoAnswer.value = AutoAnswerState()
         withContext(io) {
             credentials.clear()
             snapshots.clear()
@@ -447,6 +619,10 @@ class SchoolRepository(
         val done = !_settings.value.isHomeworkDone(item.id, item.done)
         updateSettings { it.withHomeworkDone(item.id, done) }
         val account = currentAccount ?: return
+        // Vue parent : la coche reste sur l'appareil. Le cahier de textes de l'élève ne doit
+        // pas changer parce que sa mère a fait le point le soir — il verrait un devoir rendu
+        // qu'il n'a pas rendu, ce qui est pire que pas de coche du tout.
+        if (account.viewedByFamily) return
         withSession { api.setHomeworkDone(account.id, item.id, done) }
     }
 
@@ -493,19 +669,34 @@ class SchoolRepository(
     private suspend fun reconnect(): Reconnection {
         val saved = withContext(io) { credentials.read() } ?: return Reconnection.REFUSED
         api.clearSession()
-        val outcome = withContext(io) {
+        autoAnswerUsed = false
+        questionNotice = null
+        val first = withContext(io) {
             api.login(saved.identifier, saved.password, saved.trustedAnswer)
+        }
+        // Une question reposée en pleine synchronisation de fond : si l'application sait y
+        // répondre, l'utilisateur n'a rien à voir passer.
+        val outcome = if (first is LoginOutcome.SecurityQuestion) {
+            autoAnswer(first, saved) ?: first
+        } else {
+            first
         }
         return when (outcome) {
             is LoginOutcome.Success -> {
                 val account = pickAccount(outcome.accounts) ?: return Reconnection.REFUSED
+                val answer = api.approvedAnswer
+                if (answer != null && answer != saved.trustedAnswer) {
+                    val kept = saved.copy(trustedAnswer = answer)
+                    withContext(io) { credentials.save(kept) }
+                    publishAutoAnswer(kept)
+                }
                 _auth.value = AuthState.SignedIn(account, outcome.accounts)
                 Reconnection.DONE
             }
 
             is LoginOutcome.SecurityQuestion -> {
                 pending = saved
-                _auth.value = AuthState.SecurityQuestion(outcome.question, outcome.choices)
+                showQuestion(outcome)
                 Reconnection.REFUSED
             }
 

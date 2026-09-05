@@ -44,8 +44,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.LoginForm
+import fr.ecole2recte.app.core.format.Voice
 import fr.ecole2recte.app.core.repo.AuthState
 import fr.ecole2recte.app.ui.components.AppCard
+import fr.ecole2recte.app.ui.components.FilterPill
 import fr.ecole2recte.app.ui.components.PrimaryButton
 import fr.ecole2recte.app.ui.components.ScreenPadding
 import fr.ecole2recte.app.ui.theme.AppTheme
@@ -53,10 +55,18 @@ import fr.ecole2recte.app.ui.theme.AppTheme
 /**
  * Écran de connexion.
  *
- * Il porte une promesse simple : on se connecte une fois. La date de naissance est demandée
- * en même temps que les identifiants, uniquement pour pouvoir reconnaître la bonne
- * proposition si ÉcoleDirecte pose sa question de sécurité — elle n'est jamais envoyée
- * telle quelle, et l'utilisateur garde toujours la main sur la réponse.
+ * Il porte une promesse simple : on se connecte une fois. Deux choses la rendent tenable.
+ *
+ * D'abord le choix du profil, tout en haut : élève ou parent. Il ne change pas la façon de
+ * se connecter — ÉcoleDirecte ne demande rien de plus à un parent — mais il change de qui on
+ * parle. La question de sécurité d'un compte parent porte sur la date de naissance de
+ * l'enfant ; demander « ta date de naissance » à une mère produirait une réponse fausse, et
+ * une connexion manuelle de plus à chaque expiration de jeton.
+ *
+ * Ensuite la date elle-même, demandée en même temps que les identifiants : elle sert à
+ * reconnaître la bonne proposition le jour où la question tombe, y compris en pleine
+ * synchronisation de fond. Elle n'est jamais envoyée telle quelle, et rien n'est tenté deux
+ * fois de suite.
  */
 @Composable
 fun LoginScreen(
@@ -96,7 +106,27 @@ fun LoginScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(20.dp))
+
+            Spacer(Modifier.height(18.dp))
+            Text(
+                "Je me connecte en tant que",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterPill(
+                    text = "Élève",
+                    selected = !form.parentMode,
+                    onClick = { onFormChange { it.copy(parentMode = false) } },
+                )
+                FilterPill(
+                    text = "Parent",
+                    selected = form.parentMode,
+                    onClick = { onFormChange { it.copy(parentMode = true) } },
+                )
+            }
+            Spacer(Modifier.height(18.dp))
 
             LabelledField(
                 label = "Identifiant",
@@ -113,13 +143,13 @@ fun LoginScreen(
 
             Spacer(Modifier.height(16.dp))
             Text(
-                "Date de naissance (facultatif)",
+                Voice.birthDateLabel(form.parentMode) + " (facultatif)",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Sert uniquement à retrouver la bonne réponse si une question de sécurité est posée. Reste sur cet appareil.",
+                Voice.birthDateHelp(form.parentMode),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -153,6 +183,7 @@ fun LoginScreen(
                     question = question,
                     chosen = form.chosenAnswer,
                     suggestion = suggestedAnswer(question.question, question.choices),
+                    parentMode = form.parentMode,
                     onChoose = { value -> onFormChange { it.copy(chosenAnswer = value) } },
                 )
             }
@@ -201,6 +232,7 @@ private fun SecurityQuestionBlock(
     question: AuthState.SecurityQuestion,
     chosen: String,
     suggestion: String?,
+    parentMode: Boolean,
     onChoose: (String) -> Unit,
 ) {
     Spacer(Modifier.height(20.dp))
@@ -212,6 +244,20 @@ private fun SecurityQuestionBlock(
     Spacer(Modifier.height(8.dp))
     Text(question.question, style = MaterialTheme.typography.titleMedium)
 
+    // La question n'arrive ici que si l'application n'a pas su y répondre seule. Quand c'est
+    // une réponse enregistrée qui vient d'être refusée, le dire évite de laisser croire à un
+    // bug : la classe a changé, ou la date saisie était fausse.
+    question.notice?.let { notice ->
+        Spacer(Modifier.height(10.dp))
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = AppTheme.palette.warningContainer,
+            contentColor = AppTheme.palette.warning,
+        ) {
+            Text(notice, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+
     if (suggestion != null) {
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -222,7 +268,11 @@ private fun SecurityQuestionBlock(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                "Une proposition correspond à ta date de naissance : $suggestion",
+                if (parentMode) {
+                    "Une proposition correspond à la date de naissance saisie : $suggestion"
+                } else {
+                    "Une proposition correspond à ta date de naissance : $suggestion"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = AppTheme.palette.success,
             )
@@ -249,7 +299,8 @@ private fun SecurityQuestionBlock(
     }
     Spacer(Modifier.height(4.dp))
     Text(
-        "Aucune réponse n'est envoyée sans ton choix, et rien n'est tenté en boucle.",
+        "Cette réponse sera retenue jusqu'à la rentrée de septembre, pour ne plus avoir à la " +
+            "redonner. Rien n'est tenté en boucle : une réponse refusée rend la main.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

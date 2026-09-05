@@ -1,5 +1,8 @@
 package fr.ecole2recte.app.core
 
+import fr.ecole2recte.app.core.auth.AnswerMemory
+import fr.ecole2recte.app.core.auth.BirthDates
+import fr.ecole2recte.app.core.auth.SecurityAnswer
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.HomeworkItem
@@ -13,6 +16,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -35,6 +39,19 @@ class SchoolRepositoryTest {
         .on("messages.awp", Payloads.MESSAGES)
         .on("viescolaire", Payloads.SCHOOL_LIFE)
         .on("elevesDocuments", Payloads.DOCUMENTS)
+
+    /** Connexion qui bute sur la double authentification avant d'aboutir. */
+    private fun twoFactorEngine(answer: String = Payloads.DOUBLE_AUTH_ANSWER) = FakeHttpEngine()
+        .on("gtk=1", body = "", headers = headers("X-GTK" to "g"), method = "GET")
+        // Les jetons de la vérification arrivent en en-tête, comme sur le vrai serveur.
+        .on(
+            "/login.awp",
+            Payloads.LOGIN_TWO_FACTOR,
+            headers = headers("X-Token" to "t", "2FA-Token" to "f"),
+        )
+        .on("doubleauth", Payloads.DOUBLE_AUTH_QUESTION)
+        .on("doubleauth", answer)
+        .on("/login.awp", Payloads.LOGIN_SUCCESS)
 
     private fun repository(
         engine: FakeHttpEngine,
@@ -82,6 +99,159 @@ class SchoolRepositoryTest {
         assertEquals(DataSection.entries.size, snapshot.syncedAt.size)
         assertFalse(repository.sync.value.offline)
         assertTrue("le cache doit être écrit après la synchronisation", snapshots.writes > 0)
+    }
+
+    // ── Question de sécurité ─────────────────────────────────────────────────
+
+    @Test
+    fun `la date de naissance enregistree franchit seule la question de securite`() = runTest {
+        val store = InMemoryCredentialStore(
+            credentials.copy(birthDates = BirthDates.of(SecurityAnswer.BirthDate(month = "6"))),
+        )
+        val repository = repository(twoFactorEngine(), credentialStore = store)
+
+        repository.start()
+
+        val auth = repository.auth.value
+        assertTrue("la question doit être franchie sans intervention", auth is AuthState.SignedIn)
+        assertEquals("identifiant-question", store.read()?.trustedAnswer?.cn)
+    }
+
+    @Test
+    fun `sans rien pour repondre, la question revient a l utilisateur`() = runTest {
+        val repository = repository(twoFactorEngine(), credentialStore = InMemoryCredentialStore(credentials))
+
+        repository.start()
+
+        val auth = repository.auth.value
+        assertTrue(auth is AuthState.SecurityQuestion)
+        assertEquals("Quel est ton mois de naissance ?", (auth as AuthState.SecurityQuestion).question)
+        assertNull("aucune tentative n'a été faite, donc rien à expliquer", auth.notice)
+    }
+
+    @Test
+    fun `la reponse choisie est retenue jusqu a la rentree suivante`() = runTest {
+        val store = InMemoryCredentialStore(credentials)
+        val repository = repository(twoFactorEngine(), credentialStore = store)
+
+        repository.start()
+        repository.answerSecurityQuestion("Juin")
+
+        assertTrue(repository.auth.value is AuthState.SignedIn)
+        val remembered = store.read()?.answers?.answers.orEmpty()
+        assertEquals(1, remembered.size)
+        assertEquals("Juin", remembered.single().answer)
+        assertEquals(LocalDate.of(2027, 8, 31), remembered.single().validUntil)
+        assertEquals("Quel est ton mois de naissance ?", remembered.single().readableQuestion)
+    }
+
+    @Test
+    fun `une reponse memorisee refusee est oubliee et la main rendue`() = runTest {
+        val store = InMemoryCredentialStore(
+            credentials.copy(
+                answers = AnswerMemory().remembering("Quel est ton mois de naissance ?", "Mars", today),
+            ),
+        )
+        val repository = repository(
+            twoFactorEngine(answer = Payloads.DOUBLE_AUTH_REFUSED),
+            credentialStore = store,
+        )
+
+        repository.start()
+
+        val auth = repository.auth.value
+        assertTrue("l'utilisateur doit reprendre la main", auth is AuthState.SecurityQuestion)
+        assertNotNull("il faut dire pourquoi la question revient", (auth as AuthState.SecurityQuestion).notice)
+        assertTrue(
+            "une réponse devenue fausse ne doit pas être rejouée à la connexion suivante",
+            store.read()?.answers?.answers.orEmpty().isEmpty(),
+        )
+    }
+
+    @Test
+    fun `une seule reponse automatique par connexion`() = runTest {
+        val engine = FakeHttpEngine()
+            .on("gtk=1", body = "", headers = headers("X-GTK" to "g"), method = "GET")
+            .on(
+                "/login.awp",
+                Payloads.LOGIN_TWO_FACTOR,
+                headers = headers("X-Token" to "t", "2FA-Token" to "f"),
+            )
+            .on("doubleauth", Payloads.DOUBLE_AUTH_QUESTION)
+            .on("doubleauth", Payloads.DOUBLE_AUTH_ANSWER)
+            // Le serveur repose la même question : insister ressemblerait à du forçage.
+            .on(
+                "/login.awp",
+                Payloads.LOGIN_TWO_FACTOR,
+                headers = headers("X-Token" to "t", "2FA-Token" to "f"),
+            )
+            .on("doubleauth", Payloads.DOUBLE_AUTH_QUESTION)
+        val repository = repository(
+            engine,
+            credentialStore = InMemoryCredentialStore(
+                credentials.copy(birthDates = BirthDates.of(SecurityAnswer.BirthDate(month = "6"))),
+            ),
+        )
+
+        repository.start()
+
+        assertTrue(repository.auth.value is AuthState.SecurityQuestion)
+        assertEquals(
+            "une seule réponse doit avoir été postée",
+            1,
+            engine.requests.count { it.url.contains("verbe=post") },
+        )
+    }
+
+    // ── Compte parent ────────────────────────────────────────────────────────
+
+    @Test
+    fun `un compte parent ouvre sur le premier enfant et garde la messagerie de la famille`() = runTest {
+        val engine = FakeHttpEngine()
+            .on("gtk=1", body = "", headers = headers("X-GTK" to "g"), method = "GET")
+            .on("/login.awp", Payloads.LOGIN_FAMILY)
+            .on("emploidutemps", Payloads.TIMETABLE)
+            .on("cahierdetexte", Payloads.HOMEWORK_LIST)
+            .on("notes.awp", Payloads.GRADES)
+            .on("messages.awp", Payloads.MESSAGES)
+            .on("viescolaire", Payloads.SCHOOL_LIFE)
+            .on("elevesDocuments", Payloads.DOCUMENTS)
+        val settings = InMemorySettingsStore()
+        val repository = repository(engine, settingsStore = settings)
+
+        repository.start()
+        repository.refresh()
+
+        val auth = repository.auth.value as AuthState.SignedIn
+        assertEquals("Martin", auth.account.firstName)
+        assertEquals("777", auth.account.familyId)
+        assertEquals(2, auth.accounts.size)
+        assertTrue("les réglages doivent retenir qu'on est côté parent", settings.read().parentAccount)
+        assertTrue(
+            "la boîte aux lettres d'un parent est celle de la famille",
+            engine.requests.any { it.url.contains("/familles/777/messages.awp") },
+        )
+        assertTrue(
+            "les données scolaires restent celles de l'enfant",
+            engine.requests.any { it.url.contains("/E/4242/emploidutemps.awp") },
+        )
+    }
+
+    @Test
+    fun `un devoir coche depuis un compte parent ne part pas au serveur`() = runTest {
+        val engine = FakeHttpEngine()
+            .on("gtk=1", body = "", headers = headers("X-GTK" to "g"), method = "GET")
+            .on("/login.awp", Payloads.LOGIN_FAMILY)
+        val repository = repository(engine)
+
+        repository.start()
+        repository.toggleHomeworkDone(HomeworkItem("901", "Maths", today))
+
+        assertTrue(
+            "le cahier de textes de l'élève ne doit pas être modifié depuis la vue parent",
+            engine.requests.none { it.url.contains("idDevoir") || it.url.contains("cahierdetexte") },
+        )
+        assertTrue(repository.settings.value.isHomeworkDone("901", remoteDone = false))
     }
 
     @Test

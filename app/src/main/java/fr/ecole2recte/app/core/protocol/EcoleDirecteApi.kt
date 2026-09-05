@@ -290,7 +290,7 @@ class EcoleDirecteApi(
      * centième message.
      */
     fun messages(account: Account, page: Int = 0): ApiResult<List<MessageItem>> = call(
-        path = "/${mailboxSegment(account)}/${account.id}/messages.awp",
+        path = "/${mailboxSegment(account)}/${account.mailboxId}/messages.awp",
         payload = JSONObject().put("anneeMessages", ""),
         params = linkedMapOf(
             "force" to "false",
@@ -306,7 +306,7 @@ class EcoleDirecteApi(
     ) { Parsers.messages(it) }
 
     fun messageBody(account: Account, messageId: String): ApiResult<MessageItem?> = call(
-        path = "/${mailboxSegment(account)}/${account.id}/messages/$messageId.awp",
+        path = "/${mailboxSegment(account)}/${account.mailboxId}/messages/$messageId.awp",
         payload = JSONObject(),
         params = linkedMapOf("mode" to "destinataire"),
     ) { Parsers.messageBody(it) }
@@ -387,7 +387,12 @@ class EcoleDirecteApi(
 
     // ── Plomberie ────────────────────────────────────────────────────────────
 
-    private fun mailboxSegment(account: Account): String = if (account.isStudent) "eleves" else "familles"
+    /**
+     * La messagerie appartient au titulaire de la connexion, pas au profil consulté : un
+     * parent lit celle de la famille, même quand l'application affiche l'un de ses enfants.
+     */
+    private fun mailboxSegment(account: Account): String =
+        if (account.viewedByFamily || !account.isStudent) "familles" else "eleves"
 
     private fun <T> call(
         path: String,

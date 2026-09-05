@@ -32,14 +32,16 @@ import java.time.LocalDateTime
  * État de l'écran de connexion.
  *
  * La date de naissance ne sert qu'à reconnaître, parmi les propositions renvoyées par
- * ÉcoleDirecte, celle que l'utilisateur a lui-même saisie. Elle n'est ni envoyée ni
- * enregistrée tant qu'aucune question n'est posée.
+ * ÉcoleDirecte, celle que l'utilisateur a lui-même saisie — jamais à en inventer une.
+ * [parentMode] change qui elle désigne : un parent répond sur son enfant, et l'écran doit le
+ * dire avant qu'on la saisisse, pas après.
  */
 data class LoginForm(
     val identifier: String = "",
     val password: String = "",
     val birth: SecurityAnswer.BirthDate = SecurityAnswer.BirthDate(),
     val chosenAnswer: String = "",
+    val parentMode: Boolean = false,
 ) {
     val canSubmit: Boolean get() = identifier.isNotBlank() && password.isNotBlank()
 }
@@ -62,6 +64,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val settings: StateFlow<AppSettings> = repository.settings
 
     val errorLog = repository.errorLog.entries
+    val autoAnswer = repository.autoAnswer
     val messagesComplete = repository.messagesComplete
     val loadingMoreMessages = repository.loadingMoreMessages
 
@@ -81,6 +84,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             repository.start()
+            // L'écran de connexion rouvre dans le mode de la dernière connexion : un parent
+            // ne doit pas avoir à redire chaque fois que la question porte sur son enfant.
+            _loginForm.update { it.copy(parentMode = settings.value.parentAccount) }
             refresh()
         }
         viewModelScope.launch {
@@ -103,9 +109,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val form = _loginForm.value
         if (!form.canSubmit) return
         viewModelScope.launch {
-            repository.signIn(form.identifier.trim(), form.password)
+            repository.signIn(form.identifier.trim(), form.password, form.birth)
             refresh()
         }
+    }
+
+    /** Date de naissance d'un élève suivi, corrigée depuis les réglages. */
+    fun setBirthDate(name: String, birth: SecurityAnswer.BirthDate) {
+        viewModelScope.launch { repository.setBirthDate(name, birth) }
+    }
+
+    /** Oublie une réponse mémorisée : ÉcoleDirecte reposera la question. */
+    fun forgetAnswer(question: String) {
+        viewModelScope.launch { repository.forgetAnswer(question) }
     }
 
     fun answerSecurityQuestion(choice: String) {

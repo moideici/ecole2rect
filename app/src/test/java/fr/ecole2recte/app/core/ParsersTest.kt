@@ -26,6 +26,28 @@ class ParsersTest {
     }
 
     @Test
+    fun `une connexion parent donne un profil par enfant`() {
+        val accounts = Parsers.accounts(JSONObject(Payloads.LOGIN_FAMILY))
+
+        assertEquals("les enfants sont les profils, pas la famille", 2, accounts.size)
+        val first = accounts.first()
+        assertEquals("4242", first.id)
+        assertEquals("Martin Leroy", first.displayName)
+        assertEquals("Terminale A", first.className)
+        assertTrue("un enfant reste un profil élève", first.isStudent)
+        assertTrue(first.viewedByFamily)
+        assertEquals("777", first.familyId)
+        assertEquals("Claire Leroy", first.familyName)
+        assertEquals("la messagerie est celle de la famille", "777", first.mailboxId)
+
+        val second = accounts.last()
+        assertEquals("Léa Leroy", second.displayName)
+        assertEquals("le nom de famille manquant est repris du responsable", "Leroy", second.lastName)
+        assertEquals("3e B", second.className)
+        assertEquals("Collège Jean Moulin", second.schoolName)
+    }
+
+    @Test
     fun `ignore un cours sans horaire plutot que de vider la journee`() {
         val lessons = Parsers.lessons(JSONObject(Payloads.TIMETABLE))
 

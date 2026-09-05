@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
+import fr.ecole2recte.app.core.format.Voice
+import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.SchoolLifeKind
@@ -43,6 +47,7 @@ import fr.ecole2recte.app.core.repo.SyncState
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.core.settings.HomeWidget
 import fr.ecole2recte.app.ui.components.AppCard
+import fr.ecole2recte.app.ui.components.FilterPill
 import fr.ecole2recte.app.ui.components.ProgressBar
 import fr.ecole2recte.app.ui.components.RoundIconButton
 import fr.ecole2recte.app.ui.components.ScreenHeader
@@ -70,25 +75,45 @@ fun HomeScreen(
     settings: AppSettings,
     sync: SyncState,
     now: LocalDateTime,
+    accounts: List<Account>,
     onNavigate: (Destination) -> Unit,
     onOpenDetail: (Detail) -> Unit,
     onRefresh: () -> Unit,
     onToggleHomework: (HomeworkItem) -> Unit,
+    onSelectAccount: (Account) -> Unit,
 ) {
     val today = now.toLocalDate()
-    val firstName = snapshot.account?.firstName?.takeIf { it.isNotBlank() }
+    val account = snapshot.account
+    val date = Dates.fullDate(today).replaceFirstChar { it.uppercase() }
 
     LazyColumn(contentPadding = PaddingValues(bottom = 28.dp)) {
         item("header") {
             ScreenHeader(
-                title = if (firstName != null) "Bonjour $firstName" else "Bonjour",
-                subtitle = Dates.fullDate(today).replaceFirstChar { it.uppercase() },
+                // Un parent n'est pas salué par son prénom : ce qu'il vient voir, c'est la
+                // journée de son enfant, et c'est ce nom-là qui doit être en haut de l'écran.
+                title = Voice.homeTitle(account),
+                subtitle = if (account?.viewedByFamily == true) {
+                    listOfNotNull(account.className.takeIf { it.isNotBlank() }, date).joinToString(" · ")
+                } else {
+                    date
+                },
                 actions = {
                     RoundIconButton(Icons.Outlined.Search, "Rechercher") { onOpenDetail(Detail.Search) }
                     RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh)
                     RoundIconButton(Icons.Outlined.Settings, "Réglages") { onOpenDetail(Detail.Settings) }
                 },
             )
+        }
+        // Une fratrie se suit d'un geste : passer d'un enfant à l'autre depuis les réglages
+        // demanderait quatre touchers pour une question posée dix fois par jour.
+        if (accounts.size > 1) {
+            item("enfants") {
+                ChildSwitcher(
+                    accounts = accounts,
+                    selectedId = account?.id,
+                    onSelect = onSelectAccount,
+                )
+            }
         }
         item("sync") { SyncStatusRow(sync, snapshot.lastSyncedAt, now) }
 
@@ -121,6 +146,28 @@ fun HomeScreen(
                     .padding(horizontal = ScreenPadding + 4.dp, vertical = 18.dp),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+/**
+ * Bascule entre les élèves suivis.
+ *
+ * Une pastille par enfant, dans l'ordre renvoyé par ÉcoleDirecte. Le cache de chacun est
+ * conservé : revenir en arrière est immédiat, sans nouvelle synchronisation.
+ */
+@Composable
+private fun ChildSwitcher(accounts: List<Account>, selectedId: String?, onSelect: (Account) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(accounts, key = { it.id }) { entry ->
+            FilterPill(
+                text = entry.firstName.ifBlank { entry.displayName },
+                selected = entry.id == selectedId,
+                onClick = { onSelect(entry) },
             )
         }
     }

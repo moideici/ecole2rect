@@ -29,6 +29,41 @@ object Payloads {
         }
     """.trimIndent()
 
+    /** Connexion d'un parent : un compte famille, et les enfants dans `profile.eleves`. */
+    val LOGIN_FAMILY = """
+        {
+          "code": 200,
+          "token": "jeton-de-session",
+          "data": {
+            "accounts": [
+              {
+                "id": 777,
+                "typeCompte": "1",
+                "prenom": "Claire",
+                "nom": "Leroy",
+                "nomEtablissement": "Lycée Victor Hugo",
+                "profile": {
+                  "eleves": [
+                    {
+                      "id": 4242,
+                      "prenom": "Martin",
+                      "nom": "Leroy",
+                      "classe": { "code": "TA", "libelle": "Terminale A" }
+                    },
+                    {
+                      "id": 4243,
+                      "prenom": "Léa",
+                      "classe": { "code": "3B", "libelle": "3e B" },
+                      "nomEtablissement": "Collège Jean Moulin"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+    """.trimIndent()
+
     val LOGIN_TWO_FACTOR = """{ "code": 250, "message": "Double authentification requise" }"""
 
     val LOGIN_INVALID = """{ "code": 505, "message": "Identifiant ou mot de passe invalide" }"""
@@ -51,6 +86,23 @@ object Payloads {
 
     val DOUBLE_AUTH_ANSWER = """
         { "code": 200, "data": { "cn": "identifiant-question", "cv": "valeur-reponse" } }
+    """.trimIndent()
+
+    val DOUBLE_AUTH_REFUSED = """{ "code": 505, "message": "Réponse incorrecte" }"""
+
+    /** Question portant sur l'enfant : c'est la forme posée à un compte parent. */
+    val DOUBLE_AUTH_CHILD_QUESTION = """
+        {
+          "code": 200,
+          "data": {
+            "question": "${Encoding.base64Encode("Quelle est la date de naissance de votre enfant Léa ?")}",
+            "propositions": [
+              "${Encoding.base64Encode("04/03/2011")}",
+              "${Encoding.base64Encode("12/05/2010")}",
+              "${Encoding.base64Encode("30/11/2012")}"
+            ]
+          }
+        }
     """.trimIndent()
 
     val TIMETABLE = """

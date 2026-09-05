@@ -11,6 +11,9 @@ import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.animation.Crossfade
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,12 +32,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.AttachmentState
 import fr.ecole2recte.app.MainViewModel
 import fr.ecole2recte.app.core.model.DataSection
+import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.repo.AuthState
 import fr.ecole2recte.app.data.AttachmentOpener
 import fr.ecole2recte.app.ui.theme.Ecole2recteTheme
@@ -149,7 +155,19 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     val messagesComplete by viewModel.messagesComplete.collectAsStateWithLifecycle()
     val loadingMore by viewModel.loadingMoreMessages.collectAsStateWithLifecycle()
     val errors by viewModel.errorLog.collectAsStateWithLifecycle()
+    val autoAnswer by viewModel.autoAnswer.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+
+    // Cocher un devoir est le geste le plus répété de l'application : une brève vibration
+    // confirme qu'il a été pris en compte sans qu'on ait à vérifier des yeux.
+    val toggleHomework: (HomeworkItem) -> Unit = { item ->
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        viewModel.toggleHomework(item)
+    }
+
+    // Le nombre de messages non lus, tel qu'il apparaît sur l'onglet.
+    val unreadMessages = snapshot.messages.count { !settings.isMessageRead(it.id, it.read) }
 
     // Une pièce jointe prête part vers l'application capable de l'ouvrir, puis l'état est
     // remis à zéro : sans quoi revenir sur la fiche la rouvrirait toute seule.
@@ -184,7 +202,23 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                             destination = entry
                             detail = null
                         },
-                        icon = { Icon(entry.icon, contentDescription = null) },
+                        icon = {
+                            // Les messages non lus sont la seule information qui mérite de
+                            // remonter jusqu'à la barre : les devoirs ont déjà leur écran.
+                            if (entry == Destination.MESSAGES && unreadMessages > 0) {
+                                BadgedBox(
+                                    badge = {
+                                        Badge {
+                                            Text(if (unreadMessages > 99) "99+" else "$unreadMessages")
+                                        }
+                                    },
+                                ) {
+                                    Icon(entry.icon, contentDescription = null)
+                                }
+                            } else {
+                                Icon(entry.icon, contentDescription = null)
+                            }
+                        },
                         label = { Text(entry.label, style = MaterialTheme.typography.labelMedium) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -199,7 +233,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
         Box(Modifier.fillMaxSize().padding(padding)) {
             val openDetail: (Detail) -> Unit = { detail = it }
             // Ouvrir un devoir, c'est aussi charger son contenu : la liste ne le porte pas.
-            val openHomework: (fr.ecole2recte.app.core.model.HomeworkItem) -> Unit = { item ->
+            val openHomework: (HomeworkItem) -> Unit = { item ->
                 viewModel.loadHomeworkDetails(item.dueDate)
                 openDetail(Detail.Homework(item.id))
             }
@@ -209,16 +243,21 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     isRefreshing = sync.running,
                     onRefresh = { viewModel.refresh() },
                 ) {
-                    when (destination) {
+                    // Un fondu court entre les pages : le changement d'onglet cesse d'être un
+                    // clignotement, sans jamais retarder l'affichage de ce qu'on est venu voir.
+                    Crossfade(targetState = destination, label = "page") { page ->
+                    when (page) {
                     Destination.HOME -> HomeScreen(
                         snapshot = snapshot,
                         settings = settings,
                         sync = sync,
                         now = now,
+                        accounts = (auth as? AuthState.SignedIn)?.accounts.orEmpty(),
                         onNavigate = { destination = it },
                         onOpenDetail = openDetail,
                         onRefresh = { viewModel.refresh() },
-                        onToggleHomework = viewModel::toggleHomework,
+                        onToggleHomework = toggleHomework,
+                        onSelectAccount = viewModel::selectAccount,
                     )
 
                     Destination.TIMETABLE -> TimetableScreen(
@@ -242,7 +281,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         sync = sync,
                         now = now,
                         onOpen = openHomework,
-                        onToggle = viewModel::toggleHomework,
+                        onToggle = toggleHomework,
                         onRefresh = { viewModel.refresh(setOf(DataSection.HOMEWORK)) },
                     )
 
@@ -269,13 +308,15 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         onRefresh = { viewModel.refresh(setOf(DataSection.MESSAGES)) },
                     )
                     }
+                    }
                 }
 
                 is Detail.Homework -> HomeworkDetailScreen(
                     item = snapshot.homework.firstOrNull { it.id == current.id },
                     settings = settings,
+                    parentView = snapshot.account?.viewedByFamily == true,
                     attachmentState = attachment,
-                    onToggle = viewModel::toggleHomework,
+                    onToggle = toggleHomework,
                     onOpenAttachment = viewModel::openAttachment,
                     onClose = { detail = null },
                 )
@@ -313,10 +354,13 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     snapshot = snapshot,
                     settings = settings,
                     sync = sync,
+                    autoAnswer = autoAnswer,
                     onClose = { detail = null },
                     onOpenDetail = openDetail,
                     onTheme = viewModel::setTheme,
                     onSelectAccount = viewModel::selectAccount,
+                    onBirthDate = viewModel::setBirthDate,
+                    onForgetAnswer = viewModel::forgetAnswer,
                     onDiagnostics = viewModel::setDiagnosticsVisible,
                     onNotifications = viewModel::setNotifications,
                     onBiometricLock = viewModel::setBiometricLock,

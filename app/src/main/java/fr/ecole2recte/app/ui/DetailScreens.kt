@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.AttachmentState
 import fr.ecole2recte.app.core.format.Dates
+import fr.ecole2recte.app.core.format.Voice
 import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
@@ -226,6 +227,7 @@ fun HomeworkDetailScreen(
     item: HomeworkItem?,
     settings: AppSettings,
     attachmentState: AttachmentState,
+    parentView: Boolean = false,
     onToggle: (HomeworkItem) -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
     onClose: () -> Unit,
@@ -296,6 +298,16 @@ fun HomeworkDetailScreen(
                         if (done) "Marquer comme à faire" else "Marquer comme fait",
                         style = MaterialTheme.typography.labelLarge,
                         color = if (done) accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // Depuis un compte parent, la coche ne quitte pas l'appareil : le dire évite
+                // de croire qu'on rend un devoir à la place de son enfant.
+                if (parentView) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        Voice.PARENT_HOMEWORK_NOTE,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

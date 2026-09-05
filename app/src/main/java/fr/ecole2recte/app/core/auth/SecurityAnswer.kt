@@ -17,7 +17,15 @@ object SecurityAnswer {
         "juillet", "aout", "septembre", "octobre", "novembre", "decembre",
     )
 
-    data class BirthDate(val day: String = "", val month: String = "", val year: String = "")
+    data class BirthDate(val day: String = "", val month: String = "", val year: String = "") {
+        /** Au moins un champ saisi : de quoi tenter un rapprochement sur une question partielle. */
+        val isFilled: Boolean
+            get() = listOf(day, month, year).any { it.isNotBlank() }
+
+        /** Les trois champs : nécessaire pour reconnaître une date écrite en entier. */
+        val isComplete: Boolean
+            get() = listOf(day, month, year).all { it.isNotBlank() }
+    }
 
     fun suggest(question: String?, choices: List<String>, birthDate: BirthDate): String? {
         if (question.isNullOrBlank() || choices.isEmpty()) return null
@@ -26,10 +34,40 @@ object SecurityAnswer {
             listOf("mois", "month").any(normalizedQuestion::contains) -> monthCandidates(birthDate.month)
             listOf("annee", "year").any(normalizedQuestion::contains) -> yearCandidates(birthDate.year)
             listOf("jour", "day").any(normalizedQuestion::contains) -> dayCandidates(birthDate.day)
+            // « Quelle est la date de naissance de votre enfant ? » : la proposition porte
+            // alors la date entière, écrite de l'une des façons habituelles.
+            // La question normalisée n'a plus ni espaces ni accents : on la compare donc à
+            // des fragments eux aussi compactés.
+            listOf("datedenaissance", "nele", "neele", "birth").any(normalizedQuestion::contains) ->
+                fullDateCandidates(birthDate)
+
             else -> emptySet()
         }
         if (candidates.isEmpty()) return null
         return choices.firstOrNull { Text.normalizeKey(it) in candidates }
+    }
+
+    private fun fullDateCandidates(birthDate: BirthDate): Set<String> {
+        if (!birthDate.isComplete) return emptySet()
+        val day = birthDate.day.trim().toIntOrNull() ?: return emptySet()
+        val month = birthDate.month.trim().toIntOrNull() ?: return emptySet()
+        val year = birthDate.year.trim()
+        val monthName = MONTHS.getOrNull(month - 1).orEmpty()
+        val paddedDay = "%02d".format(day)
+        val paddedMonth = "%02d".format(month)
+        // La normalisation efface les séparateurs : « 12/05/2010 », « 12-05-2010 » et
+        // « 12 05 2010 » se ramènent d'eux-mêmes à la même clé. Ne restent que les
+        // véritables variantes : chiffres complétés ou non, ordre inversé, mois en toutes
+        // lettres.
+        return buildSet {
+            add("$paddedDay$paddedMonth$year")
+            add("$day$month$year")
+            add("$year$paddedMonth$paddedDay")
+            if (monthName.isNotEmpty()) {
+                add("$day $monthName $year")
+                add("$paddedDay $monthName $year")
+            }
+        }.map(Text::normalizeKey).toSet()
     }
 
     private fun dayCandidates(value: String): Set<String> {

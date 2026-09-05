@@ -61,10 +61,12 @@ class ScreensTest {
                     settings = AppSettings(),
                     sync = SyncState(),
                     now = now,
+                    accounts = listOf(snapshot.account!!),
                     onNavigate = {},
                     onOpenDetail = {},
                     onRefresh = {},
                     onToggleHomework = {},
+                    onSelectAccount = {},
                 )
             }
         }
@@ -114,6 +116,38 @@ class ScreensTest {
 
         compose.onNodeWithText("Aucun cours ce jour-là").assertIsDisplayed()
         compose.onNodeWithText("Synchroniser").assertIsDisplayed()
+    }
+
+    @Test
+    fun vue_parent_annonce_l_enfant_et_permet_d_en_changer() {
+        val lea = Account("4243", "E", "Léa", "Leroy", "3e B", familyId = "777", familyName = "Claire Leroy")
+        val martin = Account("4242", "E", "Martin", "Leroy", "Terminale A", familyId = "777", familyName = "Claire Leroy")
+        var chosen: Account? = null
+
+        compose.setContent {
+            Ecole2recteTheme {
+                HomeScreen(
+                    snapshot = snapshot.copy(account = lea),
+                    settings = AppSettings(),
+                    sync = SyncState(),
+                    now = now,
+                    accounts = listOf(martin, lea),
+                    onNavigate = {},
+                    onOpenDetail = {},
+                    onRefresh = {},
+                    onToggleHomework = {},
+                    onSelectAccount = { chosen = it },
+                )
+            }
+        }
+
+        // Un parent n'est pas salué par son prénom : c'est la journée de son enfant qu'il
+        // ouvre, classe comprise. Le prénom apparaît deux fois — en titre et sur la
+        // pastille — d'où le repère sur la classe, qui n'est écrite qu'une fois.
+        compose.onNodeWithText("3e B", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Martin").performClick()
+
+        assertEquals("4242", chosen?.id)
     }
 
     @Test

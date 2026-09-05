@@ -4,10 +4,9 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import fr.ecole2recte.app.core.protocol.TrustedAnswer
 import fr.ecole2recte.app.core.store.CredentialStore
+import fr.ecole2recte.app.core.store.CredentialsCodec
 import fr.ecole2recte.app.core.store.SavedCredentials
-import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -29,16 +28,7 @@ class SecureCredentialStore(context: Context) : CredentialStore {
 
     override fun read(): SavedCredentials? {
         val encrypted = preferences.getString(KEY_LOGIN, null) ?: return null
-        return runCatching {
-            val json = JSONObject(decrypt(encrypted))
-            SavedCredentials(
-                identifier = json.getString("identifier"),
-                password = json.getString("password"),
-                trustedAnswer = json.optJSONObject("trustedAnswer")?.let {
-                    TrustedAnswer(it.getString("cn"), it.getString("cv"))
-                },
-            )
-        }.getOrElse {
+        return runCatching { CredentialsCodec.decode(decrypt(encrypted)) }.getOrElse {
             // Clé invalidée (restauration d'appareil, réinitialisation biométrique) : le
             // contenu est illisible pour toujours, autant repartir proprement.
             clear()
@@ -47,13 +37,7 @@ class SecureCredentialStore(context: Context) : CredentialStore {
     }
 
     override fun save(credentials: SavedCredentials) {
-        val json = JSONObject()
-            .put("identifier", credentials.identifier)
-            .put("password", credentials.password)
-        credentials.trustedAnswer?.let {
-            json.put("trustedAnswer", JSONObject().put("cn", it.cn).put("cv", it.cv))
-        }
-        runCatching { encrypt(json.toString()) }
+        runCatching { encrypt(CredentialsCodec.encode(credentials)) }
             .onSuccess { preferences.edit().putString(KEY_LOGIN, it).apply() }
     }
 

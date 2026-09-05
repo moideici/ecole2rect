@@ -85,6 +85,12 @@ data class AppSettings(
     val biometricLock: Boolean = false,
     /** Reprendre les couleurs du fond d'écran (Android 12+) au lieu de l'indigo de la marque. */
     val dynamicColor: Boolean = false,
+    /**
+     * La dernière connexion était celle d'un parent. Sert à rouvrir l'écran de connexion
+     * dans le bon mode — la question de sécurité porte alors sur la date de naissance de
+     * l'enfant, pas sur celle du parent, et l'écran doit le dire avant qu'on la saisisse.
+     */
+    val parentAccount: Boolean = false,
 ) {
 
     /** Widgets visibles, dans l'ordre choisi ; les nouveaux widgets arrivent à la fin. */

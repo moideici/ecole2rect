@@ -30,20 +30,49 @@ import java.time.LocalDate
  */
 object Parsers {
 
+    /**
+     * Les profils consultables après une connexion.
+     *
+     * Un élève se connecte : son compte est le profil. Un parent se connecte : son compte est
+     * une famille, et les profils sont les enfants rangés dans `profile.eleves`. Sans cette
+     * traduction, une connexion parent donnerait un identifiant de famille aux appels élève,
+     * qui répondraient tous « accès refusé » — c'est exactement ce que faisait l'application
+     * avant. Une famille sans enfant lisible reste renvoyée telle quelle, pour que la
+     * messagerie fonctionne malgré tout.
+     */
     fun accounts(payload: JSONObject): List<Account> {
         val data = payload.optJSONObject("data") ?: payload
-        return data.objects("accounts").mapNotNull { account ->
-            val id = account.string("id", "idLogin").ifBlank { return@mapNotNull null }
+        return data.objects("accounts").flatMap { account ->
+            val id = account.string("id", "idLogin").ifBlank { return@flatMap emptyList() }
             val profile = account.optJSONObject("profile")
-            Account(
+            val type = account.string("typeCompte").ifBlank { "E" }
+            val schoolName = account.string("nomEtablissement")
+                .ifBlank { profile?.string("nomEtablissement").orEmpty() }
+            val holder = Account(
                 id = id,
-                type = account.string("typeCompte").ifBlank { "E" },
+                type = type,
                 firstName = account.string("prenom"),
                 lastName = account.string("nom"),
                 className = profile?.optJSONObject("classe")?.string("libelle", "code").orEmpty(),
-                schoolName = account.string("nomEtablissement")
-                    .ifBlank { profile?.string("nomEtablissement").orEmpty() },
+                schoolName = schoolName,
             )
+            if (holder.isStudent) return@flatMap listOf(holder)
+            val children = profile?.objects("eleves").orEmpty().mapNotNull { child ->
+                val childId = child.string("id", "idEleve").ifBlank { return@mapNotNull null }
+                Account(
+                    id = childId,
+                    type = "E",
+                    firstName = child.string("prenom"),
+                    lastName = child.string("nom").ifBlank { holder.lastName },
+                    // « classe » est tantôt un objet, tantôt le libellé lui-même.
+                    className = child.optJSONObject("classe")?.string("libelle", "code")
+                        ?: child.string("classe", "libelleClasse"),
+                    schoolName = child.string("nomEtablissement").ifBlank { schoolName },
+                    familyId = id,
+                    familyName = holder.displayName,
+                )
+            }
+            children.ifEmpty { listOf(holder) }
         }
     }
 

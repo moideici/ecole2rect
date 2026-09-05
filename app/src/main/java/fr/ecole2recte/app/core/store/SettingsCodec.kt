@@ -44,6 +44,7 @@ object SettingsCodec {
         put("showDiagnostics", settings.showDiagnostics)
         put("biometricLock", settings.biometricLock)
         put("dynamicColor", settings.dynamicColor)
+        put("parentAccount", settings.parentAccount)
         put("notified", JSONArray(settings.notified))
         put(
             "notifications",
@@ -82,6 +83,7 @@ object SettingsCodec {
             showDiagnostics = root.optBoolean("showDiagnostics", false),
             biometricLock = root.optBoolean("biometricLock", false),
             dynamicColor = root.optBoolean("dynamicColor", false),
+            parentAccount = root.optBoolean("parentAccount", false),
             notified = root.optJSONArray("notified").stringSet().toList(),
             notifications = root.optJSONObject("notifications")?.let { entry ->
                 NotificationSettings(

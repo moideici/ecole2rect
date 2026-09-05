@@ -94,6 +94,19 @@ object Text {
         return if (flat.length <= maxLength) flat else flat.take(maxLength - 1).trimEnd() + "…"
     }
 
+    /**
+     * Comme [normalizeKey], mais les mots restent séparés.
+     *
+     * Utile dès qu'on cherche un mot *entier* dans une phrase : « Anne » ne doit pas être
+     * reconnue au milieu de « Marianne », sans quoi l'application prendrait la date de
+     * naissance d'un enfant pour celle de l'autre.
+     */
+    fun normalizeWords(value: String): String =
+        Normalizer.normalize(value.trim().lowercase(), Normalizer.Form.NFD)
+            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
+            .replace("[^a-z0-9]+".toRegex(), " ")
+            .trim()
+
     /** Minuscule sans accent ni ponctuation : sert de clé stable pour les matières. */
     fun normalizeKey(value: String): String =
         Normalizer.normalize(value.trim().lowercase(), Normalizer.Form.NFD)
