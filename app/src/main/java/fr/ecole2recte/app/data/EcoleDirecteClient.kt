@@ -6,7 +6,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 /**
  * Small protocol client kept separate from Compose so API changes do not leak into the UI.
@@ -135,7 +135,8 @@ class EcoleDirecteClient(
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
             cookie?.let { connection.setRequestProperty("Cookie", it) }
-            val body = "data=" + URLEncoder.encode(payload.toString(), Charsets.UTF_8.name())
+            val encodedPayload = percentEncode(payload.toString())
+            val body = "data=$encodedPayload"
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val httpStatus = connection.responseCode
             val stream = if (httpStatus in 200..399) connection.inputStream else connection.errorStream
@@ -147,6 +148,7 @@ class EcoleDirecteClient(
                 }.toMap(),
                 httpStatus = httpStatus,
                 rawBody = json,
+                requestSummary = requestSummary(payload, headers, encodedPayload.length),
             ).also { response ->
                 response.body.optString("token").takeIf { it.isNotBlank() }?.let { token = it }
             }
@@ -203,6 +205,7 @@ class EcoleDirecteClient(
         val headers: Map<String, String>,
         val httpStatus: Int,
         val rawBody: String,
+        val requestSummary: String,
     ) {
         fun diagnostic(): String {
             val safeHeaders = headers
@@ -211,6 +214,7 @@ class EcoleDirecteClient(
                 .joinToString("\n") { (key, value) -> "$key: $value" }
             return buildString {
                 appendLine("HTTP $httpStatus")
+                appendLine("Requête: $requestSummary")
                 appendLine("Réponse API:")
                 val safeBody = redactSecrets(rawBody).take(4000).ifBlank { "(vide)" }
                 appendLine(safeBody)
@@ -248,6 +252,35 @@ class EcoleDirecteException(message: String, cause: Throwable? = null) : Runtime
 
 private fun redactSecrets(value: String): String =
     value.replace(Regex("(?i)(motdepasse|password|token|x-token|2fa-token|cookie|set-cookie)\"?\\s*[:=]\\s*\"?[^\",}\\s]+"), "$1=<masqué>")
+
+private fun percentEncode(value: String): String {
+    val bytes = value.toByteArray(StandardCharsets.UTF_8)
+    val hex = "0123456789ABCDEF"
+    return buildString(bytes.size * 3) {
+        bytes.forEach { byte ->
+            val unsigned = byte.toInt() and 0xFF
+            if (unsigned in 0x30..0x39 || unsigned in 0x41..0x5A || unsigned in 0x61..0x7A ||
+                unsigned == '-'.code || unsigned == '_'.code || unsigned == '.'.code || unsigned == '~'.code
+            ) {
+                append(unsigned.toChar())
+            } else {
+                append('%')
+                append(hex[unsigned ushr 4])
+                append(hex[unsigned and 0x0F])
+            }
+        }
+    }
+}
+
+private fun requestSummary(payload: JSONObject, headers: Map<String, String>, encodedLength: Int): String {
+    val identifierLength = payload.optString("identifiant").length
+    val passwordLength = payload.optString("motdepasse").length
+    val faSize = payload.optJSONArray("fa")?.length() ?: 0
+    val headerNames = headers.keys.joinToString(",") { it.lowercase() }
+    return "keys=${payload.keys().asSequence().toList().joinToString(",")}; " +
+        "identifierLength=$identifierLength; passwordLength=$passwordLength; faCount=$faSize; " +
+        "encodedDataLength=$encodedLength; headers=$headerNames"
+}
 
 private object ApiCode {
     const val OK = 200

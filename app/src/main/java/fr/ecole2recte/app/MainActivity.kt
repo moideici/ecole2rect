@@ -144,7 +144,7 @@ private fun Ecole2recteApp() {
                         if (securityAnswer != null && pendingClient != null) {
                             client.completeSecurityQuestion(securityAnswer, identifier, password)
                         } else {
-                            client.login(identifier, password, null)
+                            client.login(identifier, password, trustedAnswer ?: store.read()?.trustedAnswer)
                         }
                     }
                 }.getOrElse { error ->
