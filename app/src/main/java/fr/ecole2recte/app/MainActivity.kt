@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ecole2recte.app.data.EcoleDirecteClient
+import fr.ecole2recte.app.data.EcoleDirecteException
 import fr.ecole2recte.app.data.LoginResult
 import fr.ecole2recte.app.data.SavedLogin
 import fr.ecole2recte.app.data.SecureCredentialStore
@@ -98,6 +99,7 @@ private fun Ecole2recteApp() {
     var authChecking by remember { mutableStateOf(store.read() != null) }
     var loginError by remember { mutableStateOf<String?>(null) }
     var securityQuestion by remember { mutableStateOf<String?>(null) }
+    var securityChoices by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingClient by remember { mutableStateOf<EcoleDirecteClient?>(null) }
     LaunchedEffect(Unit) {
         val saved = store.read()
@@ -121,25 +123,35 @@ private fun Ecole2recteApp() {
             initialLogin = store.read(),
             error = loginError,
             securityQuestion = securityQuestion,
+            securityChoices = securityChoices,
             onLogin = { identifier, password, trustedAnswer, securityAnswer ->
                 loginError = null
                 val client = pendingClient ?: EcoleDirecteClient()
-                val result = withContext(Dispatchers.IO) {
-                    if (securityAnswer != null && pendingClient != null) {
-                        client.completeSecurityQuestion(securityAnswer, identifier, password)
-                    } else {
-                        client.login(identifier, password, trustedAnswer)
+                val result = runCatching {
+                    withContext(Dispatchers.IO) {
+                        if (securityAnswer != null && pendingClient != null) {
+                            client.completeSecurityQuestion(securityAnswer, identifier, password)
+                        } else {
+                            client.login(identifier, password, null)
+                        }
                     }
+                }.getOrElse { error ->
+                    LoginResult.Failure(
+                        (error as? EcoleDirecteException)?.message
+                            ?: "Connexion impossible. Vérifie ton réseau et réessaie.",
+                    )
                 }
                 when (result) {
                     is LoginResult.Success -> {
                         store.save(SavedLogin(identifier, password, client.approvedAnswer ?: trustedAnswer))
                         isAuthenticated = true
                         securityQuestion = null
+                        securityChoices = emptyList()
                         pendingClient = null
                     }
                     is LoginResult.SecurityQuestionRequired -> {
                         securityQuestion = result.question ?: "Réponds à la question demandée par ÉcoleDirecte."
+                        securityChoices = result.choices
                         pendingClient = client
                     }
                     is LoginResult.Failure -> loginError = result.message
@@ -187,6 +199,7 @@ private fun LoginScreen(
     initialLogin: SavedLogin?,
     error: String?,
     securityQuestion: String?,
+    securityChoices: List<String>,
     onLogin: suspend (String, String, TrustedAnswer?, String?) -> Unit,
 ) {
     var identifier by remember { mutableStateOf(initialLogin?.identifier.orEmpty()) }
@@ -213,18 +226,30 @@ private fun LoginScreen(
                 if (securityQuestion != null) {
                     Text("Question de sécurité", color = Indigo, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Text(securityQuestion, color = Ink, fontSize = 13.sp)
-                    LoginField("Ta réponse", securityAnswer, { securityAnswer = it })
+                    if (securityChoices.isNotEmpty()) {
+                        securityChoices.forEach { choice ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable { securityAnswer = choice }.padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                androidx.compose.material3.RadioButton(
+                                    selected = securityAnswer == choice,
+                                    onClick = { securityAnswer = choice },
+                                )
+                                Text(choice, color = Ink, fontSize = 12.sp)
+                            }
+                        }
+                    } else {
+                        LoginField("Ta réponse", securityAnswer, { securityAnswer = it })
+                    }
                 }
                 if (error != null) Text(error, color = Color(0xFFB74D58), fontSize = 11.sp)
                 Text("Les réponses candidates sont chiffrées sur cet appareil.", color = Muted, fontSize = 10.sp)
                 Surface(
                     modifier = Modifier.fillMaxWidth().clickable(enabled = !loading) {
                         loading = true
-                        val trusted = if (birthDay.isNotBlank() && birthMonth.isNotBlank() && birthYear.isNotBlank()) {
-                            TrustedAnswer(birthDay, "$birthMonth-$birthYear")
-                        } else null
                         scope.launch {
-                            onLogin(identifier, password, trusted, securityAnswer.takeIf { securityQuestion != null && it.isNotBlank() })
+                            onLogin(identifier, password, null, securityAnswer.takeIf { securityQuestion != null && it.isNotBlank() })
                             loading = false
                         }
                     },
