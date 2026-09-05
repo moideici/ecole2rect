@@ -37,6 +37,17 @@ ensuite les modules absents, puis l'approfondissement, enfin la qualité et la d
       reste donc complète, l'écriture attend un compte de test.
 - [x] **Comptes famille et fratrie** : un cache par élève au lieu d'un cache global effacé à
       chaque changement de profil.
+- [x] **Connexion parent.** Une connexion parent ne renvoie pas un élève mais une famille et
+      ses enfants : l'application donnait l'identifiant de la famille aux appels élève, qui
+      répondaient tous « accès refusé ». Chaque enfant est désormais un profil complet, la
+      messagerie reste celle de la famille, l'interface parle de l'enfant au lieu de tutoyer
+      le parent, et une coche de devoir ne part pas au serveur depuis une vue parent.
+
+- [x] **Réponse automatique à la question de sécurité.** Une session expirée en pleine
+      synchronisation de fond ramenait à l'écran de connexion. L'application répond
+      maintenant seule quand elle le peut : date de naissance saisie, ou réponse déjà
+      validée — jamais devinée, jamais approchée, une seule tentative par connexion, et
+      valable jusqu'au 1er septembre suivant pour tout ce qui dépend de la classe.
 
 ## P2 — approfondir ce qui existe
 
@@ -75,4 +86,8 @@ Certaines choses ne peuvent pas être écrites honnêtement sans pouvoir les ess
   est défensif et testé sur des réponses enregistrées, mais chaque établissement configure
   ÉcoleDirecte à sa façon ;
 - la double authentification sur des comptes qui posent d'autres questions que la date de
-  naissance.
+  naissance : la réponse est alors demandée une fois puis mémorisée jusqu'à la rentrée, ce
+  qui couvre la question de la classe, mais une question changeant en cours d'année serait
+  reposée à chaque expiration de jeton ;
+- la forme exacte de `profile.eleves` sur un compte parent : elle est lue défensivement, la
+  classe étant acceptée aussi bien comme objet que comme simple libellé.

@@ -49,7 +49,39 @@ fiable.
   réseau ; une section qui échoue laisse les données précédentes en place et signale son
   erreur, et la date de fraîcheur est affichée en permanence.
 - **Reconnexion silencieuse** — un jeton expiré déclenche une reconnexion et un seul
-  réessai, sans repasser par l'écran de connexion.
+  réessai, sans repasser par l'écran de connexion. Si ÉcoleDirecte repose sa question de
+  sécurité, l'application sait y répondre seule (voir plus bas) : en usage normal, on ne se
+  connecte qu'une fois.
+- **Comptes parents** — une connexion parent donne une famille et ses enfants : chaque enfant
+  est un profil complet, la messagerie reste celle de la famille, l'accueil annonce l'enfant
+  au lieu de saluer quelqu'un d'autre, et une rangée de pastilles passe de l'un à l'autre
+  sans nouvelle synchronisation. Un devoir coché depuis un compte parent reste local : le
+  cahier de textes de l'élève n'est pas modifié à sa place.
+
+## Se connecter une fois
+
+ÉcoleDirecte expire les sessions et repose, de temps à autre, une question de sécurité — au
+lancement, mais aussi au milieu d'une synchronisation de fond, quand personne ne regarde
+l'écran. Une application qui renvoie alors vers un formulaire perd sa promesse.
+
+L'application y répond donc seule, sous quatre garde-fous, qui sont la partie importante :
+
+1. **rien n'est deviné** — la réponse vient d'une date de naissance saisie par l'utilisateur,
+   ou d'une réponse qu'il a lui-même validée auparavant ;
+2. **rien n'est approché** — elle doit correspondre *exactement* à l'une des propositions du
+   serveur, sinon la question est posée ;
+3. **rien n'est enchaîné** — une seule tentative automatique par connexion ; refusée, elle
+   est oubliée et la main revient à l'utilisateur, avec la raison affichée ;
+4. **rien n'est éternel** — une réponse mémorisée expire au 1er septembre suivant, parce
+   qu'une classe change d'année en année et qu'une vieille réponse deviendrait fausse.
+
+Sur un compte parent, la question porte sur la date de naissance de l'**enfant**, jamais sur
+celle du parent : c'est pourquoi l'écran de connexion demande d'abord de qui on parle. Une
+fratrie a une date par enfant, et la question nomme celui qu'elle concerne — le prénom est
+cherché comme un mot entier, pour qu'« Anne » ne réponde pas à la place de « Marianne ».
+
+Dates de naissance et réponses mémorisées vivent dans le trousseau chiffré, avec le mot de
+passe. Elles se relisent, se corrigent et s'effacent dans **Réglages → Connexion automatique**.
 
 ## Widgets d'écran d'accueil
 
@@ -92,7 +124,7 @@ app/src/main/java/fr/ecole2recte/app/
 │   ├── export/                export iCalendar
 │   ├── diag/                  journal d'erreurs expurgé
 │   ├── format/                dates et textes en français, HTML → texte
-│   └── auth/                  rapprochement d'une proposition de sécurité
+│   └── auth/                  réponse automatique à la question de sécurité, et ses limites
 ├── data/                      implémentations Android des contrats de `core`
 ├── widget/                    les quinze widgets d'écran d'accueil (RemoteViews)
 ├── sync/                      synchronisation de fond et notifications
@@ -119,7 +151,7 @@ protocole ne rend donc pas illisibles les données déjà enregistrées.
 gradle testDebugUnitTest
 ```
 
-Une soixantaine de tests couvrent ce qui casse en silence :
+Une centaine de tests couvrent ce qui casse en silence :
 
 - les encodages exigés par l'API (séparateurs de `json.dumps`, `ensure_ascii`, corps de
   formulaire, ordre des champs de connexion) ;
@@ -127,6 +159,12 @@ Une soixantaine de tests couvrent ce qui casse en silence :
   textes, notes, messagerie, y compris les réponses vides ou tronquées ;
 - le protocole complet rejoué de bout en bout : connexion, code 250 et question de sécurité,
   réponse validée rejouée, identifiants refusés sans réessai, jeton expiré ;
+- la réponse automatique et ses garde-fous : date reconnue quelle que soit son écriture,
+  proposition absente qui ne déclenche rien, réponse mémorisée qui expire à la rentrée,
+  réponse refusée aussitôt oubliée, une seule tentative par connexion, prénoms de fratrie
+  qui se contiennent ;
+- la connexion d'un compte parent : un profil par enfant, la messagerie de la famille, les
+  données scolaires de l'enfant, et la coche de devoir qui ne part pas au serveur ;
 - les règles de fusion (pas de doublons, contenus déjà chargés préservés) ;
 - le dépôt : ouverture hors ligne sur le cache, échec d'une seule section, reconnexion
   silencieuse avec un unique réessai, déconnexion ;
@@ -147,9 +185,12 @@ tournent en intégration continue sans risquer de bloquer un compte.
 - Sauvegarde cloud et transfert d'appareil désactivés.
 - Les diagnostics réseau sont expurgés des mots de passe, jetons et cookies avant d'être
   affichés ou copiés, et restent masqués tant qu'on ne les demande pas.
-- Aucune réponse de sécurité n'est devinée : une proposition n'est pré-sélectionnée que si
-  elle correspond exactement à une information saisie par l'utilisateur, qui garde le dernier
-  mot. Aucune tentative n'est enchaînée automatiquement.
+- Aucune réponse de sécurité n'est devinée : l'application ne rejoue qu'une information que
+  l'utilisateur a lui-même donnée, et seulement si elle correspond exactement à une
+  proposition du serveur. Une seule tentative par connexion, jamais d'essais en série ; une
+  réponse refusée est effacée et la question revient à l'utilisateur.
+- Les dates de naissance et les réponses mémorisées sont chiffrées comme le mot de passe,
+  visibles et effaçables dans les réglages, et effacées à la déconnexion.
 
 ## Feuille de route
 
