@@ -16,7 +16,8 @@ class EcoleDirecteClient(
     private val apiBase: String = "https://api.ecoledirecte.com/v3",
     private val apiVersion: String = "4.75.0",
 ) {
-    private var cookie: String? = null
+    private val cookies = LinkedHashMap<String, String>()
+    private var currentGtk: String = ""
     var token: String? = null
         private set
     var twoFactorToken: String? = null
@@ -32,15 +33,13 @@ class EcoleDirecteClient(
             .put("uuid", "")
             .put("fa", trustedAnswer?.let { JSONArray().put(it.toJson()) } ?: JSONArray())
 
-        val response = postLogin(
-            payload = payload,
-            reuseVerificationSession = trustedAnswer != null && token != null,
-        )
+        val response = postLogin(payload)
         return when (response.body.optInt("code")) {
             ApiCode.OK -> {
                 token = response.body.optString("token").takeIf { it.isNotBlank() } ?: response.headers["x-token"]
                 LoginResult.Success(extractAccounts(response.body))
             }
+
             ApiCode.AUTH_2FA -> {
                 token = response.headers["x-token"]
                 twoFactorToken = response.headers["2fa-token"]
@@ -114,7 +113,10 @@ class EcoleDirecteClient(
     fun completeSecurityQuestion(choice: String, identifier: String, password: String): LoginResult {
         val xToken = token ?: return LoginResult.Failure("Session de vérification absente.")
         val twoFa = twoFactorToken ?: return LoginResult.Failure("Jeton de vérification absent.")
-        val answer = JSONObject().put("choix", choice)
+        val answer = JSONObject().put(
+            "choix",
+            Base64.encodeToString(choice.toByteArray(Charsets.UTF_8), Base64.NO_WRAP),
+        )
         val response = post(
             path = "/connexion/doubleauth.awp",
             verb = "post",
@@ -162,32 +164,17 @@ class EcoleDirecteClient(
         }
     }
 
-    private fun postLogin(payload: JSONObject, reuseVerificationSession: Boolean): Response {
-        if (reuseVerificationSession) {
-            val verificationToken = token
-                ?: throw EcoleDirecteException("Jeton de vérification absent.")
-            val gtk = cookie?.substringAfter("GTK=", "")?.substringBefore(";")
-                ?.takeIf { it.isNotBlank() }
-                ?: throw EcoleDirecteException("Cookie GTK absent.")
-            return post(
-                path = "/login.awp",
-                verb = null,
-                payload = payload,
-                headers = mapOf("X-GTK" to gtk, "X-Token" to verificationToken),
-                includeVersion = false,
-            )
-        }
-        return post("/login.awp", null, payload, mapOf("X-GTK" to freshGtk()))
-    }
+    private fun postLogin(payload: JSONObject): Response =
+        post("/login.awp", null, payload, mapOf("X-GTK" to freshGtk()))
 
     private fun freshGtk(): String {
         val connection = openConnection("/login.awp?gtk=1&v=$apiVersion", "GET")
         return try {
             connection.inputStream.use { it.readBytes() }
-            val setCookie = connection.headerFields["Set-Cookie"].orEmpty().firstOrNull()
-                ?: throw EcoleDirecteException("Le serveur n'a pas fourni de jeton GTK.")
-            cookie = setCookie.substringBefore(";")
-            setCookie.substringAfter("GTK=", "").substringBefore(";")
+            captureCookies(connection.headerFields)
+            currentGtk = headerValue(connection.headerFields, "X-GTK")
+                .ifBlank { cookies["GTK"].orEmpty() }
+            currentGtk
         } finally {
             connection.disconnect()
         }.let { value -> value.takeIf { it.isNotBlank() } }
@@ -210,7 +197,8 @@ class EcoleDirecteClient(
         return try {
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
-            cookie?.let { connection.setRequestProperty("Cookie", it) }
+            currentGtk.takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("X-GTK", it) }
+            cookieHeader().takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("Cookie", it) }
             // requests.post(data={"data": json.dumps(payload)}) uses Python's
             // default JSON separators and application/x-www-form-urlencoded.
             val encodedPayload = formEncode(payload.toPythonJson())
@@ -228,6 +216,10 @@ class EcoleDirecteClient(
                 rawBody = json,
                 requestSummary = requestSummary(payload, headers, encodedPayload.length),
             ).also { response ->
+                captureCookies(connection.headerFields)
+                headerValue(connection.headerFields, "X-GTK")
+                    .takeIf { it.isNotBlank() }
+                    ?.let { currentGtk = it }
                 response.body.optString("token").takeIf { it.isNotBlank() }?.let { token = it }
             }
         } catch (error: IOException) {
@@ -255,6 +247,32 @@ class EcoleDirecteClient(
             doInput = true
             doOutput = method == "POST"
         }
+
+    private fun cookieHeader(): String =
+        cookies.entries.joinToString("; ") { (name, value) -> "$name=$value" }
+
+    private fun captureCookies(fields: Map<String?, List<String>?>) {
+        fields.entries
+            .filter { it.key.equals("Set-Cookie", ignoreCase = true) }
+            .flatMap { it.value.orEmpty() }
+            .forEach { raw ->
+                raw.split(';').forEach { part ->
+                    val pair = part.trim()
+                    val name = pair.substringBefore('=', "").trim()
+                    val value = pair.substringAfter('=', "")
+                    if (name.isNotBlank() && '=' in pair && name.lowercase() !in cookieAttributes) {
+                        if (value.isBlank()) cookies.remove(name) else cookies[name] = value
+                    }
+                }
+            }
+    }
+
+    private fun headerValue(fields: Map<String?, List<String>?>, name: String): String =
+        fields.entries
+            .firstOrNull { it.key.equals(name, ignoreCase = true) }
+            ?.value
+            ?.firstOrNull()
+            .orEmpty()
 
     private fun authHeaders(): Map<String, String> = buildMap {
         token?.let { put("X-Token", it) }
@@ -363,6 +381,10 @@ private fun requestSummary(payload: JSONObject, headers: Map<String, String>, en
         "identifierLength=$identifierLength; passwordLength=$passwordLength; faCount=$faSize; " +
         "encodedDataLength=$encodedLength; headers=$headerNames"
 }
+
+private val cookieAttributes = setOf(
+    "path", "domain", "expires", "max-age", "samesite", "version", "comment",
+)
 
 private object ApiCode {
     const val OK = 200
