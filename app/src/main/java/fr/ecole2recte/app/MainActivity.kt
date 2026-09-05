@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Assignment
@@ -239,7 +241,10 @@ private fun LoginScreen(
     val scope = rememberCoroutineScope()
     Box(Modifier.fillMaxSize().background(Background), contentAlignment = Alignment.Center) {
         Card(Modifier.fillMaxWidth().padding(24.dp), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(Color.White)) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Text("ecole2recte", color = Indigo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text("Connexion", color = Ink, fontWeight = FontWeight.Bold, fontSize = 28.sp)
                 Text("Une connexion simple, puis une reconnexion silencieuse.", color = Muted, fontSize = 12.sp)

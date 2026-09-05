@@ -43,9 +43,22 @@ class EcoleDirecteClient(
             ApiCode.AUTH_2FA -> {
                 token = response.headers["x-token"]
                 twoFactorToken = response.headers["2fa-token"]
+                val challengeResponse = post(
+                    path = "/connexion/doubleauth.awp",
+                    verb = "get",
+                    payload = JSONObject(),
+                    headers = authHeaders(),
+                )
+                val data = challengeResponse.body.optJSONObject("data")
+                    ?: return LoginResult.Failure(
+                        challengeResponse.body.optString("message")
+                            .ifBlank { "Question de sécurité indisponible." },
+                        challengeResponse.diagnostic(),
+                    )
                 LoginResult.SecurityQuestionRequired(
-                    question = response.body.optJSONObject("data")?.optString("question").decodeBase64(),
-                    choices = response.body.optJSONObject("data")?.optJSONArray("propositions").decodeChoices(),
+                    question = data.optString("question").decodeBase64()
+                        ?: data.optString("question").takeIf { it.isNotBlank() },
+                    choices = data.optJSONArray("propositions").decodeChoices(),
                 )
             }
             ApiCode.INVALID_CREDENTIALS -> LoginResult.Failure("Identifiant ou mot de passe invalide.", response.diagnostic())
@@ -220,6 +233,12 @@ class EcoleDirecteClient(
                 headerValue(connection.headerFields, "X-GTK")
                     .takeIf { it.isNotBlank() }
                     ?.let { currentGtk = it }
+                response.headers["x-token"]
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { token = it }
+                response.headers["2fa-token"]
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { twoFactorToken = it }
                 response.body.optString("token").takeIf { it.isNotBlank() }?.let { token = it }
             }
         } catch (error: IOException) {
