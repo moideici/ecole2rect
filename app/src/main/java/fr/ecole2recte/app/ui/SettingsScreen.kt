@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +60,7 @@ import fr.ecole2recte.app.ui.components.ScreenPadding
 import fr.ecole2recte.app.ui.components.SubjectBadge
 import fr.ecole2recte.app.ui.components.SubjectDot
 import fr.ecole2recte.app.ui.components.subjectColor
+import fr.ecole2recte.app.data.IcsExporter
 import fr.ecole2recte.app.sync.Notifier
 import fr.ecole2recte.app.ui.theme.AppTheme
 
@@ -86,6 +88,7 @@ fun SettingsScreen(
     val signedIn = auth as? AuthState.SignedIn
     val account = signedIn?.account ?: snapshot.account
     val nowMillis = System.currentTimeMillis()
+    val context = LocalContext.current
 
     DetailScaffold("Réglages", account?.schoolName?.takeIf { it.isNotBlank() }, onClose) {
         SettingsSection("Compte") {
@@ -145,6 +148,16 @@ fun SettingsScreen(
                 title = "Documents",
                 description = "Bulletins et pièces publiés par l'établissement.",
                 onClick = { onOpenDetail(Detail.Documents) },
+            )
+            SettingsRow(
+                title = "Exporter l'emploi du temps",
+                description = "Un fichier iCalendar à ouvrir dans l'agenda du téléphone.",
+                onClick = {
+                    val intent = IcsExporter(context).share(snapshot.lessons)
+                    if (intent != null) {
+                        runCatching { context.startActivity(Intent.createChooser(intent, "Exporter vers")) }
+                    }
+                },
             )
         }
 
@@ -225,6 +238,11 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(14.dp))
+            SettingsRow(
+                title = "Journal des erreurs",
+                description = "Ce qui a échoué depuis le lancement, sans mot de passe ni jeton.",
+                onClick = { onOpenDetail(Detail.ErrorLog) },
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Diagnostics réseau", style = MaterialTheme.typography.bodyMedium)

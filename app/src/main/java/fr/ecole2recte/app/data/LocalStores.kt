@@ -19,14 +19,22 @@ import java.io.File
  */
 class FileSnapshotStore(context: Context) : SnapshotStore {
 
-    private val file = File(context.filesDir, "snapshot.json")
+    private val directory = File(context.filesDir, "cache-scolaire").apply { mkdirs() }
 
-    override fun read(): SchoolSnapshot? = runCatching {
+    /** Un fichier par profil, nommé sans jamais faire confiance à l'identifiant reçu. */
+    private fun fileFor(profile: String?): File {
+        val key = profile?.replace(Regex("[^A-Za-z0-9_-]"), "")?.take(40).orEmpty()
+        return File(directory, if (key.isBlank()) "snapshot.json" else "snapshot-$key.json")
+    }
+
+    override fun read(profile: String?): SchoolSnapshot? = runCatching {
+        val file = fileFor(profile)
         if (!file.exists()) null else SnapshotCodec.decode(file.readText())
     }.getOrNull()
 
-    override fun write(snapshot: SchoolSnapshot) {
+    override fun write(profile: String?, snapshot: SchoolSnapshot) {
         runCatching {
+            val file = fileFor(profile)
             val temporary = File(file.parentFile, "${file.name}.tmp")
             temporary.writeText(SnapshotCodec.encode(snapshot))
             // Un remplacement en deux temps évite de laisser un cache tronqué si le
@@ -39,7 +47,7 @@ class FileSnapshotStore(context: Context) : SnapshotStore {
     }
 
     override fun clear() {
-        runCatching { file.delete() }
+        runCatching { directory.listFiles()?.forEach { it.delete() } }
     }
 }
 

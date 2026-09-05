@@ -35,16 +35,16 @@ ensuite les modules absents, puis l'approfondissement, enfin la qualité et la d
 - [ ] **Écriture d'un message.** Même raison : envoyer un message à un professeur depuis un
       protocole non documenté et non testé peut lui livrer un contenu tronqué. La lecture
       reste donc complète, l'écriture attend un compte de test.
-- [ ] **Comptes famille et fratrie** : un cache par élève au lieu d'un cache global effacé à
+- [x] **Comptes famille et fratrie** : un cache par élève au lieu d'un cache global effacé à
       chaque changement de profil.
 
 ## P2 — approfondir ce qui existe
 
-- [ ] **Simulateur de moyenne** : « si j'ai 14 au prochain devoir, ma moyenne devient… ».
-- [ ] **Historique des notes** : l'évolution de la moyenne sur la période.
-- [ ] **Recherche globale** depuis l'accueil : matières, devoirs, notes, messages.
-- [ ] **Export ICS** de l'emploi du temps vers le calendrier du téléphone.
-- [ ] **Journal d'erreurs** consultable dans les réglages, sans secrets.
+- [x] **Simulateur de moyenne** : « si j'ai 14 au prochain devoir, ma moyenne devient… ».
+- [x] **Historique des notes** : l'évolution de la moyenne sur la période.
+- [x] **Recherche globale** depuis l'accueil : matières, devoirs, notes, messages.
+- [x] **Export ICS** de l'emploi du temps vers le calendrier du téléphone.
+- [x] **Journal d'erreurs** consultable dans les réglages, sans secrets.
 - [ ] **Widgets configurables** : choisir la matière ou la période affichée à la pose.
 - [ ] **Balayage horizontal** entre les jours de l'emploi du temps.
 

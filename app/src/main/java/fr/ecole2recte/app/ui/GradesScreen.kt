@@ -1,6 +1,8 @@
 package fr.ecole2recte.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +31,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
@@ -35,6 +41,7 @@ import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
+import fr.ecole2recte.app.core.repo.Simulator
 import fr.ecole2recte.app.core.repo.SyncState
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.ui.components.AppCard
@@ -151,6 +158,11 @@ fun GradesScreen(
             }
         }
 
+        if (grades.isNotEmpty()) {
+            item("history") { HistoryCard(Insights.averageHistory(grades)) }
+            item("simulator") { SimulatorCard(snapshot, settings, subjects, now.toLocalDate()) }
+        }
+
         if (subjects.isEmpty()) {
             item {
                 StatePlaceholder(
@@ -175,6 +187,222 @@ fun GradesScreen(
                 grades = grades.filter { it.subject == subject },
             )
         }
+    }
+}
+
+/**
+ * L'évolution de la moyenne, note après note.
+ *
+ * Une moyenne de 13 qui monte et une moyenne de 13 qui descend ne se vivent pas pareil : la
+ * courbe dit en un regard ce qu'un chiffre seul cache.
+ */
+@Composable
+private fun HistoryCard(history: List<Pair<java.time.LocalDate, Double>>) {
+    if (history.size < 3) return
+    val line = MaterialTheme.colorScheme.primary
+    val grid = MaterialTheme.colorScheme.outlineVariant
+    val values = history.map { it.second }
+    val minimum = (values.min() - 1).coerceAtLeast(0.0)
+    val maximum = (values.max() + 1).coerceAtMost(20.0)
+    val span = (maximum - minimum).coerceAtLeast(1.0)
+
+    Box(Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp)) {
+        AppCard {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "ÉVOLUTION",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                val delta = values.last() - values.first()
+                Tag(
+                    text = (if (delta >= 0) "↗ +" else "↘ ") + formatGrade(delta),
+                    color = if (delta >= 0) AppTheme.palette.success else MaterialTheme.colorScheme.error,
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Canvas(
+                Modifier
+                    .fillMaxWidth()
+                    .height(96.dp),
+            ) {
+                val stepX = if (values.size > 1) size.width / (values.size - 1) else size.width
+                fun y(value: Double) = (size.height * (1 - (value - minimum) / span)).toFloat()
+
+                // Deux repères horizontaux suffisent : la courbe compte, pas la grille.
+                listOf(0.25f, 0.75f).forEach { fraction ->
+                    drawLine(
+                        color = grid,
+                        start = Offset(0f, size.height * fraction),
+                        end = Offset(size.width, size.height * fraction),
+                        strokeWidth = 1f,
+                    )
+                }
+                values.forEachIndexed { index, value ->
+                    if (index == 0) return@forEachIndexed
+                    drawLine(
+                        color = line,
+                        start = Offset((index - 1) * stepX, y(values[index - 1])),
+                        end = Offset(index * stepX, y(value)),
+                        strokeWidth = 5f,
+                        cap = StrokeCap.Round,
+                    )
+                }
+                drawCircle(
+                    color = line,
+                    radius = 7f,
+                    center = Offset((values.size - 1) * stepX, y(values.last())),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    Dates.dayAndMonth(history.first().first),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "${formatGrade(values.first())} → ${formatGrade(values.last())}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    Dates.dayAndMonth(history.last().first),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Simulateur de moyenne.
+ *
+ * La question que tout élève se pose devant ses notes, et à laquelle aucune application ne
+ * répond : « si je prends 14 au prochain devoir, ça donne quoi ? ». Le résultat est annoncé
+ * comme une estimation calculée depuis les notes, jamais comme une moyenne officielle.
+ */
+@Composable
+private fun SimulatorCard(
+    snapshot: SchoolSnapshot,
+    settings: AppSettings,
+    subjects: List<String>,
+    today: java.time.LocalDate,
+) {
+    if (subjects.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    var subject by remember(subjects) { mutableStateOf(subjects.first()) }
+    var value by remember { mutableStateOf("14") }
+    var coefficient by remember { mutableStateOf("1") }
+
+    val hypothesis = Simulator.Hypothesis(
+        subject = subject,
+        value = value.replace(',', '.').toDoubleOrNull() ?: -1.0,
+        coefficient = coefficient.replace(',', '.').toDoubleOrNull() ?: 1.0,
+    )
+    val outcome = Simulator.simulate(snapshot, hypothesis, today)
+
+    Box(Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp)) {
+        AppCard(onClick = { open = !open }) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Simulateur", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Et si je prenais cette note au prochain devoir ?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    if (open) "Fermer" else "Ouvrir",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            AnimatedVisibility(visible = open) {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(subjects, key = { it }) { entry ->
+                            FilterPill(entry, selected = entry == subject) { subject = entry }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = value,
+                            onValueChange = { value = it },
+                            label = { Text("Note /20") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = coefficient,
+                            onValueChange = { coefficient = it },
+                            label = { Text("Coefficient") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    if (outcome == null) {
+                        Text(
+                            "Saisis une note comprise entre 0 et 20, et un coefficient positif.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    } else {
+                        SimulationLine(subject, outcome.subjectBefore, outcome.subjectAfter, settings)
+                        SimulationLine("Moyenne générale", outcome.generalBefore, outcome.generalAfter, settings)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Estimation calculée depuis tes notes de la période, pas la moyenne de l'établissement.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SimulationLine(label: String, before: Double?, after: Double?, settings: AppSettings) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SubjectDot(subjectColor(label, settings))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            before?.let { formatGrade(it) } ?: "—",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(" → ", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            after?.let { formatGrade(it) } ?: "—",
+            style = MaterialTheme.typography.titleMedium,
+            color = when {
+                before == null || after == null -> MaterialTheme.colorScheme.onSurface
+                after >= before -> AppTheme.palette.success
+                else -> MaterialTheme.colorScheme.error
+            },
+        )
     }
 }
 

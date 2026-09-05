@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -81,6 +82,7 @@ fun HomeScreen(
                 title = if (firstName != null) "Bonjour $firstName" else "Bonjour",
                 subtitle = Dates.fullDate(today).replaceFirstChar { it.uppercase() },
                 actions = {
+                    RoundIconButton(Icons.Outlined.Search, "Rechercher") { onOpenDetail(Detail.Search) }
                     RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh)
                     RoundIconButton(Icons.Outlined.Settings, "Réglages") { onOpenDetail(Detail.Settings) }
                 },

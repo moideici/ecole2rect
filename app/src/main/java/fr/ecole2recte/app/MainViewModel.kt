@@ -61,6 +61,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val sync = repository.sync
     val settings: StateFlow<AppSettings> = repository.settings
 
+    val errorLog = repository.errorLog.entries
     val messagesComplete = repository.messagesComplete
     val loadingMoreMessages = repository.loadingMoreMessages
 
@@ -183,6 +184,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    fun clearErrorLog() = repository.errorLog.clear()
 
     fun clearAttachmentState() {
         _attachment.value = AttachmentState.Idle

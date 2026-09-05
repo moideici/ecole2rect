@@ -191,6 +191,26 @@ object Insights {
         return Average(value, official != null, period?.name.orEmpty())
     }
 
+    /**
+     * Évolution de la moyenne au fil des notes.
+     *
+     * Chaque point est la moyenne pondérée de tout ce qui précède : c'est la courbe qu'on
+     * trace mentalement en feuilletant un bulletin, et elle dit plus qu'un chiffre unique —
+     * une moyenne de 13 qui monte n'est pas la même qu'une moyenne de 13 qui descend.
+     */
+    fun averageHistory(grades: List<Grade>): List<Pair<LocalDate, Double>> {
+        val ordered = grades
+            .filter { it.counted && it.value != null && it.date != null && it.scale > 0 }
+            .sortedBy { it.date }
+        val history = mutableListOf<Pair<LocalDate, Double>>()
+        val seen = mutableListOf<Grade>()
+        ordered.forEach { grade ->
+            seen += grade
+            weightedAverage(seen)?.let { average -> history += (grade.date ?: return@forEach) to average }
+        }
+        return history
+    }
+
     /** Matières de la période, moyenne officielle en priorité, calculée à défaut. */
     fun subjectAverages(snapshot: SchoolSnapshot, today: LocalDate): List<Pair<String, Double>> {
         val period = currentPeriod(snapshot.periods, today)

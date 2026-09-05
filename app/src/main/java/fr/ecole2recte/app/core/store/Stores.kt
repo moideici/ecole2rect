@@ -30,9 +30,18 @@ interface CredentialStore {
     fun clear()
 }
 
+/**
+ * Cache des données scolaires, un par profil.
+ *
+ * Une famille suit deux enfants : passer de l'un à l'autre ne doit pas jeter les données du
+ * premier, sinon changer de profil coûte une synchronisation complète à chaque aller-retour.
+ * L'identifiant de profil est celui du compte ; `null` désigne le cache d'avant la connexion.
+ */
 interface SnapshotStore {
-    fun read(): SchoolSnapshot?
-    fun write(snapshot: SchoolSnapshot)
+    fun read(profile: String?): SchoolSnapshot?
+    fun write(profile: String?, snapshot: SchoolSnapshot)
+
+    /** Efface tous les profils : c'est la déconnexion. */
     fun clear()
 }
 

@@ -87,18 +87,25 @@ class InMemoryCredentialStore(private var value: SavedCredentials? = null) : Cre
     }
 }
 
-class InMemorySnapshotStore(private var value: SchoolSnapshot? = null) : SnapshotStore {
+class InMemorySnapshotStore(initial: SchoolSnapshot? = null, initialProfile: String? = null) : SnapshotStore {
+    private val profiles = mutableMapOf<String, SchoolSnapshot>()
+
     var writes = 0
         private set
 
-    override fun read(): SchoolSnapshot? = value
-    override fun write(snapshot: SchoolSnapshot) {
-        value = snapshot
+    init {
+        initial?.let { profiles[initialProfile.orEmpty()] = it }
+    }
+
+    override fun read(profile: String?): SchoolSnapshot? = profiles[profile.orEmpty()]
+
+    override fun write(profile: String?, snapshot: SchoolSnapshot) {
+        profiles[profile.orEmpty()] = snapshot
         writes++
     }
 
     override fun clear() {
-        value = null
+        profiles.clear()
     }
 }
 

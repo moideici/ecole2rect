@@ -6,6 +6,7 @@ import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.diag.ErrorLog
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.protocol.ApiErrorKind
 import fr.ecole2recte.app.core.protocol.ApiResult
@@ -76,6 +77,7 @@ class SchoolRepository(
     private val snapshots: SnapshotStore,
     private val settingsStore: SettingsStore,
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    val errorLog: ErrorLog = ErrorLog(),
     private val now: () -> Long = { System.currentTimeMillis() },
     private val today: () -> LocalDate = { LocalDate.now() },
 ) {
@@ -104,6 +106,9 @@ class SchoolRepository(
     /** Jours dont le détail (devoirs et contenu de séance) a déjà été demandé. */
     private val loadedDays = mutableSetOf<LocalDate>()
 
+    /** Profil dont le cache est actuellement chargé — l'identifiant du compte suivi. */
+    private var profile: String? = null
+
     /** Une seule synchronisation à la fois : l'API n'aime pas les appels concurrents. */
     private val syncLock = Mutex()
 
@@ -122,7 +127,8 @@ class SchoolRepository(
     suspend fun start() {
         withContext(io) {
             _settings.value = settingsStore.read()
-            snapshots.read()?.let { _snapshot.value = it }
+            profile = _settings.value.selectedAccountId
+            snapshots.read(profile)?.let { _snapshot.value = it }
         }
         val saved = withContext(io) { credentials.read() }
         if (saved == null) {
@@ -184,6 +190,12 @@ class SchoolRepository(
                 pending = null
                 _sync.update { it.copy(offline = false) }
                 _auth.value = AuthState.SignedIn(account, outcome.accounts)
+                // Le cache lu au démarrage peut être celui d'un autre profil : si le compte
+                // retenu diffère, on recharge le bon avant d'afficher quoi que ce soit.
+                if (profile != account.id) {
+                    profile = account.id
+                    withContext(io) { snapshots.read(account.id) }?.let { _snapshot.value = it }
+                }
                 rememberAccount(account)
             }
 
@@ -222,12 +234,23 @@ class SchoolRepository(
         }
     }
 
-    /** Bascule vers un autre compte de la même connexion (fratrie). */
+    /**
+     * Bascule vers un autre compte de la même connexion (fratrie).
+     *
+     * Le cache du profil quitté est conservé, celui du profil rejoint est relu : revenir en
+     * arrière est instantané, et personne ne repaie une synchronisation complète.
+     */
     suspend fun selectAccount(account: Account) {
         val state = _auth.value as? AuthState.SignedIn ?: return
+        if (account.id == profile) return
+        withContext(io) { snapshots.write(profile, _snapshot.value) }
+        profile = account.id
+        loadedDays.clear()
+        messagesPage = 0
+        _messagesComplete.value = false
         _auth.value = AuthState.SignedIn(account, state.accounts)
-        _snapshot.value = SchoolSnapshot(account = account)
-        withContext(io) { snapshots.write(_snapshot.value) }
+        _snapshot.value = withContext(io) { snapshots.read(account.id) }
+            ?: SchoolSnapshot(account = account)
         updateSettings { it.copy(selectedAccountId = account.id) }
         refresh()
     }
@@ -265,10 +288,15 @@ class SchoolRepository(
                     is ApiResult.Failure -> {
                         if (result.kind == ApiErrorKind.NETWORK) offline = true
                         errors[section] = result.message
+                        // Une panne réseau n'apprend rien ; un refus ou un format inattendu,
+                        // si : c'est ce qu'on veut retrouver quand l'API change.
+                        if (result.kind != ApiErrorKind.NETWORK) {
+                            errorLog.record(section.label, result.message, result.diagnostic)
+                        }
                     }
                 }
             }
-            withContext(io) { snapshots.write(_snapshot.value) }
+            withContext(io) { snapshots.write(profile, _snapshot.value) }
             _sync.value = SyncState(running = false, errors = errors.toMap(), offline = offline)
         }
     }
@@ -349,7 +377,7 @@ class SchoolRepository(
             _snapshot.update { snapshot ->
                 snapshot.copy(messages = Merge.appendMessages(snapshot.messages, result.value))
             }
-            withContext(io) { snapshots.write(_snapshot.value) }
+            withContext(io) { snapshots.write(profile, _snapshot.value) }
         }
         _loadingMore.value = false
     }
@@ -379,7 +407,7 @@ class SchoolRepository(
                     sessionContents = Merge.sessionContents(it.sessionContents, result.value.sessions, date),
                 )
             }
-            withContext(io) { snapshots.write(_snapshot.value) }
+            withContext(io) { snapshots.write(profile, _snapshot.value) }
         }
     }
 
@@ -403,7 +431,7 @@ class SchoolRepository(
                 ),
             )
         }
-        withContext(io) { snapshots.write(_snapshot.value) }
+        withContext(io) { snapshots.write(profile, _snapshot.value) }
     }
 
     private suspend fun markMessageRead(message: MessageItem) {

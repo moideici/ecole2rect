@@ -63,6 +63,8 @@ sealed interface Detail {
     data object SubjectColors : Detail
     data object SchoolLife : Detail
     data object Documents : Detail
+    data object Search : Detail
+    data object ErrorLog : Detail
 }
 
 @Composable
@@ -135,6 +137,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     val attachment by viewModel.attachment.collectAsStateWithLifecycle()
     val messagesComplete by viewModel.messagesComplete.collectAsStateWithLifecycle()
     val loadingMore by viewModel.loadingMoreMessages.collectAsStateWithLifecycle()
+    val errors by viewModel.errorLog.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Une pièce jointe prête part vers l'application capable de l'ouvrir, puis l'état est
@@ -307,6 +310,44 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     settings = settings,
                     onMove = viewModel::moveWidget,
                     onToggle = viewModel::toggleWidget,
+                    onClose = { detail = null },
+                )
+
+                Detail.Search -> SearchScreen(
+                    snapshot = snapshot,
+                    settings = settings,
+                    today = now.toLocalDate(),
+                    onOpen = { hit ->
+                        when (hit.kind) {
+                            fr.ecole2recte.app.core.repo.Search.HitKind.LESSON ->
+                                detail = Detail.Lesson(hit.id)
+
+                            fr.ecole2recte.app.core.repo.Search.HitKind.HOMEWORK -> {
+                                snapshot.homework.firstOrNull { it.id == hit.id }?.let(openHomework)
+                            }
+
+                            fr.ecole2recte.app.core.repo.Search.HitKind.MESSAGE -> {
+                                snapshot.messages.firstOrNull { it.id == hit.id }?.let { message ->
+                                    viewModel.openMessage(message)
+                                    detail = Detail.Message(message.id)
+                                }
+                            }
+
+                            fr.ecole2recte.app.core.repo.Search.HitKind.GRADE -> {
+                                detail = null
+                                destination = Destination.GRADES
+                            }
+
+                            fr.ecole2recte.app.core.repo.Search.HitKind.SCHOOL_LIFE ->
+                                detail = Detail.SchoolLife
+                        }
+                    },
+                    onClose = { detail = null },
+                )
+
+                Detail.ErrorLog -> ErrorLogScreen(
+                    entries = errors,
+                    onClear = viewModel::clearErrorLog,
                     onClose = { detail = null },
                 )
 
