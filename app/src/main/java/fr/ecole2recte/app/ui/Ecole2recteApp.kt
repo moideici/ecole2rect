@@ -61,6 +61,14 @@ fun Ecole2recteApp(viewModel: MainViewModel) {
             // Le tout premier instant, avant même d'avoir relu le disque : un écran vide
             // clignoterait, une marque calme vaut mieux.
             AuthState.Unknown -> SplashScreen()
+            // Reconnexion silencieuse au lancement : inutile de faire apparaître un
+            // formulaire de connexion que l'utilisateur n'aura pas le temps de lire.
+            is AuthState.Connecting -> if ((auth as AuthState.Connecting).silent) {
+                SplashScreen()
+            } else {
+                LoginRoute(viewModel)
+            }
+
             is AuthState.SignedIn -> SignedInScaffold(viewModel)
             else -> LoginRoute(viewModel)
         }

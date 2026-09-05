@@ -83,7 +83,7 @@ fun MessagesScreen(
                     1 -> "1 message non lu"
                     else -> "${unread.size} messages non lus"
                 },
-                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onRefresh) },
+                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
             )
         }
 

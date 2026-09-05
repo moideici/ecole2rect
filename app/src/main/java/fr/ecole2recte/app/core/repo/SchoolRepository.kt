@@ -32,7 +32,12 @@ sealed interface AuthState {
     /** Au démarrage, avant d'avoir lu le stockage local. */
     data object Unknown : AuthState
     data object SignedOut : AuthState
-    data object Connecting : AuthState
+    /**
+     * Connexion en cours. « Silencieuse » quand elle rejoue des identifiants enregistrés au
+     * lancement : l'interface montre alors la marque, pas un formulaire de connexion qui
+     * clignoterait pour disparaître aussitôt.
+     */
+    data class Connecting(val silent: Boolean = false) : AuthState
     data class SecurityQuestion(val question: String, val choices: List<String>) : AuthState
     data class SignedIn(val account: Account, val accounts: List<Account>) : AuthState
     data class Failed(
@@ -110,12 +115,12 @@ class SchoolRepository(
             _auth.value = AuthState.SignedOut
             return
         }
-        _auth.value = AuthState.Connecting
+        _auth.value = AuthState.Connecting(silent = true)
         signInWith(saved, persist = false)
     }
 
     suspend fun signIn(identifier: String, password: String) {
-        _auth.value = AuthState.Connecting
+        _auth.value = AuthState.Connecting()
         val saved = withContext(io) { credentials.read() }
             ?.takeIf { it.identifier == identifier && it.password == password }
         signInWith(
@@ -130,7 +135,7 @@ class SchoolRepository(
             _auth.value = AuthState.SignedOut
             return
         }
-        _auth.value = AuthState.Connecting
+        _auth.value = AuthState.Connecting()
         val outcome = withContext(io) {
             api.answerSecurityQuestion(choice, credentialsInProgress.identifier, credentialsInProgress.password)
         }

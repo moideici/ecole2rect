@@ -49,6 +49,7 @@ import fr.ecole2recte.app.ui.components.Tag
 import fr.ecole2recte.app.ui.components.subjectColor
 import fr.ecole2recte.app.ui.theme.AppTheme
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * L'accueil.
@@ -77,7 +78,7 @@ fun HomeScreen(
                 title = if (firstName != null) "Bonjour $firstName" else "Bonjour",
                 subtitle = Dates.fullDate(today).replaceFirstChar { it.uppercase() },
                 actions = {
-                    RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onRefresh)
+                    RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh)
                     RoundIconButton(Icons.Outlined.Settings, "Réglages") { onOpenDetail(Detail.Settings) }
                 },
             )
@@ -116,7 +117,9 @@ fun HomeScreen(
 /** Ligne d'état : ce qui est affiché vient-il du réseau ou du cache, et de quand ? */
 @Composable
 fun SyncStatusRow(sync: SyncState, lastSyncedAt: Long?, now: LocalDateTime) {
-    val nowMillis = System.currentTimeMillis()
+    // L'horloge du ViewModel plutôt que l'heure système : le libellé « il y a 4 min »
+    // se recompose alors tout seul, sans dépendre d'un autre changement d'état.
+    val nowMillis = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val color = when {
         sync.offline -> AppTheme.palette.warning
         sync.errors.isNotEmpty() -> AppTheme.palette.warning

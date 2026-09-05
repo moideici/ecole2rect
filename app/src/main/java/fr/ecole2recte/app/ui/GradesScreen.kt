@@ -86,7 +86,7 @@ fun GradesScreen(
                 eyebrow = "Bulletin",
                 title = "Notes",
                 subtitle = period?.name ?: "Toutes périodes",
-                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onRefresh) },
+                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
             )
         }
 

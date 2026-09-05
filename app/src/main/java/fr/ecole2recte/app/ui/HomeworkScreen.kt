@@ -99,7 +99,7 @@ fun HomeworkScreen(
                     1 -> "1 devoir à faire"
                     else -> "$pendingCount devoirs à faire"
                 },
-                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onRefresh) },
+                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
             )
         }
 
@@ -157,7 +157,12 @@ fun HomeworkScreen(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = ScreenPadding + 4.dp, top = 18.dp, bottom = 4.dp),
+                        .padding(
+                            start = ScreenPadding + 4.dp,
+                            end = ScreenPadding + 4.dp,
+                            top = 18.dp,
+                            bottom = 4.dp,
+                        ),
                 ) {
                     Text(
                         Dates.relativeDay(date, today).replaceFirstChar { it.uppercase() },

@@ -8,7 +8,6 @@
         android:name=".Ecole2recteApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
         android:label="ecole2recte"
         android:roundIcon="@mipmap/ic_launcher_round"

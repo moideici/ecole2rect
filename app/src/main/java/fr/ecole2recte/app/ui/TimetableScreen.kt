@@ -78,7 +78,7 @@ fun TimetableScreen(
                 eyebrow = "Emploi du temps",
                 title = Dates.relativeDay(selectedDay, today).replaceFirstChar { it.uppercase() },
                 subtitle = "Semaine du ${Dates.dayAndMonth(weekStart)}",
-                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onRefresh) },
+                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
             )
         }
 

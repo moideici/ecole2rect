@@ -274,8 +274,10 @@ fun PrimaryButton(
 fun RoundIconButton(
     icon: ImageVector,
     contentDescription: String,
-    onClick: () -> Unit,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    // En dernier : c'est le paramètre auquel se lie une lambda finale, et un bouton
+    // s'écrit naturellement `RoundIconButton(icon, "Action") { ... }`.
+    onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
