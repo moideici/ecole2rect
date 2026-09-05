@@ -95,6 +95,24 @@ class AutoAnswerTest {
     }
 
     @Test
+    fun `avec plusieurs enfants, une question sans prénom reconnu ne déclenche rien`() {
+        val dates = BirthDates()
+            .with("Martin", SecurityAnswer.BirthDate("4", "3", "2011"))
+            .with("Léa", SecurityAnswer.BirthDate("12", "5", "2010"))
+
+        assertNull(
+            "choisir un enfant au hasard donnerait une réponse fausse, pas approchée",
+            AutoAnswer.decide(
+                question = "Quelle est la date de naissance de votre enfant ?",
+                choices = listOf("04/03/2011", "12/05/2010"),
+                birthDates = dates,
+                memory = AnswerMemory(),
+                today = today,
+            ),
+        )
+    }
+
+    @Test
     fun `une date complète est reconnue quelle que soit son écriture`() {
         val dates = BirthDates.of(SecurityAnswer.BirthDate("5", "9", "2009"))
 

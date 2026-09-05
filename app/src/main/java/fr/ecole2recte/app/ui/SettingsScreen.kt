@@ -384,9 +384,12 @@ private fun AutoAnswerSection(
         profiles.forEach { profile ->
             BirthDateRow(
                 name = profile.firstName.ifBlank { profile.displayName }.ifBlank { "Élève" },
+                // La date saisie à la connexion n'est reprise que s'il n'y a qu'un élève :
+                // l'afficher sous chacun des enfants d'une fratrie laisserait croire qu'ils
+                // sont nés le même jour.
                 stored = state.birthDates.forName(profile.firstName)
                     .takeIf { it.isFilled }
-                    ?: state.birthDates.forQuestion(""),
+                    ?: if (profiles.size == 1) state.birthDates.forQuestion("") else SecurityAnswer.BirthDate(),
                 onChange = { date -> onBirthDate(profile.firstName, date) },
             )
         }

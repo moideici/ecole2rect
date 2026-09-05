@@ -67,11 +67,13 @@ data class BirthDates(val entries: Map<String, SecurityAnswer.BirthDate> = empty
             .filter { (name, date) -> name.isNotEmpty() && date.isFilled && words.contains(" $name ") }
             .maxByOrNull { it.key.length }
         if (named != null) return named.value
-        // Sans prénom reconnu : la date saisie à la connexion, ou l'unique date connue —
-        // au-delà, on ne choisit pas à la place de l'utilisateur.
-        entries[DEFAULT_KEY]?.takeIf { it.isFilled }?.let { return it }
-        val filled = entries.values.filter { it.isFilled }
-        return filled.singleOrNull() ?: SecurityAnswer.BirthDate()
+        // Aucun prénom reconnu. Une seule date connue peut encore servir : c'est le cas
+        // courant d'un élève seul, ou d'un parent qui n'a saisi que celle de son enfant. Mais
+        // dès qu'il y en a plusieurs, répondre reviendrait à choisir un enfant au hasard —
+        // et une date d'aîné envoyée pour la cadette est une réponse fausse, pas une
+        // approximation. On préfère alors poser la question.
+        val filled = entries.filterValues { it.isFilled }
+        return filled.values.singleOrNull() ?: SecurityAnswer.BirthDate()
     }
 
     fun with(name: String, date: SecurityAnswer.BirthDate): BirthDates {
