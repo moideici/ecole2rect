@@ -15,7 +15,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Assignment
+import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
@@ -135,7 +135,7 @@ fun HomeworkScreen(
         if (grouped.isEmpty()) {
             item {
                 StatePlaceholder(
-                    icon = Icons.Outlined.Assignment,
+                    icon = Icons.AutoMirrored.Outlined.Assignment,
                     title = when {
                         query.isNotBlank() -> "Aucun résultat"
                         filter == HomeworkFilter.DONE -> "Aucun devoir terminé"

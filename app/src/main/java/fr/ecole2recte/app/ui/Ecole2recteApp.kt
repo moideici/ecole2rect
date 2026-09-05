@@ -6,11 +6,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Assignment
+import androidx.compose.material.icons.automirrored.outlined.Assignment
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,8 +43,8 @@ import fr.ecole2recte.app.ui.theme.Ecole2recteTheme
 enum class Destination(val label: String, val icon: ImageVector) {
     HOME("Accueil", Icons.Outlined.Home),
     TIMETABLE("Planning", Icons.Outlined.CalendarMonth),
-    HOMEWORK("Devoirs", Icons.Outlined.Assignment),
-    GRADES("Notes", Icons.Outlined.ShowChart),
+    HOMEWORK("Devoirs", Icons.AutoMirrored.Outlined.Assignment),
+    GRADES("Notes", Icons.AutoMirrored.Outlined.ShowChart),
     MESSAGES("Messages", Icons.Outlined.ChatBubbleOutline),
 }
 

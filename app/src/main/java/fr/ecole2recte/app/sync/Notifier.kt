@@ -61,7 +61,16 @@ class Notifier(private val context: Context) {
                 .setGroup(planned.kind.channelId)
                 .build()
             // L'identifiant stable évite qu'une même note signalée deux fois s'empile.
-            runCatching { manager.notify(planned.id.hashCode(), notification) }
+            try {
+                manager.notify(planned.id.hashCode(), notification)
+            } catch (refusee: SecurityException) {
+                // La permission a pu être retirée entre canNotify() et ici : rien à publier de
+                // plus, et une notification perdue ne fait pas tomber la synchronisation.
+                return
+            } catch (limite: RuntimeException) {
+                // Le système refuse au-delà d'un certain nombre de notifications par application.
+                // On passe à la notification suivante.
+            }
         }
     }
 

@@ -18,8 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
@@ -166,7 +166,7 @@ fun GradesScreen(
         if (subjects.isEmpty()) {
             item {
                 StatePlaceholder(
-                    icon = Icons.Outlined.ShowChart,
+                    icon = Icons.AutoMirrored.Outlined.ShowChart,
                     title = "Aucune note",
                     description = "Les notes apparaîtront ici dès leur publication.",
                     actionLabel = "Synchroniser",
