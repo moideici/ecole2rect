@@ -3,6 +3,7 @@ package fr.ecole2recte.app.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -216,18 +219,25 @@ fun Tag(
 fun FilterPill(text: String, selected: Boolean, onClick: () -> Unit) {
     val background = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
     val foreground = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-    Text(
-        text,
+    Box(
         modifier = Modifier
+            // Un filtre est un bouton : il doit s'annoncer comme tel, se laisser cocher au
+            // clavier, et rester atteignable au doigt même quand son texte est court.
+            .minimumInteractiveComponentSize()
             .background(background, CircleShape)
             .border(1.dp, if (selected) background else MaterialTheme.colorScheme.outlineVariant, CircleShape)
-            .clickable(onClick = onClick)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
-        color = foreground,
-        style = MaterialTheme.typography.labelLarge,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            color = foreground,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 @Composable
@@ -281,10 +291,11 @@ fun RoundIconButton(
 ) {
     Box(
         modifier = Modifier
+            .minimumInteractiveComponentSize()
             .size(42.dp)
             .background(MaterialTheme.colorScheme.surface, CircleShape)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(onClickLabel = contentDescription, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(20.dp))

@@ -28,6 +28,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -432,6 +434,14 @@ fun HomeworkRow(
             checked = done,
             onCheckedChange = { onToggle(item) },
             colors = CheckboxDefaults.colors(checkedColor = accent),
+            // Sans cela, le lecteur d'écran annonce « case à cocher » sans dire de quoi.
+            modifier = Modifier.semantics {
+                contentDescription = if (done) {
+                    "Marquer le devoir de ${item.subject} comme à faire"
+                } else {
+                    "Marquer le devoir de ${item.subject} comme fait"
+                }
+            },
         )
         Spacer(Modifier.width(4.dp))
         Column(Modifier.weight(1f)) {

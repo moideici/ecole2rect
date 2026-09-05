@@ -23,9 +23,13 @@ object WidgetData {
         val now: LocalDateTime,
     )
 
-    fun load(context: Context): Loaded = Loaded(
-        snapshot = runCatching { FileSnapshotStore(context).read() }.getOrNull() ?: SchoolSnapshot(),
-        settings = runCatching { PreferencesSettingsStore(context).read() }.getOrNull() ?: AppSettings(),
-        now = LocalDateTime.now(),
-    )
+    fun load(context: Context): Loaded {
+        val settings = runCatching { PreferencesSettingsStore(context).read() }.getOrNull() ?: AppSettings()
+        // Le cache est rangé par profil : un widget doit montrer l'élève actuellement suivi,
+        // pas le premier fichier venu.
+        val snapshot = runCatching {
+            FileSnapshotStore(context).read(settings.selectedAccountId)
+        }.getOrNull() ?: SchoolSnapshot()
+        return Loaded(snapshot = snapshot, settings = settings, now = LocalDateTime.now())
+    }
 }

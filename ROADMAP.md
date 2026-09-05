@@ -64,7 +64,7 @@ ensuite les modules absents, puis l'approfondissement, enfin la qualité et la d
 - [x] **Couleurs dynamiques Material You** et icône monochrome.
 - [x] **Raccourcis d'application** (appui long sur l'icône).
 - [x] **Tirer pour rafraîchir** sur les écrans de liste.
-- [ ] **Audit d'accessibilité** : libellés, tailles de police, contrastes.
+- [x] **Audit d'accessibilité** : libellés, tailles de police, contrastes.
 
 ## Ce qui restera à faire avec un compte réel
 
