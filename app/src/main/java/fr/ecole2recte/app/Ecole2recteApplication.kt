@@ -2,6 +2,8 @@ package fr.ecole2recte.app
 
 import android.app.Application
 import fr.ecole2recte.app.data.AppContainer
+import fr.ecole2recte.app.sync.Notifier
+import fr.ecole2recte.app.sync.SyncScheduler
 import fr.ecole2recte.app.widget.WidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +22,10 @@ class Ecole2recteApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         observeForWidgets()
+        // Les canaux existent dès le premier lancement : l'utilisateur peut ainsi les régler
+        // depuis les paramètres du système avant même d'avoir reçu quoi que ce soit.
+        Notifier(this).ensureChannels()
+        SyncScheduler.ensureScheduled(this)
     }
 
     /**

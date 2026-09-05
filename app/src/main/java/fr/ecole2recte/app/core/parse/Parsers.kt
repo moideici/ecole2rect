@@ -3,11 +3,16 @@ package fr.ecole2recte.app.core.parse
 import fr.ecole2recte.app.core.format.Text
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.Attachment
+import fr.ecole2recte.app.core.model.AttachmentSource
+import fr.ecole2recte.app.core.model.Document
 import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.model.Period
+import fr.ecole2recte.app.core.model.SchoolLifeEvent
+import fr.ecole2recte.app.core.model.SchoolLifeKind
+import fr.ecole2recte.app.core.model.SessionContent
 import fr.ecole2recte.app.core.model.SubjectAverage
 import fr.ecole2recte.app.core.protocol.Encoding
 import org.json.JSONObject
@@ -121,12 +126,12 @@ object Parsers {
                 content = Text.fromHtml(Encoding.maybeBase64(toDo?.string("contenu"))),
                 exam = entry.bool("interrogation"),
                 done = toDo?.bool("effectue") ?: false,
-                attachments = attachments(toDo),
+                attachments = attachments(toDo, AttachmentSource.HOMEWORK),
             )
         }
     }
 
-    private fun attachments(entry: JSONObject?): List<Attachment> {
+    private fun attachments(entry: JSONObject?, origin: AttachmentSource): List<Attachment> {
         val source = entry ?: return emptyList()
         return source.objects("documents", "files").mapNotNull { document ->
             val name = document.string("libelle", "fichier", "nom").ifBlank { return@mapNotNull null }
@@ -134,6 +139,7 @@ object Parsers {
                 id = document.stringOrNull("id") ?: stableId("doc", name),
                 name = name,
                 type = document.string("type"),
+                source = origin,
             )
         }
     }
@@ -205,6 +211,95 @@ object Parsers {
     private fun JSONObject?.objectsOrEmpty(vararg keys: String): List<JSONObject> =
         this?.objects(*keys).orEmpty()
 
+    // ── Vie scolaire ─────────────────────────────────────────────────────────
+
+    /**
+     * Absences, retards, sanctions et encouragements.
+     *
+     * L'API les range dans des tableaux distincts selon les établissements, parfois dans un
+     * seul. On lit les deux formes, et le type de chaque entrée décide de la famille.
+     */
+    fun schoolLife(payload: JSONObject): List<SchoolLifeEvent> {
+        val data = payload.optJSONObject("data") ?: return emptyList()
+        // `objects(vararg)` s'arrête à la première clé trouvée : ici il faut au contraire
+        // réunir tous les tableaux, car absences et sanctions cohabitent dans la réponse.
+        val entries = SCHOOL_LIFE_KEYS.flatMap { key -> data.objects(key) }
+        return entries.mapNotNull { entry ->
+            val start = parseDateTime(entry.string("dateDebut", "date", "displayDate"))
+                ?: return@mapNotNull null
+            val rawType = entry.string("typeElement", "type", "libelle")
+            SchoolLifeEvent(
+                id = entry.stringOrNull("id") ?: stableId("vs", rawType, start.toString()),
+                kind = schoolLifeKind(rawType),
+                label = Text.prettySubject(rawType).ifBlank { "Événement" },
+                start = start,
+                end = parseDateTime(entry.string("dateFin")),
+                justified = entry.bool("justifie", "justifiee"),
+                reason = entry.string("motif", "libelle"),
+                comment = entry.string("commentaire"),
+            )
+        }.distinctBy { it.id }.sortedByDescending { it.start }
+    }
+
+    private val SCHOOL_LIFE_KEYS = listOf(
+        "absencesRetards", "absences", "retards", "sanctionsEncouragements", "evenements",
+    )
+
+    private fun schoolLifeKind(raw: String): SchoolLifeKind {
+        val key = Text.normalizeKey(raw)
+        return when {
+            key.contains("retard") -> SchoolLifeKind.LATE
+            key.contains("absence") -> SchoolLifeKind.ABSENCE
+            key.contains("encouragement") || key.contains("felicitation") -> SchoolLifeKind.ENCOURAGEMENT
+            key.contains("sanction") || key.contains("punition") ||
+                key.contains("exclusion") || key.contains("retenue") -> SchoolLifeKind.SANCTION
+            else -> SchoolLifeKind.OTHER
+        }
+    }
+
+    // ── Contenus de séance ───────────────────────────────────────────────────
+
+    /** Ce qui a été fait en cours, extrait du même appel que les devoirs du jour. */
+    fun sessionContents(payload: JSONObject, date: LocalDate): List<SessionContent> {
+        val data = payload.optJSONObject("data") ?: return emptyList()
+        val day = parseDate(data.string("date")) ?: date
+        return data.objects("matieres").mapNotNull { entry ->
+            val session = entry.optJSONObject("contenuDeSeance") ?: return@mapNotNull null
+            val subject = Text.prettySubject(entry.string("matiere", "codeMatiere").ifBlank { return@mapNotNull null })
+            val content = Text.fromHtml(Encoding.maybeBase64(session.string("contenu")))
+            if (content.isBlank()) return@mapNotNull null
+            SessionContent(
+                id = entry.stringOrNull("id") ?: stableId("seance", subject, day.toString()),
+                subject = subject,
+                date = day,
+                content = content,
+                attachments = attachments(session, AttachmentSource.HOMEWORK),
+            )
+        }
+    }
+
+    // ── Documents ────────────────────────────────────────────────────────────
+
+    /**
+     * Les documents de l'espace numérique. Les catégories varient d'un établissement à
+     * l'autre : on parcourt donc toutes les clés dont la valeur est un tableau d'objets.
+     */
+    fun documents(payload: JSONObject): List<Document> {
+        val data = payload.optJSONObject("data") ?: return emptyList()
+        return data.keyList().flatMap { category ->
+            data.optJSONArray(category).objects().mapNotNull { entry ->
+                val name = entry.string("libelle", "nom", "fichier").ifBlank { return@mapNotNull null }
+                Document(
+                    id = entry.stringOrNull("id") ?: stableId("doc", category, name),
+                    name = name,
+                    category = Text.prettySubject(category),
+                    date = parseDate(entry.string("date", "dateDocument")),
+                    type = entry.string("type"),
+                )
+            }
+        }.sortedByDescending { it.date ?: LocalDate.MIN }
+    }
+
     // ── Messagerie ───────────────────────────────────────────────────────────
 
     fun messages(payload: JSONObject): List<MessageItem> {
@@ -233,7 +328,7 @@ object Parsers {
             read = entry.bool("read", "lu"),
             preview = Text.preview(body),
             body = body,
-            attachments = attachments(entry),
+            attachments = attachments(entry, AttachmentSource.MESSAGE),
         )
     }
 

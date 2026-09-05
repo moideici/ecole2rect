@@ -44,12 +44,32 @@ data class Lesson(
     val date: LocalDate get() = start.toLocalDate()
 }
 
-/** Une pièce jointe (devoir ou message). */
+/**
+ * Une pièce jointe.
+ *
+ * Le téléchargement passe par un endpoint unique, mais qui exige de savoir d'où vient le
+ * fichier : le cahier de textes et la messagerie ne portent pas le même « type de fichier ».
+ */
 data class Attachment(
     val id: String,
     val name: String,
     val type: String = "",
-)
+    val source: AttachmentSource = AttachmentSource.HOMEWORK,
+    /**
+     * Type de fichier attendu par l'endpoint de téléchargement, quand il ne découle pas
+     * simplement de l'origine — c'est le cas des documents de l'espace numérique, dont le
+     * type dépend de la catégorie (bulletin, pièce administrative, facture).
+     */
+    val downloadType: String = "",
+) {
+    val apiDownloadType: String get() = downloadType.ifBlank { source.apiType }
+}
+
+enum class AttachmentSource(val apiType: String) {
+    HOMEWORK("FICHIER_CDT"),
+    MESSAGE("PIECE_JOINTE"),
+    RESOURCE("CLOUD"),
+}
 
 /** Un devoir du cahier de textes. */
 data class HomeworkItem(
@@ -120,12 +140,85 @@ data class MessageItem(
     val hasBody: Boolean get() = body.isNotBlank()
 }
 
-/** Les quatre familles de données synchronisées, chacune avec son état propre. */
+/**
+ * Un événement de vie scolaire : absence, retard, sanction ou encouragement.
+ *
+ * Une seule forme pour les quatre, parce que c'est ainsi qu'ils se lisent — une liste
+ * chronologique de ce qui a été noté sur l'élève — et que l'API les mélange déjà.
+ */
+data class SchoolLifeEvent(
+    val id: String,
+    val kind: SchoolLifeKind,
+    val label: String,
+    val start: LocalDateTime,
+    val end: LocalDateTime? = null,
+    val justified: Boolean = false,
+    val reason: String = "",
+    val comment: String = "",
+) {
+    val date: LocalDate get() = start.toLocalDate()
+}
+
+enum class SchoolLifeKind(val label: String) {
+    ABSENCE("Absence"),
+    LATE("Retard"),
+    SANCTION("Sanction"),
+    ENCOURAGEMENT("Encouragement"),
+    OTHER("Autre"),
+}
+
+/**
+ * Le contenu d'une séance : ce qui a été fait en cours.
+ *
+ * C'est la moitié du cahier de textes que l'application ignorait — celle qui sert à
+ * rattraper un cours manqué, quand l'autre sert à préparer le suivant.
+ */
+data class SessionContent(
+    val id: String,
+    val subject: String,
+    val date: LocalDate,
+    val content: String,
+    val attachments: List<Attachment> = emptyList(),
+)
+
+/** Un document de l'espace numérique (bulletin, facture, pièce administrative). */
+data class Document(
+    val id: String,
+    val name: String,
+    val category: String = "",
+    val date: LocalDate? = null,
+    val type: String = "",
+) {
+    /**
+     * Un document se télécharge par le même endpoint qu'une pièce jointe, mais son type
+     * dépend de la catégorie dans laquelle l'établissement l'a rangé. La correspondance
+     * ci-dessous couvre les catégories courantes ; pour les autres, le serveur refusera
+     * proprement et l'interface affichera son message plutôt qu'un fichier illisible.
+     */
+    fun asAttachment(): Attachment = Attachment(
+        id = id,
+        name = name,
+        type = type,
+        source = AttachmentSource.RESOURCE,
+        downloadType = when {
+            category.contains("note", ignoreCase = true) -> "NOTE"
+            category.contains("bulletin", ignoreCase = true) -> "NOTE"
+            category.contains("administratif", ignoreCase = true) -> "ADMINISTRATIF"
+            category.contains("facture", ignoreCase = true) -> "FACTURE"
+            category.contains("scolaire", ignoreCase = true) -> "VIE_SCOLAIRE"
+            else -> AttachmentSource.RESOURCE.apiType
+        },
+    )
+}
+
+/** Les familles de données synchronisées, chacune avec son état propre. */
 enum class DataSection(val label: String) {
     TIMETABLE("Emploi du temps"),
     HOMEWORK("Devoirs"),
     GRADES("Notes"),
     MESSAGES("Messages"),
+    SCHOOL_LIFE("Vie scolaire"),
+    DOCUMENTS("Documents"),
 }
 
 /**
@@ -143,11 +236,15 @@ data class SchoolSnapshot(
     val periods: List<Period> = emptyList(),
     val subjectAverages: List<SubjectAverage> = emptyList(),
     val messages: List<MessageItem> = emptyList(),
+    val schoolLife: List<SchoolLifeEvent> = emptyList(),
+    val sessionContents: List<SessionContent> = emptyList(),
+    val documents: List<Document> = emptyList(),
     /** Millisecondes epoch de la dernière synchronisation réussie, section par section. */
     val syncedAt: Map<DataSection, Long> = emptyMap(),
 ) {
     val isEmpty: Boolean
-        get() = lessons.isEmpty() && homework.isEmpty() && grades.isEmpty() && messages.isEmpty()
+        get() = lessons.isEmpty() && homework.isEmpty() && grades.isEmpty() && messages.isEmpty() &&
+            schoolLife.isEmpty() && documents.isEmpty()
 
     val lastSyncedAt: Long? get() = syncedAt.values.maxOrNull()
 }

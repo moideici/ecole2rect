@@ -27,16 +27,35 @@ enum class HomeWidget(val label: String, val description: String) {
     MESSAGES("Messages", "Les derniers messages reçus."),
     WEEK("Semaine", "La charge de chaque jour, du lundi au samedi."),
     TOMORROW("Demain", "Les cours et les devoirs de demain, pour préparer son sac."),
+    SCHOOL_LIFE("Vie scolaire", "Absences, retards et sanctions du mois."),
     ;
 
     companion object {
         val DEFAULT_ORDER: List<HomeWidget> = listOf(
-            NEXT_CLASS, URGENT, TODAY, HOMEWORK, EXAMS, GRADES, SUBJECT_AVERAGES, MESSAGES, WEEK, TOMORROW,
+            NEXT_CLASS, URGENT, TODAY, HOMEWORK, EXAMS, GRADES, SUBJECT_AVERAGES, MESSAGES,
+            WEEK, TOMORROW, SCHOOL_LIFE,
         )
     }
 }
 
 data class HomeWidgetSetting(val widget: HomeWidget, val visible: Boolean = true)
+
+/**
+ * Ce que l'application a le droit de signaler.
+ *
+ * Une notification scolaire non désirée est pire qu'aucune notification : elle apprend à
+ * l'élève à balayer sans lire. Chaque type est donc désactivable séparément, et rien n'est
+ * signalé deux fois.
+ */
+data class NotificationSettings(
+    val enabled: Boolean = true,
+    val grades: Boolean = true,
+    val homework: Boolean = true,
+    val messages: Boolean = true,
+    val examReminder: Boolean = true,
+) {
+    val anyEnabled: Boolean get() = enabled && (grades || homework || messages || examReminder)
+}
 
 /**
  * Tous les réglages et états locaux, dans un seul objet immuable.
@@ -55,6 +74,15 @@ data class AppSettings(
     val selectedAccountId: String? = null,
     /** Affiche les diagnostics réseau sur l'écran de connexion et dans les réglages. */
     val showDiagnostics: Boolean = false,
+    val notifications: NotificationSettings = NotificationSettings(),
+    /**
+     * Ce qui a déjà été signalé, pour ne jamais notifier deux fois la même note. La liste
+     * est bornée : au-delà, les plus anciens identifiants ne peuvent de toute façon plus
+     * revenir dans une synchronisation.
+     */
+    val notified: List<String> = emptyList(),
+    /** Verrouillage de l'application par empreinte ou code de l'appareil. */
+    val biometricLock: Boolean = false,
 ) {
 
     /** Widgets visibles, dans l'ordre choisi ; les nouveaux widgets arrivent à la fin. */
@@ -109,9 +137,22 @@ data class AppSettings(
         undoneHomework = if (done) undoneHomework - id else undoneHomework + id,
     )
 
+    fun hasBeenNotified(id: String): Boolean = id in notified
+
+    /** Retient ce qui vient d'être signalé, sans laisser la liste grossir sans fin. */
+    fun withNotified(ids: Collection<String>): AppSettings {
+        if (ids.isEmpty()) return this
+        val merged = (notified + ids).distinct()
+        return copy(notified = merged.takeLast(MAX_NOTIFIED))
+    }
+
     fun isMessageRead(id: String, remoteRead: Boolean): Boolean = remoteRead || id in readMessages
 
     fun withMessageRead(id: String): AppSettings = copy(readMessages = readMessages + id)
+
+    private companion object {
+        const val MAX_NOTIFIED = 400
+    }
 }
 
 /**

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,11 +30,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import fr.ecole2recte.app.AttachmentState
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.model.SessionContent
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.ui.components.AppCard
 import fr.ecole2recte.app.ui.components.ScreenPadding
@@ -100,6 +103,7 @@ fun LessonDetailScreen(
     lesson: Lesson?,
     settings: AppSettings,
     homework: List<HomeworkItem>,
+    sessions: List<SessionContent>,
     onOpenHomework: (HomeworkItem) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -142,6 +146,23 @@ fun LessonDetailScreen(
                 if (lesson.note.isNotBlank()) {
                     Spacer(Modifier.height(12.dp))
                     Text(lesson.note, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+        if (sessions.isNotEmpty()) {
+            Text(
+                "CONTENU DE SÉANCE",
+                modifier = Modifier.padding(start = ScreenPadding + 4.dp, top = 18.dp, bottom = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            sessions.forEach { session ->
+                Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
+                    AppCard {
+                        SelectionContainer {
+                            Text(session.content, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
                 }
             }
         }
@@ -204,7 +225,9 @@ private fun DetailLine(label: String, value: String) {
 fun HomeworkDetailScreen(
     item: HomeworkItem?,
     settings: AppSettings,
+    attachmentState: AttachmentState,
     onToggle: (HomeworkItem) -> Unit,
+    onOpenAttachment: (Attachment) -> Unit,
     onClose: () -> Unit,
 ) {
     if (item == null) {
@@ -255,7 +278,7 @@ fun HomeworkDetailScreen(
                 }
                 if (item.attachments.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
-                    AttachmentList(item.attachments)
+                    AttachmentList(item.attachments, attachmentState, onOpenAttachment)
                 }
                 Spacer(Modifier.height(18.dp))
                 Row(
@@ -282,7 +305,12 @@ fun HomeworkDetailScreen(
 
 /** Un message, corps complet et pièces jointes listées. */
 @Composable
-fun MessageDetailScreen(message: MessageItem?, onClose: () -> Unit) {
+fun MessageDetailScreen(
+    message: MessageItem?,
+    attachmentState: AttachmentState,
+    onOpenAttachment: (Attachment) -> Unit,
+    onClose: () -> Unit,
+) {
     if (message == null) {
         DetailScaffold("Message", null, onClose) {
             StatePlaceholder(
@@ -316,7 +344,7 @@ fun MessageDetailScreen(message: MessageItem?, onClose: () -> Unit) {
                 }
                 if (message.attachments.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
-                    AttachmentList(message.attachments)
+                    AttachmentList(message.attachments, attachmentState, onOpenAttachment)
                 }
             }
         }
@@ -326,11 +354,16 @@ fun MessageDetailScreen(message: MessageItem?, onClose: () -> Unit) {
 /**
  * Pièces jointes.
  *
- * Elles sont listées mais pas encore téléchargeables : mieux vaut annoncer honnêtement leur
- * présence que faire croire à un bouton qui ne fait rien.
+ * Toucher une ligne télécharge le fichier dans le cache privé et le confie à l'application
+ * qui sait l'ouvrir. Le téléchargement est visible, et un refus du serveur s'affiche tel
+ * quel — mieux vaut un message clair qu'un fichier de trente octets qui ne s'ouvre pas.
  */
 @Composable
-private fun AttachmentList(attachments: List<Attachment>) {
+private fun AttachmentList(
+    attachments: List<Attachment>,
+    state: AttachmentState,
+    onOpen: (Attachment) -> Unit,
+) {
     Text(
         "PIÈCES JOINTES",
         style = MaterialTheme.typography.labelSmall,
@@ -338,25 +371,38 @@ private fun AttachmentList(attachments: List<Attachment>) {
     )
     Spacer(Modifier.height(8.dp))
     attachments.forEach { attachment ->
-        Row(
+        val working = (state as? AttachmentState.Working)?.id == attachment.id
+        val failure = (state as? AttachmentState.Failed)?.takeIf { it.id == attachment.id }
+        Column(
             Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .clickable { onOpen(attachment) }
+                .padding(vertical = 8.dp),
         ) {
-            Icon(
-                Icons.Outlined.AttachFile,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(attachment.name, style = MaterialTheme.typography.bodyMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.AttachFile,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    attachment.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (working) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                }
+            }
+            if (failure != null) {
+                Text(
+                    failure.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
     }
-    Text(
-        "Le téléchargement des pièces jointes arrivera dans une prochaine version.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }

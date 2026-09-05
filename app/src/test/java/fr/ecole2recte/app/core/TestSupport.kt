@@ -1,6 +1,7 @@
 package fr.ecole2recte.app.core
 
 import fr.ecole2recte.app.core.model.SchoolSnapshot
+import fr.ecole2recte.app.core.protocol.HttpBinaryResponse
 import fr.ecole2recte.app.core.protocol.HttpEngine
 import fr.ecole2recte.app.core.protocol.HttpRequest
 import fr.ecole2recte.app.core.protocol.HttpResponse
@@ -39,6 +40,22 @@ class FakeHttpEngine : HttpEngine {
     ): FakeHttpEngine {
         routes += Route(urlContains, method, HttpResponse(status, headers, body))
         return this
+    }
+
+    /** Fichiers binaires servis par [download], indexés par fragment d'URL. */
+    private val files = mutableListOf<Pair<String, ByteArray>>()
+
+    fun onDownload(urlContains: String, bytes: ByteArray): FakeHttpEngine {
+        files += urlContains to bytes
+        return this
+    }
+
+    override fun download(request: HttpRequest): HttpBinaryResponse {
+        if (offline) throw NetworkFailure("réseau coupé")
+        requests += request
+        val file = files.firstOrNull { it.first in request.url }
+            ?: error("Aucun fichier enregistré pour ${request.url}")
+        return HttpBinaryResponse(200, emptyMap(), file.second)
     }
 
     override fun execute(request: HttpRequest): HttpResponse {

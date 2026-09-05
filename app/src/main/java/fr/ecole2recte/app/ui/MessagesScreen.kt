@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -63,6 +65,9 @@ fun MessagesScreen(
     sync: SyncState,
     now: LocalDateTime,
     onOpen: (MessageItem) -> Unit,
+    onLoadMore: () -> Unit,
+    canLoadMore: Boolean,
+    loadingMore: Boolean,
     onRefresh: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
@@ -180,6 +185,32 @@ fun MessagesScreen(
                         if (!read) {
                             Spacer(Modifier.width(8.dp))
                             SubjectDot(MaterialTheme.colorScheme.primary, 8.dp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // La messagerie d'une année scolaire dépasse une page : on la charge à la demande,
+        // pas d'un coup à l'ouverture de l'écran.
+        if (canLoadMore && query.isBlank() && !unreadOnly) {
+            item("plus") {
+                Box(Modifier.padding(horizontal = ScreenPadding, vertical = 12.dp)) {
+                    AppCard(onClick = { if (!loadingMore) onLoadMore() }) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (loadingMore) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
+                            }
+                            Text(
+                                if (loadingMore) "Chargement…" else "Charger les messages plus anciens",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
                         }
                     }
                 }

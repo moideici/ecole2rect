@@ -27,11 +27,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import fr.ecole2recte.app.AttachmentState
 import fr.ecole2recte.app.MainViewModel
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.repo.AuthState
+import fr.ecole2recte.app.data.AttachmentOpener
 import fr.ecole2recte.app.ui.theme.Ecole2recteTheme
 
 /** Les cinq pages principales : chacune est complète, aucune n'est un aperçu. */
@@ -58,6 +61,8 @@ sealed interface Detail {
     data object Settings : Detail
     data object HomeEditor : Detail
     data object SubjectColors : Detail
+    data object SchoolLife : Detail
+    data object Documents : Detail
 }
 
 @Composable
@@ -127,6 +132,19 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     val sync by viewModel.sync.collectAsStateWithLifecycle()
     val now by viewModel.now.collectAsStateWithLifecycle()
     val auth by viewModel.auth.collectAsStateWithLifecycle()
+    val attachment by viewModel.attachment.collectAsStateWithLifecycle()
+    val messagesComplete by viewModel.messagesComplete.collectAsStateWithLifecycle()
+    val loadingMore by viewModel.loadingMoreMessages.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    // Une pièce jointe prête part vers l'application capable de l'ouvrir, puis l'état est
+    // remis à zéro : sans quoi revenir sur la fiche la rouvrirait toute seule.
+    LaunchedEffect(attachment) {
+        val ready = attachment as? AttachmentState.Ready ?: return@LaunchedEffect
+        val intent = AttachmentOpener(context).viewIntent(ready.uri, ready.name)
+        runCatching { context.startActivity(intent) }
+        viewModel.clearAttachmentState()
+    }
 
     // Un widget d'écran d'accueil ouvre directement sa page.
     LaunchedEffect(request) {
@@ -189,7 +207,12 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         settings = settings,
                         sync = sync,
                         now = now,
-                        onOpenLesson = { lesson -> openDetail(Detail.Lesson(lesson.id)) },
+                        onOpenLesson = { lesson ->
+                            // Le contenu de séance n'est pas dans la liste : il arrive avec
+                            // le détail du jour, qu'on demande à l'ouverture de la fiche.
+                            viewModel.loadHomeworkDetails(lesson.date)
+                            openDetail(Detail.Lesson(lesson.id))
+                        },
                         onOpenHomework = openHomework,
                         onRefresh = { viewModel.refresh(setOf(DataSection.TIMETABLE)) },
                     )
@@ -221,6 +244,9 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                             viewModel.openMessage(message)
                             openDetail(Detail.Message(message.id))
                         },
+                        onLoadMore = viewModel::loadMoreMessages,
+                        canLoadMore = !messagesComplete && snapshot.messages.isNotEmpty(),
+                        loadingMore = loadingMore,
                         onRefresh = { viewModel.refresh(setOf(DataSection.MESSAGES)) },
                     )
                 }
@@ -228,7 +254,9 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                 is Detail.Homework -> HomeworkDetailScreen(
                     item = snapshot.homework.firstOrNull { it.id == current.id },
                     settings = settings,
+                    attachmentState = attachment,
                     onToggle = viewModel::toggleHomework,
+                    onOpenAttachment = viewModel::openAttachment,
                     onClose = { detail = null },
                 )
 
@@ -240,12 +268,23 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                             fr.ecole2recte.app.core.repo.Insights.homeworkForLesson(snapshot.homework, lesson)
                         }
                         .orEmpty(),
+                    sessions = snapshot.lessons.firstOrNull { it.id == current.id }
+                        ?.let { lesson ->
+                            snapshot.sessionContents.filter {
+                                it.date == lesson.date &&
+                                    fr.ecole2recte.app.core.format.Text.normalizeKey(it.subject) ==
+                                    fr.ecole2recte.app.core.format.Text.normalizeKey(lesson.subject)
+                            }
+                        }
+                        .orEmpty(),
                     onOpenHomework = openHomework,
                     onClose = { detail = null },
                 )
 
                 is Detail.Message -> MessageDetailScreen(
                     message = snapshot.messages.firstOrNull { it.id == current.id },
+                    attachmentState = attachment,
+                    onOpenAttachment = viewModel::openAttachment,
                     onClose = { detail = null },
                 )
 
@@ -259,6 +298,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     onTheme = viewModel::setTheme,
                     onSelectAccount = viewModel::selectAccount,
                     onDiagnostics = viewModel::setDiagnosticsVisible,
+                    onNotifications = viewModel::setNotifications,
                     onRefresh = { viewModel.refresh() },
                     onSignOut = viewModel::signOut,
                 )
@@ -267,6 +307,18 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     settings = settings,
                     onMove = viewModel::moveWidget,
                     onToggle = viewModel::toggleWidget,
+                    onClose = { detail = null },
+                )
+
+                Detail.SchoolLife -> SchoolLifeScreen(
+                    snapshot = snapshot,
+                    onClose = { detail = null },
+                )
+
+                Detail.Documents -> DocumentsScreen(
+                    snapshot = snapshot,
+                    attachmentState = attachment,
+                    onOpen = { document -> viewModel.openAttachment(document.asAttachment()) },
                     onClose = { detail = null },
                 )
 

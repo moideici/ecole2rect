@@ -3,6 +3,7 @@ package fr.ecole2recte.app.core.store
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.core.settings.HomeWidget
 import fr.ecole2recte.app.core.settings.HomeWidgetSetting
+import fr.ecole2recte.app.core.settings.NotificationSettings
 import fr.ecole2recte.app.core.settings.ThemeChoice
 import org.json.JSONArray
 import org.json.JSONObject
@@ -41,6 +42,17 @@ object SettingsCodec {
         put("readMessages", JSONArray(settings.readMessages.toList()))
         settings.selectedAccountId?.let { put("selectedAccountId", it) }
         put("showDiagnostics", settings.showDiagnostics)
+        put("biometricLock", settings.biometricLock)
+        put("notified", JSONArray(settings.notified))
+        put(
+            "notifications",
+            JSONObject()
+                .put("enabled", settings.notifications.enabled)
+                .put("grades", settings.notifications.grades)
+                .put("homework", settings.notifications.homework)
+                .put("messages", settings.notifications.messages)
+                .put("examReminder", settings.notifications.examReminder),
+        )
     }.toString()
 
     fun decode(raw: String?): AppSettings {
@@ -67,6 +79,17 @@ object SettingsCodec {
             readMessages = root.optJSONArray("readMessages").stringSet(),
             selectedAccountId = root.optString("selectedAccountId").takeIf { it.isNotBlank() },
             showDiagnostics = root.optBoolean("showDiagnostics", false),
+            biometricLock = root.optBoolean("biometricLock", false),
+            notified = root.optJSONArray("notified").stringSet().toList(),
+            notifications = root.optJSONObject("notifications")?.let { entry ->
+                NotificationSettings(
+                    enabled = entry.optBoolean("enabled", true),
+                    grades = entry.optBoolean("grades", true),
+                    homework = entry.optBoolean("homework", true),
+                    messages = entry.optBoolean("messages", true),
+                    examReminder = entry.optBoolean("examReminder", true),
+                )
+            } ?: NotificationSettings(),
         )
     }
 

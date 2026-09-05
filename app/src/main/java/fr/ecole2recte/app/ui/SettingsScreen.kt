@@ -25,9 +25,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +50,7 @@ import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.repo.SyncState
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.core.settings.HomeWidget
+import fr.ecole2recte.app.core.settings.NotificationSettings
 import fr.ecole2recte.app.core.settings.SubjectPalette
 import fr.ecole2recte.app.core.settings.ThemeChoice
 import fr.ecole2recte.app.ui.components.AppCard
@@ -49,6 +59,7 @@ import fr.ecole2recte.app.ui.components.ScreenPadding
 import fr.ecole2recte.app.ui.components.SubjectBadge
 import fr.ecole2recte.app.ui.components.SubjectDot
 import fr.ecole2recte.app.ui.components.subjectColor
+import fr.ecole2recte.app.sync.Notifier
 import fr.ecole2recte.app.ui.theme.AppTheme
 
 /**
@@ -68,6 +79,7 @@ fun SettingsScreen(
     onTheme: (ThemeChoice) -> Unit,
     onSelectAccount: (Account) -> Unit,
     onDiagnostics: (Boolean) -> Unit,
+    onNotifications: ((NotificationSettings) -> NotificationSettings) -> Unit,
     onRefresh: () -> Unit,
     onSignOut: () -> Unit,
 ) {
@@ -123,6 +135,19 @@ fun SettingsScreen(
             }
         }
 
+        SettingsSection("Scolarité") {
+            SettingsRow(
+                title = "Vie scolaire",
+                description = "Absences, retards, sanctions et encouragements.",
+                onClick = { onOpenDetail(Detail.SchoolLife) },
+            )
+            SettingsRow(
+                title = "Documents",
+                description = "Bulletins et pièces publiés par l'établissement.",
+                onClick = { onOpenDetail(Detail.Documents) },
+            )
+        }
+
         SettingsSection("Personnalisation") {
             SettingsRow(
                 title = "Composer l'accueil",
@@ -147,6 +172,8 @@ fun SettingsScreen(
                 }
             }
         }
+
+        NotificationsSection(settings.notifications, onNotifications)
 
         SettingsSection("Synchronisation") {
             DataSection.entries.forEach { section ->
@@ -235,6 +262,98 @@ fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * Notifications.
+ *
+ * Rien n'est envoyé sans permission, et la permission n'est demandée qu'au moment où
+ * l'utilisateur allume l'interrupteur — pas au premier lancement, où elle n'aurait aucun
+ * sens et serait refusée d'un réflexe.
+ */
+@Composable
+private fun NotificationsSection(
+    settings: NotificationSettings,
+    onChange: ((NotificationSettings) -> NotificationSettings) -> Unit,
+) {
+    val context = LocalContext.current
+    val notifier = remember(context) { Notifier(context) }
+    var granted by remember { mutableStateOf(notifier.canNotify()) }
+    val permission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { result ->
+        granted = result
+        if (result) onChange { it.copy(enabled = true) }
+    }
+
+    SettingsSection("Notifications") {
+        SettingsSwitch(
+            title = "Autoriser les notifications",
+            description = "Une synchronisation par heure en arrière-plan, et rien qui se répète.",
+            checked = settings.enabled && granted,
+        ) { wanted ->
+            if (!wanted) {
+                onChange { it.copy(enabled = false) }
+                return@SettingsSwitch
+            }
+            if (notifier.canNotify()) {
+                granted = true
+                onChange { it.copy(enabled = true) }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                // Notifications coupées depuis les paramètres du système : nous ne pouvons
+                // pas les rallumer nous-mêmes, autant le dire clairement.
+                onChange { it.copy(enabled = true) }
+            }
+        }
+        if (settings.enabled && !granted) {
+            Text(
+                "Les notifications sont bloquées dans les paramètres Android de l'application.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (settings.enabled) {
+            SettingsSwitch("Nouvelles notes", "Quand une note est publiée.", settings.grades) { value ->
+                onChange { it.copy(grades = value) }
+            }
+            SettingsSwitch("Nouveaux devoirs", "Quand un devoir est ajouté au cahier de textes.", settings.homework) { value ->
+                onChange { it.copy(homework = value) }
+            }
+            SettingsSwitch("Nouveaux messages", "Quand un message arrive.", settings.messages) { value ->
+                onChange { it.copy(messages = value) }
+            }
+            SettingsSwitch("Rappel d'évaluation", "La veille d'un devoir surveillé annoncé.", settings.examReminder) { value ->
+                onChange { it.copy(examReminder = value) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsSwitch(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

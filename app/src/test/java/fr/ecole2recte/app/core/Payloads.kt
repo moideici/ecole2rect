@@ -135,7 +135,9 @@ object Payloads {
               {
                 "id": 903,
                 "matiere": "Histoire-Géo",
-                "contenuDeSeance": { "contenu": "" }
+                "contenuDeSeance": {
+                  "contenu": "${Encoding.base64Encode("<p>Chapitre 2&nbsp;: la R&eacute;volution</p>")}"
+                }
               }
             ]
           }
@@ -226,6 +228,55 @@ object Payloads {
                 }
               ]
             }
+          }
+        }
+    """.trimIndent()
+
+    val SCHOOL_LIFE = """
+        {
+          "code": 200,
+          "data": {
+            "absencesRetards": [
+              {
+                "id": 7001,
+                "typeElement": "Absence",
+                "dateDebut": "2026-09-03 08:00",
+                "dateFin": "2026-09-03 10:00",
+                "justifie": false,
+                "motif": "Maladie",
+                "commentaire": ""
+              },
+              {
+                "id": 7002,
+                "typeElement": "Retard",
+                "dateDebut": "2026-09-05 08:05",
+                "justifie": true,
+                "motif": "Transport"
+              }
+            ],
+            "sanctionsEncouragements": [
+              {
+                "id": 7003,
+                "typeElement": "Encouragements",
+                "date": "2026-09-04",
+                "libelle": "Encouragements",
+                "commentaire": "Très bon trimestre"
+              }
+            ]
+          }
+        }
+    """.trimIndent()
+
+    val DOCUMENTS = """
+        {
+          "code": 200,
+          "data": {
+            "notes": [
+              { "id": 8001, "libelle": "Bulletin T1.pdf", "date": "2026-12-20", "type": "PDF" }
+            ],
+            "administratifs": [
+              { "id": 8002, "libelle": "Certificat de scolarité.pdf", "date": "2026-09-10" }
+            ]
           }
         }
     """.trimIndent()

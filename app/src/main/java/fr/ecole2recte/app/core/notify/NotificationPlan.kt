@@ -1,0 +1,148 @@
+package fr.ecole2recte.app.core.notify
+
+import fr.ecole2recte.app.core.format.Dates
+import fr.ecole2recte.app.core.format.Text
+import fr.ecole2recte.app.core.model.SchoolSnapshot
+import fr.ecole2recte.app.core.repo.Insights
+import fr.ecole2recte.app.core.settings.AppSettings
+import fr.ecole2recte.app.core.widget.WidgetContent
+import fr.ecole2recte.app.core.widget.WidgetTarget
+import java.time.LocalDateTime
+
+/** Les quatre familles de notifications, chacune sur son canal Android. */
+enum class NotificationKind(val channelId: String, val channelName: String, val channelDescription: String) {
+    GRADE("notes", "Nouvelles notes", "Quand une note est publiée."),
+    HOMEWORK("devoirs", "Nouveaux devoirs", "Quand un devoir est ajouté au cahier de textes."),
+    MESSAGE("messages", "Nouveaux messages", "Quand un message arrive dans la messagerie."),
+    EXAM("evaluations", "Rappels d'évaluation", "La veille d'un devoir surveillé annoncé."),
+}
+
+data class PlannedNotification(
+    /** Identifiant stable : c'est lui qui garantit qu'on ne signale pas deux fois la même chose. */
+    val id: String,
+    val kind: NotificationKind,
+    val title: String,
+    val text: String,
+    val target: WidgetTarget,
+)
+
+/**
+ * Décide ce qui mérite une notification.
+ *
+ * Deux règles tiennent tout le fichier :
+ *
+ *  1. **rien deux fois** — chaque candidat porte un identifiant stable, comparé à ce qui a
+ *     déjà été signalé ;
+ *  2. **jamais de rafale au premier lancement** — une première synchronisation découvre
+ *     trente notes et cinquante messages d'un coup ; les signaler apprendrait à l'élève à
+ *     balayer sans lire. Le premier passage ne fait que mémoriser.
+ *
+ * La fonction est pure : elle prend l'état, elle rend une liste. Le travail de fond n'a plus
+ * qu'à l'afficher, ce qui rend ces règles testables sans Android.
+ */
+object NotificationPlan {
+
+    /** Ce qu'il faut afficher, et ce qu'il faut retenir comme déjà vu. */
+    data class Plan(
+        val notifications: List<PlannedNotification>,
+        val seen: List<String>,
+    )
+
+    /** Au-delà, ce n'est plus une information mais une avalanche. */
+    private const val MAX_PER_KIND = 3
+
+    fun compute(snapshot: SchoolSnapshot, settings: AppSettings, now: LocalDateTime): Plan {
+        val today = now.toLocalDate()
+        val candidates = buildList {
+            if (settings.notifications.grades) addAll(grades(snapshot))
+            if (settings.notifications.homework) addAll(homework(snapshot, settings, today))
+            if (settings.notifications.messages) addAll(messages(snapshot, settings))
+            if (settings.notifications.examReminder) addAll(examReminders(snapshot, settings, today))
+        }
+        val seen = candidates.map { it.id }
+        if (!settings.notifications.enabled) return Plan(emptyList(), seen)
+
+        // Premier passage : on mémorise sans rien afficher.
+        val baseline = settings.notified.isEmpty()
+        if (baseline) return Plan(emptyList(), seen)
+
+        val fresh = candidates.filterNot { settings.hasBeenNotified(it.id) }
+        return Plan(
+            notifications = fresh.groupBy { it.kind }
+                .flatMap { (_, byKind) -> byKind.take(MAX_PER_KIND) },
+            seen = seen,
+        )
+    }
+
+    private fun grades(snapshot: SchoolSnapshot) = snapshot.grades
+        .filter { it.value != null }
+        .map { grade ->
+            PlannedNotification(
+                id = "note:${grade.id}",
+                kind = NotificationKind.GRADE,
+                title = "Nouvelle note en ${grade.subject}",
+                text = buildString {
+                    append(WidgetContent.number(grade.value ?: 0.0))
+                    append("/")
+                    append(WidgetContent.number(grade.scale))
+                    if (grade.label.isNotBlank()) {
+                        append(" · ")
+                        append(grade.label)
+                    }
+                    grade.classAverage?.let {
+                        append(" · classe ")
+                        append(WidgetContent.number(it))
+                    }
+                },
+                target = WidgetTarget.GRADES,
+            )
+        }
+
+    private fun homework(snapshot: SchoolSnapshot, settings: AppSettings, today: java.time.LocalDate) =
+        Insights.pendingHomework(snapshot.homework, settings, today)
+            .filterNot { it.dueDate.isBefore(today) }
+            .map { item ->
+                PlannedNotification(
+                    id = "devoir:${item.id}",
+                    kind = NotificationKind.HOMEWORK,
+                    title = if (item.exam) {
+                        "Évaluation annoncée en ${item.subject}"
+                    } else {
+                        "Nouveau devoir en ${item.subject}"
+                    },
+                    text = listOfNotNull(
+                        Dates.dueLabel(item.dueDate, today).replaceFirstChar { it.uppercase() },
+                        Text.preview(item.content, 80).takeIf { it.isNotBlank() },
+                    ).joinToString(" · "),
+                    target = WidgetTarget.HOMEWORK,
+                )
+            }
+
+    private fun messages(snapshot: SchoolSnapshot, settings: AppSettings) =
+        Insights.unreadMessages(snapshot.messages, settings).map { message ->
+            PlannedNotification(
+                id = "message:${message.id}",
+                kind = NotificationKind.MESSAGE,
+                title = "Message de ${message.sender}",
+                text = message.subject,
+                target = WidgetTarget.MESSAGES,
+            )
+        }
+
+    /**
+     * Rappel la veille d'une évaluation. L'identifiant porte la date : le même devoir
+     * surveillé reporté d'une semaine mérite un nouveau rappel, mais pas deux le même soir.
+     */
+    private fun examReminders(snapshot: SchoolSnapshot, settings: AppSettings, today: java.time.LocalDate) =
+        Insights.upcomingExams(snapshot.homework, settings, today)
+            .filter { it.dueDate == today.plusDays(1) }
+            .map { exam ->
+                PlannedNotification(
+                    id = "rappel:${exam.id}:${exam.dueDate}",
+                    kind = NotificationKind.EXAM,
+                    title = "Évaluation demain en ${exam.subject}",
+                    text = Text.preview(exam.content, 80).ifBlank { "Pense à réviser ce soir." },
+                    target = WidgetTarget.HOMEWORK,
+                )
+            }
+}

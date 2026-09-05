@@ -2,15 +2,28 @@ package fr.ecole2recte.app.core.protocol
 
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.Account
+import fr.ecole2recte.app.core.model.Attachment
+import fr.ecole2recte.app.core.model.Document
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.model.SchoolLifeEvent
+import fr.ecole2recte.app.core.model.SessionContent
 import fr.ecole2recte.app.core.parse.Parsers
 import fr.ecole2recte.app.core.parse.string
 import fr.ecole2recte.app.core.parse.strings
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
+
+/** Devoirs et contenu de séance d'un même jour, ramenés par un seul appel. */
+data class DayContent(
+    val homework: List<HomeworkItem>,
+    val sessions: List<SessionContent>,
+)
+
+/** Une pièce jointe téléchargée, encore en mémoire. */
+class DownloadedFile(val name: String, val bytes: ByteArray)
 
 /** Réponse mémorisée d'une question de sécurité, rejouable aux reconnexions. */
 data class TrustedAnswer(val cn: String, val cv: String) {
@@ -241,17 +254,42 @@ class EcoleDirecteApi(
         payload = JSONObject(),
     ) { Parsers.homeworkSummaries(it) }
 
-    fun homeworkForDate(studentId: String, date: LocalDate): ApiResult<List<HomeworkItem>> = call(
+    /**
+     * Le détail d'un jour du cahier de textes : les devoirs à rendre *et* ce qui a été fait
+     * en cours. Un seul appel rend les deux ; les séparer coûterait une requête de plus pour
+     * la moitié de l'information.
+     */
+    fun dayContent(studentId: String, date: LocalDate): ApiResult<DayContent> = call(
         path = "/Eleves/$studentId/cahierdetexte/${Dates.isoDate(date)}.awp",
         payload = JSONObject(),
-    ) { Parsers.homeworkForDate(it, date) }
+    ) { body ->
+        DayContent(
+            homework = Parsers.homeworkForDate(body, date),
+            sessions = Parsers.sessionContents(body, date),
+        )
+    }
+
+    fun schoolLife(studentId: String): ApiResult<List<SchoolLifeEvent>> = call(
+        path = "/eleves/$studentId/viescolaire.awp",
+        payload = JSONObject(),
+    ) { Parsers.schoolLife(it) }
+
+    fun documents(studentId: String): ApiResult<List<Document>> = call(
+        path = "/elevesDocuments.awp",
+        payload = JSONObject().put("anneeScolaire", "").put("idEleve", studentId),
+    ) { Parsers.documents(it) }
 
     fun grades(studentId: String): ApiResult<Parsers.GradesPayload> = call(
         path = "/eleves/$studentId/notes.awp",
         payload = JSONObject().put("anneeScolaire", ""),
     ) { Parsers.grades(it) }
 
-    fun messages(account: Account): ApiResult<List<MessageItem>> = call(
+    /**
+     * Une page de messages reçus. La messagerie d'une année scolaire dépasse largement une
+     * page : sans le paramètre, l'application prétendrait que l'histoire s'arrête au
+     * centième message.
+     */
+    fun messages(account: Account, page: Int = 0): ApiResult<List<MessageItem>> = call(
         path = "/${mailboxSegment(account)}/${account.id}/messages.awp",
         payload = JSONObject().put("anneeMessages", ""),
         params = linkedMapOf(
@@ -260,8 +298,8 @@ class EcoleDirecteApi(
             "idClasseur" to "0",
             "orderBy" to "date",
             "order" to "desc",
-            "page" to "0",
-            "itemsPerPage" to "100",
+            "page" to page.toString(),
+            "itemsPerPage" to MESSAGES_PER_PAGE.toString(),
             "onlyRead" to "",
             "query" to "",
         ),
@@ -284,6 +322,68 @@ class EcoleDirecteApi(
             .put("idDevoirsEffectues", if (done) JSONArray().put(homeworkId) else JSONArray())
             .put("idDevoirsNonEffectues", if (done) JSONArray() else JSONArray().put(homeworkId)),
     ) { }
+
+    /**
+     * Télécharge une pièce jointe.
+     *
+     * L'endpoint renvoie soit le fichier, soit — en cas de refus — un petit JSON. On
+     * distingue les deux avant d'écrire quoi que ce soit sur le disque : rien n'est plus
+     * déroutant qu'un PDF de trente octets qui contient un message d'erreur.
+     */
+    fun downloadAttachment(attachment: Attachment): ApiResult<DownloadedFile> {
+        if (token == null) return ApiResult.Failure(ApiErrorKind.SESSION_EXPIRED, "Session absente.")
+        val response = try {
+            engine.download(
+                HttpRequest(
+                    url = url(
+                        "/telechargement.awp",
+                        linkedMapOf(
+                            "verbe" to "get",
+                            "fichierId" to attachment.id,
+                            "leTypeDeFichier" to attachment.apiDownloadType,
+                        ),
+                    ),
+                    method = "POST",
+                    headers = buildMap {
+                        putAll(browserHeaders())
+                        put("Content-Type", "application/x-www-form-urlencoded")
+                        cookieHeader()?.let { put("Cookie", it) }
+                        putAll(authHeaders())
+                    },
+                    body = "data=" + Encoding.formEncode(
+                        Encoding.pythonJson(JSONObject().put("forceDownload", 0)),
+                    ),
+                ),
+            )
+        } catch (failure: NetworkFailure) {
+            return ApiResult.Failure(ApiErrorKind.NETWORK, failure.message ?: "Réseau indisponible.")
+        }
+        if (response.status !in 200..299) {
+            return ApiResult.Failure(
+                ApiErrorKind.PROTOCOL,
+                "Le serveur a refusé le téléchargement (HTTP ${response.status}).",
+            )
+        }
+        val bytes = response.bytes
+        if (bytes.isEmpty()) {
+            return ApiResult.Failure(ApiErrorKind.PROTOCOL, "Fichier vide.")
+        }
+        jsonError(bytes)?.let { message -> return ApiResult.Failure(ApiErrorKind.ACCESS_DENIED, message) }
+        return ApiResult.Ok(
+            DownloadedFile(
+                name = response.suggestedName ?: attachment.name,
+                bytes = bytes,
+            ),
+        )
+    }
+
+    /** Un corps qui commence par une accolade et porte un code n'est pas un fichier. */
+    private fun jsonError(bytes: ByteArray): String? {
+        if (bytes.size > 4096 || bytes.firstOrNull() != '{'.code.toByte()) return null
+        val body = runCatching { JSONObject(String(bytes, Charsets.UTF_8)) }.getOrNull() ?: return null
+        if (body.optInt("code", ApiCode.OK) == ApiCode.OK) return null
+        return body.optString("message").ifBlank { "Téléchargement refusé." }
+    }
 
     // ── Plomberie ────────────────────────────────────────────────────────────
 
@@ -469,6 +569,7 @@ class EcoleDirecteApi(
     companion object {
         const val DEFAULT_API_BASE = "https://api.ecoledirecte.com/v3"
         const val DEFAULT_API_VERSION = "4.75.0"
+        const val MESSAGES_PER_PAGE = 50
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"

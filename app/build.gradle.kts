@@ -54,6 +54,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // Synchronisation de fond : c'est elle qui empêche les widgets d'afficher un cache figé.
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     // Le cœur métier (`core`) n'utilise que la bibliothèque standard, `org.json` et les
     // coroutines : il tourne donc tel quel sur la JVM. Ces deux dépendances de test lui

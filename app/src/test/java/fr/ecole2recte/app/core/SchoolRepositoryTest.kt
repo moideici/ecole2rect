@@ -33,6 +33,8 @@ class SchoolRepositoryTest {
         .on("cahierdetexte", Payloads.HOMEWORK_LIST)
         .on("notes.awp", Payloads.GRADES)
         .on("messages.awp", Payloads.MESSAGES)
+        .on("viescolaire", Payloads.SCHOOL_LIFE)
+        .on("elevesDocuments", Payloads.DOCUMENTS)
 
     private fun repository(
         engine: FakeHttpEngine,
@@ -75,6 +77,8 @@ class SchoolRepositoryTest {
         assertEquals(2, snapshot.homework.size)
         assertEquals(2, snapshot.grades.size)
         assertEquals(2, snapshot.messages.size)
+        assertEquals(3, snapshot.schoolLife.size)
+        assertEquals(2, snapshot.documents.size)
         assertEquals(DataSection.entries.size, snapshot.syncedAt.size)
         assertFalse(repository.sync.value.offline)
         assertTrue("le cache doit être écrit après la synchronisation", snapshots.writes > 0)
@@ -115,6 +119,8 @@ class SchoolRepositoryTest {
             .on("cahierdetexte", Payloads.HOMEWORK_LIST)
             .on("notes.awp", """{"code":403,"message":"Accès refusé"}""")
             .on("messages.awp", Payloads.MESSAGES)
+            .on("viescolaire", Payloads.SCHOOL_LIFE)
+            .on("elevesDocuments", Payloads.DOCUMENTS)
         val second = repository(cassé)
         second.start()
         second.refresh()

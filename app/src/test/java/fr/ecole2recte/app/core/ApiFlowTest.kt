@@ -1,6 +1,8 @@
 package fr.ecole2recte.app.core
 
 import fr.ecole2recte.app.core.model.Account
+import fr.ecole2recte.app.core.model.Attachment
+import fr.ecole2recte.app.core.model.AttachmentSource
 import fr.ecole2recte.app.core.protocol.ApiErrorKind
 import fr.ecole2recte.app.core.protocol.ApiResult
 import fr.ecole2recte.app.core.protocol.EcoleDirecteApi
@@ -101,6 +103,57 @@ class ApiFlowTest {
 
         assertTrue(result is ApiResult.Failure)
         assertEquals(ApiErrorKind.SESSION_EXPIRED, (result as ApiResult.Failure).kind)
+    }
+
+    @Test
+    fun `une piece jointe est telechargee avec le bon type de fichier`() {
+        val pdf = byteArrayOf(0x25, 0x50, 0x44, 0x46, 0x2D) // « %PDF- »
+        val engine = engineWithGtk()
+            .on("/login.awp", Payloads.LOGIN_SUCCESS)
+            .onDownload("telechargement", pdf)
+        val api = EcoleDirecteApi(engine)
+        api.login("eleve", "secret")
+
+        val result = api.downloadAttachment(
+            Attachment(id = "7", name = "sujet.pdf", source = AttachmentSource.HOMEWORK),
+        )
+
+        assertTrue(result is ApiResult.Ok)
+        assertEquals("sujet.pdf", (result as ApiResult.Ok).value.name)
+        assertEquals(5, result.value.bytes.size)
+        val url = engine.requests.last().url
+        assertTrue(url.contains("fichierId=7"))
+        assertTrue(url.contains("leTypeDeFichier=FICHIER_CDT"))
+    }
+
+    @Test
+    fun `un refus deguise en JSON ne devient pas un fichier`() {
+        val refusal = """{"code":403,"message":"Accès refusé"}""".toByteArray()
+        val engine = engineWithGtk()
+            .on("/login.awp", Payloads.LOGIN_SUCCESS)
+            .onDownload("telechargement", refusal)
+        val api = EcoleDirecteApi(engine)
+        api.login("eleve", "secret")
+
+        val result = api.downloadAttachment(Attachment(id = "7", name = "sujet.pdf"))
+
+        assertTrue(result is ApiResult.Failure)
+        assertEquals(ApiErrorKind.ACCESS_DENIED, (result as ApiResult.Failure).kind)
+        assertEquals("Accès refusé", result.message)
+    }
+
+    @Test
+    fun `la messagerie demande la page voulue`() {
+        val engine = engineWithGtk()
+            .on("/login.awp", Payloads.LOGIN_SUCCESS)
+            .on("messages.awp", Payloads.MESSAGES)
+        val api = EcoleDirecteApi(engine)
+        api.login("eleve", "secret")
+        val account = Account(id = "4242", type = "E", firstName = "Martin", lastName = "Leroy")
+
+        api.messages(account, page = 2)
+
+        assertTrue(engine.requests.last().url.contains("page=2"))
     }
 
     @Test

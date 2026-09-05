@@ -2,13 +2,18 @@ package fr.ecole2recte.app.core.store
 
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.Attachment
+import fr.ecole2recte.app.core.model.AttachmentSource
 import fr.ecole2recte.app.core.model.DataSection
+import fr.ecole2recte.app.core.model.Document
 import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.model.Period
+import fr.ecole2recte.app.core.model.SchoolLifeEvent
+import fr.ecole2recte.app.core.model.SchoolLifeKind
 import fr.ecole2recte.app.core.model.SchoolSnapshot
+import fr.ecole2recte.app.core.model.SessionContent
 import fr.ecole2recte.app.core.model.SubjectAverage
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,7 +30,12 @@ import java.time.LocalDateTime
  */
 object SnapshotCodec {
 
-    const val VERSION = 1
+    /**
+     * Version 2 : ajout de la vie scolaire, des contenus de séance et des documents. Un
+     * cache d'une version antérieure est ignoré plutôt que réinterprété — il sera reconstruit
+     * à la première synchronisation.
+     */
+    const val VERSION = 2
 
     fun encode(snapshot: SchoolSnapshot): String = JSONObject().apply {
         put("version", VERSION)
@@ -36,6 +46,9 @@ object SnapshotCodec {
         put("periods", snapshot.periods.jsonArray(::encodePeriod))
         put("subjectAverages", snapshot.subjectAverages.jsonArray(::encodeSubjectAverage))
         put("messages", snapshot.messages.jsonArray(::encodeMessage))
+        put("schoolLife", snapshot.schoolLife.jsonArray(::encodeSchoolLife))
+        put("sessionContents", snapshot.sessionContents.jsonArray(::encodeSession))
+        put("documents", snapshot.documents.jsonArray(::encodeDocument))
         put(
             "syncedAt",
             JSONObject().apply {
@@ -57,6 +70,9 @@ object SnapshotCodec {
                 periods = root.optJSONArray("periods").decode(::decodePeriod),
                 subjectAverages = root.optJSONArray("subjectAverages").decode(::decodeSubjectAverage),
                 messages = root.optJSONArray("messages").decode(::decodeMessage),
+                schoolLife = root.optJSONArray("schoolLife").decode(::decodeSchoolLife),
+                sessionContents = root.optJSONArray("sessionContents").decode(::decodeSession),
+                documents = root.optJSONArray("documents").decode(::decodeDocument),
                 syncedAt = decodeSyncedAt(root.optJSONObject("syncedAt")),
             )
         }.getOrNull()
@@ -103,6 +119,7 @@ object SnapshotCodec {
         put("id", attachment.id)
         put("name", attachment.name)
         put("type", attachment.type)
+        put("source", attachment.source.name)
     }
 
     private fun encodeGrade(grade: Grade) = JSONObject().apply {
@@ -148,6 +165,33 @@ object SnapshotCodec {
         put("preview", message.preview)
         put("body", message.body)
         put("attachments", message.attachments.jsonArray(::encodeAttachment))
+    }
+
+    private fun encodeSchoolLife(event: SchoolLifeEvent) = JSONObject().apply {
+        put("id", event.id)
+        put("kind", event.kind.name)
+        put("label", event.label)
+        put("start", event.start.toString())
+        event.end?.let { put("end", it.toString()) }
+        put("justified", event.justified)
+        put("reason", event.reason)
+        put("comment", event.comment)
+    }
+
+    private fun encodeSession(session: SessionContent) = JSONObject().apply {
+        put("id", session.id)
+        put("subject", session.subject)
+        put("date", session.date.toString())
+        put("content", session.content)
+        put("attachments", session.attachments.jsonArray(::encodeAttachment))
+    }
+
+    private fun encodeDocument(document: Document) = JSONObject().apply {
+        put("id", document.id)
+        put("name", document.name)
+        put("category", document.category)
+        document.date?.let { put("date", it.toString()) }
+        put("type", document.type)
     }
 
     // ── Décodage ─────────────────────────────────────────────────────────────
@@ -203,6 +247,8 @@ object SnapshotCodec {
         id = entry.optString("id"),
         name = entry.optString("name"),
         type = entry.optString("type"),
+        source = AttachmentSource.entries.firstOrNull { it.name == entry.optString("source") }
+            ?: AttachmentSource.HOMEWORK,
     )
 
     private fun decodeGrade(entry: JSONObject) = Grade(
@@ -248,6 +294,40 @@ object SnapshotCodec {
         preview = entry.optString("preview"),
         body = entry.optString("body"),
         attachments = entry.optJSONArray("attachments").decode(::decodeAttachment),
+    )
+
+    private fun decodeSchoolLife(entry: JSONObject): SchoolLifeEvent? {
+        val start = entry.dateTime("start") ?: return null
+        return SchoolLifeEvent(
+            id = entry.optString("id"),
+            kind = SchoolLifeKind.entries.firstOrNull { it.name == entry.optString("kind") }
+                ?: SchoolLifeKind.OTHER,
+            label = entry.optString("label"),
+            start = start,
+            end = entry.dateTime("end"),
+            justified = entry.optBoolean("justified"),
+            reason = entry.optString("reason"),
+            comment = entry.optString("comment"),
+        )
+    }
+
+    private fun decodeSession(entry: JSONObject): SessionContent? {
+        val date = entry.date("date") ?: return null
+        return SessionContent(
+            id = entry.optString("id"),
+            subject = entry.optString("subject"),
+            date = date,
+            content = entry.optString("content"),
+            attachments = entry.optJSONArray("attachments").decode(::decodeAttachment),
+        )
+    }
+
+    private fun decodeDocument(entry: JSONObject) = Document(
+        id = entry.optString("id"),
+        name = entry.optString("name"),
+        category = entry.optString("category"),
+        date = entry.date("date"),
+        type = entry.optString("type"),
     )
 
     private fun decodeSyncedAt(entry: JSONObject?): Map<DataSection, Long> {

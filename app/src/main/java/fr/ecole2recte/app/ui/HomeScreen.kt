@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
+import fr.ecole2recte.app.core.model.SchoolLifeKind
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.repo.SyncState
@@ -101,6 +102,7 @@ fun HomeScreen(
                         HomeWidget.MESSAGES -> MessagesWidget(snapshot, settings, onNavigate)
                         HomeWidget.WEEK -> WeekOverviewWidget(snapshot, settings, today, onNavigate)
                         HomeWidget.TOMORROW -> TomorrowWidget(snapshot, settings, today, onNavigate)
+                        HomeWidget.SCHOOL_LIFE -> SchoolLifeWidget(snapshot, today, onOpenDetail)
                     }
                 }
             }
@@ -830,6 +832,66 @@ private fun TomorrowWidget(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Vie scolaire.
+ *
+ * Le mois écoulé seulement : une absence de septembre n'a plus à occuper l'accueil en juin,
+ * et c'est le non-justifié qui doit sauter aux yeux.
+ */
+@Composable
+private fun SchoolLifeWidget(
+    snapshot: SchoolSnapshot,
+    today: LocalDate,
+    onOpenDetail: (Detail) -> Unit,
+) {
+    val recent = snapshot.schoolLife.filter { it.date.isAfter(today.minusDays(30)) }
+    AppCard(onClick = { onOpenDetail(Detail.SchoolLife) }) {
+        WidgetLabel("VIE SCOLAIRE")
+        Spacer(Modifier.height(10.dp))
+        if (recent.isEmpty()) {
+            Text("Rien à signaler ce mois-ci.", style = MaterialTheme.typography.bodyMedium)
+            return@AppCard
+        }
+        val unjustified = recent.count { it.kind == SchoolLifeKind.ABSENCE && !it.justified }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${recent.size} sur 30 jours",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f),
+            )
+            if (unjustified > 0) Tag("$unjustified non justifiée(s)", MaterialTheme.colorScheme.error)
+        }
+        Spacer(Modifier.height(8.dp))
+        recent.take(3).forEach { event ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SubjectDot(
+                    when (event.kind) {
+                        SchoolLifeKind.ENCOURAGEMENT -> AppTheme.palette.success
+                        SchoolLifeKind.LATE -> AppTheme.palette.warning
+                        else -> MaterialTheme.colorScheme.error
+                    },
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    event.kind.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    Dates.dayAndMonth(event.date),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

@@ -3,6 +3,7 @@ package fr.ecole2recte.app.core.repo
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.model.SessionContent
 import java.time.LocalDate
 
 /**
@@ -74,6 +75,25 @@ object Merge {
                 message
             }
         }.sortedByDescending { it.date }
+    }
+
+    /** Le contenu de séance d'un jour remplace celui du même jour, et lui seul. */
+    fun sessionContents(
+        existing: List<SessionContent>,
+        fetched: List<SessionContent>,
+        date: LocalDate,
+    ): List<SessionContent> = (existing.filter { it.date != date } + fetched)
+        .distinctBy { it.id }
+        .sortedByDescending { it.date }
+
+    /**
+     * Page suivante de la messagerie : on ajoute sans jamais retirer, et sans doublon si le
+     * serveur renvoie deux fois le même message à cheval sur deux pages.
+     */
+    fun appendMessages(existing: List<MessageItem>, page: List<MessageItem>): List<MessageItem> {
+        val known = existing.associateBy { it.id }
+        val additions = page.filterNot { it.id in known }
+        return (existing + additions).sortedByDescending { it.date }
     }
 
     fun replaceMessage(existing: List<MessageItem>, message: MessageItem): List<MessageItem> =

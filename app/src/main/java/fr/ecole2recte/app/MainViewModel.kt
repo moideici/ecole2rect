@@ -1,23 +1,30 @@
 package fr.ecole2recte.app
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import fr.ecole2recte.app.core.auth.SecurityAnswer
 import fr.ecole2recte.app.core.model.Account
+import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.protocol.ApiResult
 import fr.ecole2recte.app.core.repo.AuthState
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.core.settings.HomeWidget
+import fr.ecole2recte.app.core.settings.NotificationSettings
 import fr.ecole2recte.app.core.settings.ThemeChoice
+import fr.ecole2recte.app.data.AttachmentOpener
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -37,6 +44,14 @@ data class LoginForm(
     val canSubmit: Boolean get() = identifier.isNotBlank() && password.isNotBlank()
 }
 
+/** Où en est l'ouverture d'une pièce jointe : c'est la seule action qui peut prendre du temps. */
+sealed interface AttachmentState {
+    data object Idle : AttachmentState
+    data class Working(val id: String) : AttachmentState
+    data class Ready(val id: String, val uri: Uri, val name: String) : AttachmentState
+    data class Failed(val id: String, val message: String) : AttachmentState
+}
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = (application as Ecole2recteApplication).container.repository
@@ -45,6 +60,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val snapshot = repository.snapshot
     val sync = repository.sync
     val settings: StateFlow<AppSettings> = repository.settings
+
+    val messagesComplete = repository.messagesComplete
+    val loadingMoreMessages = repository.loadingMoreMessages
+
+    private val _attachment = MutableStateFlow<AttachmentState>(AttachmentState.Idle)
+    val attachment: StateFlow<AttachmentState> = _attachment.asStateFlow()
 
     private val _loginForm = MutableStateFlow(LoginForm())
     val loginForm: StateFlow<LoginForm> = _loginForm.asStateFlow()
@@ -131,6 +152,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.toggleHomeworkDone(item) }
     }
 
+    fun loadMoreMessages() {
+        viewModelScope.launch { repository.loadMoreMessages() }
+    }
+
+    /**
+     * Télécharge une pièce jointe puis l'expose à l'interface, qui la fera ouvrir par
+     * l'application capable de la lire. L'écriture du fichier se fait hors du fil principal.
+     */
+    fun openAttachment(attachment: Attachment) {
+        if (_attachment.value is AttachmentState.Working) return
+        _attachment.value = AttachmentState.Working(attachment.id)
+        viewModelScope.launch {
+            when (val result = repository.downloadAttachment(attachment)) {
+                is ApiResult.Ok -> {
+                    val saved = withContext(Dispatchers.IO) {
+                        runCatching {
+                            AttachmentOpener(getApplication())
+                                .save(result.value.name, result.value.bytes)
+                        }
+                    }
+                    _attachment.value = saved.getOrNull()
+                        ?.let { AttachmentState.Ready(attachment.id, it, result.value.name) }
+                        ?: AttachmentState.Failed(attachment.id, "Impossible d'enregistrer le fichier.")
+                }
+
+                is ApiResult.Failure -> {
+                    _attachment.value = AttachmentState.Failed(attachment.id, result.message)
+                }
+            }
+        }
+    }
+
+    fun clearAttachmentState() {
+        _attachment.value = AttachmentState.Idle
+    }
+
     // ── Personnalisation ─────────────────────────────────────────────────────
 
     fun setTheme(choice: ThemeChoice) = updateSettings { it.copy(theme = choice) }
@@ -142,6 +199,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleWidget(widget: HomeWidget) = updateSettings { it.toggleWidget(widget) }
 
     fun setDiagnosticsVisible(visible: Boolean) = updateSettings { it.copy(showDiagnostics = visible) }
+
+    fun setNotifications(transform: (NotificationSettings) -> NotificationSettings) =
+        updateSettings { it.copy(notifications = transform(it.notifications)) }
+
+    fun setBiometricLock(enabled: Boolean) = updateSettings { it.copy(biometricLock = enabled) }
 
     private fun updateSettings(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { repository.updateSettings(transform) }

@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.core
 
+import fr.ecole2recte.app.core.model.SchoolLifeKind
 import fr.ecole2recte.app.core.parse.Parsers
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -111,11 +112,49 @@ class ParsersTest {
     }
 
     @Test
+    fun `lit la vie scolaire, absences retards et encouragements melanges`() {
+        val events = Parsers.schoolLife(JSONObject(Payloads.SCHOOL_LIFE))
+
+        assertEquals(3, events.size)
+        val absence = events.first { it.id == "7001" }
+        assertEquals(SchoolLifeKind.ABSENCE, absence.kind)
+        assertEquals("Maladie", absence.reason)
+        assertFalse(absence.justified)
+        assertEquals(SchoolLifeKind.LATE, events.first { it.id == "7002" }.kind)
+        assertTrue(events.first { it.id == "7002" }.justified)
+        assertEquals(SchoolLifeKind.ENCOURAGEMENT, events.first { it.id == "7003" }.kind)
+        // Le plus récent d'abord : c'est l'ordre dans lequel on lit une vie scolaire.
+        assertEquals("7002", events.first().id)
+    }
+
+    @Test
+    fun `lit le contenu de seance du jour`() {
+        val sessions = Parsers.sessionContents(JSONObject(Payloads.HOMEWORK_DAY), LocalDate.of(2026, 9, 7))
+
+        assertEquals(1, sessions.size)
+        assertEquals("Histoire-Géo", sessions.single().subject)
+        assertEquals("Chapitre 2 : la Révolution", sessions.single().content)
+    }
+
+    @Test
+    fun `lit les documents, toutes categories confondues`() {
+        val documents = Parsers.documents(JSONObject(Payloads.DOCUMENTS))
+
+        assertEquals(2, documents.size)
+        assertEquals("Bulletin T1.pdf", documents.first().name)
+        assertEquals(LocalDate.of(2026, 12, 20), documents.first().date)
+        assertTrue(documents.any { it.category.contains("Administratifs", ignoreCase = true) })
+    }
+
+    @Test
     fun `une reponse vide ne fait pas tomber le parsing`() {
         assertTrue(Parsers.lessons(JSONObject("{}")).isEmpty())
         assertTrue(Parsers.homeworkSummaries(JSONObject("""{"code":200}""")).isEmpty())
         assertTrue(Parsers.messages(JSONObject("""{"data":{}}""")).isEmpty())
         assertNull(Parsers.messageBody(JSONObject("{}")))
         assertTrue(Parsers.grades(JSONObject("{}")).grades.isEmpty())
+        assertTrue(Parsers.schoolLife(JSONObject("{}")).isEmpty())
+        assertTrue(Parsers.documents(JSONObject("""{"data":{}}""")).isEmpty())
+        assertTrue(Parsers.sessionContents(JSONObject("{}"), LocalDate.of(2026, 9, 7)).isEmpty())
     }
 }

@@ -2,12 +2,14 @@ package fr.ecole2recte.app.core.repo
 
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.Account
+import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.protocol.ApiErrorKind
 import fr.ecole2recte.app.core.protocol.ApiResult
+import fr.ecole2recte.app.core.protocol.DownloadedFile
 import fr.ecole2recte.app.core.protocol.EcoleDirecteApi
 import fr.ecole2recte.app.core.protocol.LoginOutcome
 import fr.ecole2recte.app.core.protocol.TrustedAnswer
@@ -89,6 +91,18 @@ class SchoolRepository(
 
     private val _settings = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
+
+    /** Vrai quand la messagerie est entièrement chargée : il n'y a plus de page suivante. */
+    private val _messagesComplete = MutableStateFlow(false)
+    val messagesComplete: StateFlow<Boolean> = _messagesComplete.asStateFlow()
+
+    private val _loadingMore = MutableStateFlow(false)
+    val loadingMoreMessages: StateFlow<Boolean> = _loadingMore.asStateFlow()
+
+    private var messagesPage = 0
+
+    /** Jours dont le détail (devoirs et contenu de séance) a déjà été demandé. */
+    private val loadedDays = mutableSetOf<LocalDate>()
 
     /** Une seule synchronisation à la fois : l'API n'aime pas les appels concurrents. */
     private val syncLock = Mutex()
@@ -227,6 +241,9 @@ class SchoolRepository(
         }
         _snapshot.value = SchoolSnapshot()
         _sync.value = SyncState()
+        loadedDays.clear()
+        messagesPage = 0
+        _messagesComplete.value = false
         _auth.value = AuthState.SignedOut
     }
 
@@ -290,7 +307,9 @@ class SchoolRepository(
             }
         }
 
-        DataSection.MESSAGES -> withSession { api.messages(account) }.onOk { messages ->
+        DataSection.MESSAGES -> withSession { api.messages(account, page = 0) }.onOk { messages ->
+            messagesPage = 0
+            _messagesComplete.value = messages.size < EcoleDirecteApi.MESSAGES_PER_PAGE
             _snapshot.update {
                 it.copy(
                     messages = Merge.messages(it.messages, messages),
@@ -298,7 +317,49 @@ class SchoolRepository(
                 )
             }
         }
+
+        DataSection.SCHOOL_LIFE -> withSession { api.schoolLife(account.id) }.onOk { events ->
+            _snapshot.update {
+                it.copy(schoolLife = events, syncedAt = it.syncedAt + (section to now()))
+            }
+        }
+
+        DataSection.DOCUMENTS -> withSession { api.documents(account.id) }.onOk { documents ->
+            _snapshot.update {
+                it.copy(documents = documents, syncedAt = it.syncedAt + (section to now()))
+            }
+        }
     }
+
+    /**
+     * Page suivante de la messagerie.
+     *
+     * L'appel est explicite, déclenché par l'utilisateur en bas de liste : charger toute
+     * l'année en arrivant sur l'écran serait long, inutile et impoli envers l'API.
+     */
+    suspend fun loadMoreMessages() {
+        val account = currentAccount ?: return
+        if (_messagesComplete.value || _loadingMore.value) return
+        _loadingMore.value = true
+        val nextPage = messagesPage + 1
+        val result = withSession { api.messages(account, page = nextPage) }
+        if (result is ApiResult.Ok) {
+            messagesPage = nextPage
+            _messagesComplete.value = result.value.size < EcoleDirecteApi.MESSAGES_PER_PAGE
+            _snapshot.update { snapshot ->
+                snapshot.copy(messages = Merge.appendMessages(snapshot.messages, result.value))
+            }
+            withContext(io) { snapshots.write(_snapshot.value) }
+        }
+        _loadingMore.value = false
+    }
+
+    /**
+     * Télécharge une pièce jointe. Le dépôt ne touche pas au disque : il rend les octets, et
+     * la couche Android décide où les écrire et comment les ouvrir.
+     */
+    suspend fun downloadAttachment(attachment: Attachment): ApiResult<DownloadedFile> =
+        withSession { api.downloadAttachment(attachment) }
 
     /**
      * Charge le contenu détaillé des devoirs d'un jour, à l'ouverture d'une fiche.
@@ -306,14 +367,17 @@ class SchoolRepository(
      */
     suspend fun loadHomeworkDetails(date: LocalDate, force: Boolean = false) {
         val account = currentAccount ?: return
-        val alreadyLoaded = _snapshot.value.homework
-            .filter { it.dueDate == date }
-            .let { items -> items.isNotEmpty() && items.all { it.hasContent } }
-        if (alreadyLoaded && !force) return
-        val result = withSession { api.homeworkForDate(account.id, date) }
+        // Le jour, pas les devoirs : une journée peut n'avoir aucun devoir mais un contenu
+        // de séance, et l'inverse. On retient donc ce qui a été demandé, pas ce qui est revenu.
+        if (!force && date in loadedDays) return
+        loadedDays += date
+        val result = withSession { api.dayContent(account.id, date) }
         if (result is ApiResult.Ok) {
             _snapshot.update {
-                it.copy(homework = Merge.homeworkForDate(it.homework, result.value, date))
+                it.copy(
+                    homework = Merge.homeworkForDate(it.homework, result.value.homework, date),
+                    sessionContents = Merge.sessionContents(it.sessionContents, result.value.sessions, date),
+                )
             }
             withContext(io) { snapshots.write(_snapshot.value) }
         }
