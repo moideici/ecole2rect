@@ -162,10 +162,16 @@ class EcoleDirecteClient(
             requestMethod = method
             connectTimeout = 30_000
             readTimeout = 30_000
-            setRequestProperty("User-Agent", "ecole2recte/0.1 Android")
+            // Match the browser-like fingerprint required by the current API/WAF.
+            setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+            )
             setRequestProperty("Accept", "application/json, text/plain, */*")
             setRequestProperty("Origin", "https://www.ecoledirecte.com")
             setRequestProperty("Referer", "https://www.ecoledirecte.com/")
+            setRequestProperty("X-Client", "Android")
             doInput = true
             doOutput = method == "POST"
         }
