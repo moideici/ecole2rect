@@ -1,110 +1,122 @@
 # ecole2recte
 
 `ecole2recte` est une refonte native, moderne et personnalisable de l'expérience
-ÉcoleDirecte. L'ambition est de proposer une application réellement agréable à
-utiliser au quotidien : une information claire, des actions rapides, une interface
-cohérente et une reconnexion silencieuse quand le service distant expire la session.
+ÉcoleDirecte. L'ambition est de proposer une application réellement agréable à utiliser au
+quotidien : une information claire, des actions rapides, une interface cohérente et une
+reconnexion silencieuse quand le service distant expire la session.
 
-Le projet ne cherche pas à reproduire chaque écran à l'identique. Il veut reprendre les
-données utiles d'ÉcoleDirecte pour construire une expérience plus lisible, plus
-personnelle et plus fiable.
+Le projet ne cherche pas à reproduire chaque écran à l'identique. Il reprend les données
+utiles d'ÉcoleDirecte pour construire une expérience plus lisible, plus personnelle et plus
+fiable.
 
-## Ambitions du dépôt
+## Ce que fait l'application
 
-### Une expérience premium
+- **Accueil composable** — six widgets (prochain cours, à ne pas oublier, journée, devoirs,
+  notes, messages) que l'on réordonne et masque depuis un éditeur dédié ; l'ordre est
+  conservé sur l'appareil.
+- **Emploi du temps** — navigation par semaine et par jour, cours annulés barrés, cours en
+  cours mis en avant, trous de plus de trente minutes rendus visibles.
+- **Devoirs** — regroupés par échéance, filtrables (à faire, évaluations, faits, tout),
+  cherchables, cochables d'un geste ; l'état « fait » est local d'abord, poussé au serveur
+  ensuite, donc l'application répond même hors ligne. Le contenu détaillé d'un devoir est
+  chargé à l'ouverture de sa fiche.
+- **Notes** — sélection de période, moyenne générale de l'établissement quand elle existe
+  (et moyenne calculée clairement annoncée comme telle sinon), moyennes par matière,
+  détail dépliable de chaque note avec coefficient, moyenne de classe et appréciation.
+- **Messages** — liste, recherche, filtre « non lus », lecture du corps complet avec pièces
+  jointes listées.
+- **Couleurs par matière** — une matière garde la même couleur partout ; sans choix
+  explicite, elle est dérivée de son nom, donc stable d'un écran et d'un appareil à l'autre.
+- **Thème clair, sombre ou système**, contrastes et libellés pensés pour les lecteurs
+  d'écran (états annoncés, pastilles décoratives ignorées, boutons décrits).
+- **Mode hors ligne** — la dernière synchronisation est relue au lancement, avant tout appel
+  réseau ; une section qui échoue laisse les données précédentes en place et signale son
+  erreur, et la date de fraîcheur est affichée en permanence.
+- **Reconnexion silencieuse** — un jeton expiré déclenche une reconnexion et un seul
+  réessai, sans repasser par l'écran de connexion.
 
-- accueil entièrement personnalisable, composé de widgets réorganisables ;
-- navigation directe vers des pages complètes pour le planning, les devoirs, les notes
-  et les messages ;
-- design épuré, lisible et cohérent plutôt qu'une accumulation de fonctionnalités ;
-- couleurs personnalisables par matière, conservées dans l'accueil et l'emploi du temps ;
-- informations importantes visibles immédiatement : prochain cours, devoir urgent,
-  nouvelle note ou message non lu ;
-- notifications utiles et widgets Android, sans spam ni bruit visuel ;
-- accessibilité, états de chargement, erreurs et mode hors ligne traités comme des
-  fonctionnalités de premier ordre.
+## Architecture
 
-### Une base technique durable
+```
+app/src/main/java/fr/ecole2recte/app/
+├── core/                      cœur métier, sans aucune dépendance Android
+│   ├── model/                 modèles stables de l'application
+│   ├── protocol/              client ÉcoleDirecte, encodages, codes métier
+│   ├── parse/                 réponses JSON → modèles, en lecture défensive
+│   ├── repo/                  dépôt, fusion, règles produit (« quel est le prochain cours ? »)
+│   ├── settings/              réglages, widgets d'accueil, palette des matières
+│   ├── store/                 contrats de stockage et sérialisation
+│   ├── format/                dates et textes en français, HTML → texte
+│   └── auth/                  rapprochement d'une proposition de sécurité
+├── data/                      implémentations Android des contrats de `core`
+├── ui/                        écrans Compose, composants et thème
+├── MainViewModel.kt           état d'interface et actions
+└── MainActivity.kt
+```
 
-- Kotlin et Jetpack Compose pour l'application Android ;
-- séparation progressive entre interface, état, client réseau et cache local ;
-- données distantes converties vers des modèles stables propres à l'application ;
-- stockage local chiffré pour les secrets nécessaires à la reconnexion ;
-- diagnostics réseau utiles au développement, mais expurgés des mots de passe, jetons et
-  cookies ;
-- tests unitaires des encodeurs, parseurs et réponses enregistrées afin de ne pas
-  dépendre d'un compte réel dans la CI ;
-- préparation d'une évolution multiplateforme, notamment iOS, sans sacrifier
-  l'expérience Android.
+Le point important est la frontière : **`core` ne connaît ni `android.*` ni Compose**. Il ne
+dépend que de la bibliothèque standard, de `org.json` et des coroutines. C'est ce qui rend
+le protocole testable sur la JVM, et c'est aussi la brique qu'une future cible iOS ou
+multiplateforme pourrait reprendre sans réécriture.
 
-## État actuel
+Le réseau passe par une interface `HttpEngine` : l'application y branche
+`HttpURLConnection`, les tests y branchent des réponses enregistrées.
 
-Le socle Android est fonctionnel dans `app/` :
+Le cache est un instantané complet (`SchoolSnapshot`) écrit en JSON dans le stockage privé,
+dans le format de l'application et non dans celui d'ÉcoleDirecte — une évolution du
+protocole ne rend donc pas illisibles les données déjà enregistrées.
 
-- navigation Accueil, Emploi du temps, Devoirs, Notes et Messages ;
-- écran d'accueil et cartes de démonstration issus de la maquette ;
-- couleurs par matière et éditeur de personnalisation ;
-- client Kotlin dédié au protocole privé ÉcoleDirecte ;
-- flux GTK complet avec conservation du `X-GTK`, de tous les cookies de session et
-  des jetons de double authentification ;
-- question de sécurité affichée via l'appel `doubleauth` dédié ;
-- choix de naissance jour/mois/année prérempli automatiquement quand une proposition
-  correspond aux champs saisis ;
-- reconnexion automatique et stockage chiffré Android Keystore ;
-- diagnostic réseau copiable, sans secrets ;
-- build debug automatisé par GitHub Actions.
+## Tests
 
-Les écrans scolaires affichent encore principalement des données de démonstration. La
-connexion réelle et le protocole d'authentification sont la priorité stabilisée ; la
-prochaine étape est de brancher une synchronisation fiable et un cache local aux pages
-complètes.
+```
+gradle testDebugUnitTest
+```
+
+Une cinquantaine de tests couvrent ce qui casse en silence :
+
+- les encodages exigés par l'API (séparateurs de `json.dumps`, `ensure_ascii`, corps de
+  formulaire, ordre des champs de connexion) ;
+- le parsing de réponses enregistrées et anonymisées : comptes, emploi du temps, cahier de
+  textes, notes, messagerie, y compris les réponses vides ou tronquées ;
+- le protocole complet rejoué de bout en bout : connexion, code 250 et question de sécurité,
+  réponse validée rejouée, identifiants refusés sans réessai, jeton expiré ;
+- les règles de fusion (pas de doublons, contenus déjà chargés préservés) ;
+- le dépôt : ouverture hors ligne sur le cache, échec d'une seule section, reconnexion
+  silencieuse avec un unique réessai, déconnexion ;
+- les règles d'accueil (prochain cours, devoir urgent, moyennes pondérées) et la
+  personnalisation (ordre des widgets, couleurs, état local des devoirs).
+
+Aucun test n'a besoin d'un compte réel ni d'un accès réseau : c'est la condition pour qu'ils
+tournent en intégration continue sans risquer de bloquer un compte.
+
+## Sécurité et vie privée
+
+- Identifiants chiffrés en AES/GCM par une clé qui ne quitte pas le Keystore Android ; le
+  mot de passe est conservé parce que l'API n'offre aucun jeton de rafraîchissement, et rien
+  d'autre.
+- Sauvegarde cloud et transfert d'appareil désactivés.
+- Les diagnostics réseau sont expurgés des mots de passe, jetons et cookies avant d'être
+  affichés ou copiés, et restent masqués tant qu'on ne les demande pas.
+- Aucune réponse de sécurité n'est devinée : une proposition n'est pré-sélectionnée que si
+  elle correspond exactement à une information saisie par l'utilisateur, qui garde le dernier
+  mot. Aucune tentative n'est enchaînée automatiquement.
+
+## Limites connues
+
+- L'API d'ÉcoleDirecte n'est pas publique ni documentée : un code HTTP `200` ne signifie pas
+  que l'opération a réussi, et le protocole peut changer sans préavis. Les chemins, verbes et
+  codes sont donc rassemblés dans un seul fichier, et couverts par des tests.
+- Les pièces jointes sont listées mais pas encore téléchargeables.
+- La messagerie est en lecture seule.
+- Notifications et widgets d'écran d'accueil Android ne sont pas encore implémentés.
 
 ## Feuille de route
 
-### Phase 1 — Authentification fiable
-
-- stabiliser le login et la double authentification sur plusieurs comptes ;
-- gérer explicitement expiration, renouvellement, déconnexion et compte bloqué ;
-- conserver uniquement les données nécessaires à la reconnexion ;
-- ajouter des tests hors ligne pour les variantes de réponses de l'API.
-
-### Phase 2 — Données et mode hors ligne
-
-- créer une couche repository et un cache local ;
-- synchroniser planning, devoirs, notes et messages ;
-- afficher la date de dernière synchronisation ;
-- conserver la dernière donnée valide quand le réseau est indisponible ;
-- éviter les doublons grâce à des identifiants stables et à une synchronisation
-  idempotente.
-
-### Phase 3 — Produit quotidien
-
-- remplacer les données de démonstration par les données synchronisées ;
-- permettre l'ouverture d'une fiche détaillée depuis chaque carte ;
-- ajouter filtres, recherche, devoirs terminés et lecture des messages ;
-- finaliser la personnalisation de l'accueil et des matières ;
-- ajouter notifications et widgets Android.
-
-### Phase 4 — Qualité et extension
-
-- tests d'interface et tests de synchronisation ;
-- amélioration de l'accessibilité et des performances ;
+- téléchargement des pièces jointes et ouverture des documents ;
+- notifications utiles (devoir urgent, nouvelle note, message non lu) et widgets Android ;
+- tests d'interface sur les parcours principaux ;
 - signature et distribution d'une version bêta ;
-- extraction des briques partageables pour une cible iOS ou multiplateforme ;
-- documentation de migration lorsque l'API privée évolue.
-
-## Limites et responsabilité
-
-ÉcoleDirecte n'expose pas ici une API publique documentée. Le client repose donc sur un
-protocole non officiel susceptible de changer sans préavis. Un code HTTP `200` ne
-signifie pas forcément que l'opération a réussi : le code métier JSON doit être
-inspecté.
-
-Le projet ne doit jamais contourner une protection, deviner une réponse de sécurité ou
-multiplier les tentatives. Les réponses de naissance sont utilisées uniquement quand
-elles ont été saisies par l'utilisateur et qu'elles correspondent aux propositions
-retournées par le serveur. Les identifiants, mots de passe, cookies et jetons ne doivent
-pas être ajoutés aux commits, aux logs ou aux tickets.
+- extraction de `core` vers un module partagé pour une cible iOS.
 
 ## Lancer le projet
 
@@ -113,13 +125,12 @@ configuration `app`. Le projet cible Android API 35 et nécessite au minimum And
 (API 26).
 
 La maquette web (`index.html`, `styles.css`, `app.js`) reste disponible comme référence
-UX/UI. Elle peut être ouverte avec un serveur statique local ; elle ne remplace pas
-l'application native.
+UX/UI ; elle ne remplace pas l'application native.
 
 ## Build automatique
 
-Le workflow `.github/workflows/android.yml` compile l'APK debug sur chaque push et
-pull request. L'APK est publié dans les artefacts du workflow sous le nom
-`ecole2recte-debug-apk`.
+Le workflow `.github/workflows/android.yml` exécute les tests unitaires puis compile l'APK
+debug à chaque push et pull request. L'APK est publié dans les artefacts du workflow sous le
+nom `ecole2recte-debug-apk`, et le rapport de tests est joint en cas d'échec.
 
-Le build utilise Gradle 8.11.1, Java 17 et le SDK Android API 35 sur GitHub Actions.
+Le build utilise Gradle 8.11.1, Java 17 et le SDK Android API 35.

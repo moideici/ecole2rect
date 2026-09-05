@@ -1,9 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Thème système minimal : Compose peint tout le reste. Il ne sert qu'à donner la
+         bonne couleur de fond et de barres avant le premier rendu. -->
     <style name="Theme.Ecole2recte" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#5C62E8</item>
-        <item name="android:navigationBarColor">#F5F7FB</item>
-        <item name="android:statusBarColor">#F5F7FB</item>
+        <item name="android:windowBackground">#F5F7FB</item>
+        <item name="android:navigationBarColor">#00000000</item>
+        <item name="android:statusBarColor">#00000000</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
