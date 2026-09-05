@@ -79,7 +79,7 @@ object WidgetUpdater {
         PROVIDERS.forEach { (kind, provider) ->
             val ids = runCatching {
                 manager.getAppWidgetIds(ComponentName(context, provider))
-            }.getOrNull().orEmpty()
+            }.getOrNull() ?: IntArray(0)
             if (ids.isEmpty()) return@forEach
             val views = runCatching { WidgetRenderer.render(context, kind, data) }.getOrNull()
                 ?: return@forEach
