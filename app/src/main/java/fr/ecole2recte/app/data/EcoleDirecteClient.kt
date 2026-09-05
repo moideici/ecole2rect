@@ -46,9 +46,9 @@ class EcoleDirecteClient(
                     choices = response.body.optJSONObject("data")?.optJSONArray("propositions").decodeChoices(),
                 )
             }
-            ApiCode.INVALID_CREDENTIALS -> LoginResult.Failure("Identifiant ou mot de passe invalide.")
-            ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> LoginResult.Failure("Compte bloqué.")
-            else -> LoginResult.Failure(response.body.optString("message").ifBlank { "Connexion impossible." })
+            ApiCode.INVALID_CREDENTIALS -> LoginResult.Failure("Identifiant ou mot de passe invalide.", response.diagnostic())
+            ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> LoginResult.Failure("Compte bloqué.", response.diagnostic())
+            else -> LoginResult.Failure(response.body.optString("message").ifBlank { "Connexion impossible." }, response.diagnostic())
         }
     }
 
@@ -66,7 +66,7 @@ class EcoleDirecteClient(
             headers = mapOf("X-Token" to xToken, "2FA-Token" to twoFa),
         )
         if (response.body.optInt("code") != ApiCode.OK) {
-            return LoginResult.Failure("Réponse de sécurité refusée.")
+            return LoginResult.Failure("Réponse de sécurité refusée.", response.diagnostic())
         }
         val data = response.body.optJSONObject("data")
             ?: return LoginResult.Failure("Réponse de sécurité incomplète.")
@@ -137,13 +137,16 @@ class EcoleDirecteClient(
             cookie?.let { connection.setRequestProperty("Cookie", it) }
             val body = "data=" + URLEncoder.encode(payload.toString(), Charsets.UTF_8.name())
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            val stream = if (connection.responseCode in 200..399) connection.inputStream else connection.errorStream
+            val httpStatus = connection.responseCode
+            val stream = if (httpStatus in 200..399) connection.inputStream else connection.errorStream
             val json = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             Response(
                 body = runCatching { JSONObject(json) }.getOrElse { JSONObject() },
                 headers = connection.headerFields.mapNotNull { (name, values) ->
                     name?.lowercase()?.let { it to values.firstOrNull().orEmpty() }
                 }.toMap(),
+                httpStatus = httpStatus,
+                rawBody = json,
             ).also { response ->
                 response.body.optString("token").takeIf { it.isNotBlank() }?.let { token = it }
             }
@@ -189,7 +192,30 @@ class EcoleDirecteClient(
         }
     }
 
-    private data class Response(val body: JSONObject, val headers: Map<String, String>)
+    private data class Response(
+        val body: JSONObject,
+        val headers: Map<String, String>,
+        val httpStatus: Int,
+        val rawBody: String,
+    ) {
+        fun diagnostic(): String {
+            val safeHeaders = headers
+                .filterKeys { it !in setOf("x-token", "2fa-token", "set-cookie", "cookie") }
+                .entries
+                .joinToString("\n") { (key, value) -> "$key: $value" }
+            return buildString {
+                appendLine("HTTP $httpStatus")
+                appendLine("Réponse API:")
+                val safeBody = redactSecrets(rawBody).take(4000).ifBlank { "(vide)" }
+                appendLine(safeBody)
+                if (safeHeaders.isNotBlank()) {
+                    appendLine("En-têtes utiles:")
+                    append(safeHeaders)
+                }
+            }
+        }
+    }
+
 }
 
 data class TrustedAnswer(val cn: String, val cv: String) {
@@ -207,12 +233,15 @@ data class Lesson(
 sealed interface LoginResult {
     data class Success(val accounts: List<Account>) : LoginResult
     data class SecurityQuestionRequired(val question: String?, val choices: List<String>) : LoginResult
-    data class Failure(val message: String) : LoginResult
+    data class Failure(val message: String, val diagnostic: String? = null) : LoginResult
 }
 
 data class Account(val id: String, val type: String, val firstName: String, val lastName: String)
 
 class EcoleDirecteException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+
+private fun redactSecrets(value: String): String =
+    value.replace(Regex("(?i)(motdepasse|password|token|x-token|2fa-token|cookie|set-cookie)\"?\\s*[:=]\\s*\"?[^\",}\\s]+"), "$1=<masqué>")
 
 private object ApiCode {
     const val OK = 200

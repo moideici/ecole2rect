@@ -1,6 +1,9 @@
 package fr.ecole2recte.app
 
 import android.os.Bundle
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalContext
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Assignment
@@ -31,6 +35,7 @@ import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -98,6 +103,7 @@ private fun Ecole2recteApp() {
     var isAuthenticated by remember { mutableStateOf(false) }
     var authChecking by remember { mutableStateOf(store.read() != null) }
     var loginError by remember { mutableStateOf<String?>(null) }
+    var loginDiagnostic by remember { mutableStateOf<String?>(null) }
     var securityQuestion by remember { mutableStateOf<String?>(null) }
     var securityChoices by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingClient by remember { mutableStateOf<EcoleDirecteClient?>(null) }
@@ -108,7 +114,11 @@ private fun Ecole2recteApp() {
                 EcoleDirecteClient().login(saved.identifier, saved.password, saved.trustedAnswer)
             }
             if (result is LoginResult.Success) isAuthenticated = true
-            else loginError = (result as? LoginResult.Failure)?.message
+            else {
+                val failure = result as? LoginResult.Failure
+                loginError = failure?.message
+                loginDiagnostic = failure?.diagnostic
+            }
         }
         authChecking = false
     }
@@ -122,10 +132,12 @@ private fun Ecole2recteApp() {
         LoginScreen(
             initialLogin = store.read(),
             error = loginError,
+            diagnostic = loginDiagnostic,
             securityQuestion = securityQuestion,
             securityChoices = securityChoices,
             onLogin = { identifier, password, trustedAnswer, securityAnswer ->
                 loginError = null
+                loginDiagnostic = null
                 val client = pendingClient ?: EcoleDirecteClient()
                 val result = runCatching {
                     withContext(Dispatchers.IO) {
@@ -154,7 +166,10 @@ private fun Ecole2recteApp() {
                         securityChoices = result.choices
                         pendingClient = client
                     }
-                    is LoginResult.Failure -> loginError = result.message
+                    is LoginResult.Failure -> {
+                        loginError = result.message
+                        loginDiagnostic = result.diagnostic
+                    }
                 }
             },
         )
@@ -198,6 +213,7 @@ private fun Ecole2recteApp() {
 private fun LoginScreen(
     initialLogin: SavedLogin?,
     error: String?,
+    diagnostic: String?,
     securityQuestion: String?,
     securityChoices: List<String>,
     onLogin: suspend (String, String, TrustedAnswer?, String?) -> Unit,
@@ -244,6 +260,7 @@ private fun LoginScreen(
                     }
                 }
                 if (error != null) Text(error, color = Color(0xFFB74D58), fontSize = 11.sp)
+                if (diagnostic != null) DiagnosticPanel(diagnostic)
                 Text("Les réponses candidates sont chiffrées sur cet appareil.", color = Muted, fontSize = 10.sp)
                 Surface(
                     modifier = Modifier.fillMaxWidth().clickable(enabled = !loading) {
@@ -258,6 +275,28 @@ private fun LoginScreen(
                 ) {
                     Text(if (loading) "Connexion…" else "Se connecter  →", color = Color.White, modifier = Modifier.padding(15.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticPanel(diagnostic: String) {
+    val context = LocalContext.current
+    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7ED))) {
+        Column(Modifier.padding(12.dp)) {
+            Text("Détail réseau (pour le debug)", color = Color(0xFF9A5B1A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            SelectionContainer {
+                Text(diagnostic, color = Color(0xFF5F4A32), fontSize = 10.sp, lineHeight = 14.sp, modifier = Modifier.padding(top = 7.dp))
+            }
+            Button(
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("ecole2recte - diagnostic réseau", diagnostic))
+                },
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                Text("Copier le diagnostic", fontSize = 11.sp)
             }
         }
     }
