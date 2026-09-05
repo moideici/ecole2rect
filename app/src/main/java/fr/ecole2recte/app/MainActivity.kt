@@ -110,14 +110,21 @@ private fun Ecole2recteApp() {
     LaunchedEffect(Unit) {
         val saved = store.read()
         if (saved != null) {
+            val client = EcoleDirecteClient()
             val result = withContext(Dispatchers.IO) {
-                EcoleDirecteClient().login(saved.identifier, saved.password, saved.trustedAnswer)
+                client.login(saved.identifier, saved.password, saved.trustedAnswer)
             }
-            if (result is LoginResult.Success) isAuthenticated = true
-            else {
-                val failure = result as? LoginResult.Failure
-                loginError = failure?.message
-                loginDiagnostic = failure?.diagnostic
+            when (result) {
+                is LoginResult.Success -> isAuthenticated = true
+                is LoginResult.SecurityQuestionRequired -> {
+                    securityQuestion = result.question ?: "Réponds à la question demandée par ÉcoleDirecte."
+                    securityChoices = result.choices
+                    pendingClient = client
+                }
+                is LoginResult.Failure -> {
+                    loginError = result.message
+                    loginDiagnostic = result.diagnostic
+                }
             }
         }
         authChecking = false
@@ -144,7 +151,11 @@ private fun Ecole2recteApp() {
                         if (securityAnswer != null && pendingClient != null) {
                             client.completeSecurityQuestion(securityAnswer, identifier, password)
                         } else {
-                            client.login(identifier, password, trustedAnswer ?: store.read()?.trustedAnswer)
+                            val saved = store.read()
+                            val savedAnswer = saved
+                                ?.takeIf { it.identifier == identifier && it.password == password }
+                                ?.trustedAnswer
+                            client.login(identifier, password, trustedAnswer ?: savedAnswer)
                         }
                     }
                 }.getOrElse { error ->
