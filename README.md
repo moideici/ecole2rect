@@ -21,18 +21,30 @@ fiable.
   et cliquables. Chaque cours ouvre une fiche complète.
 - **Devoirs** — regroupés par échéance, filtrables (à faire, évaluations, faits, tout),
   cherchables, cochables d'un geste ; l'état « fait » est local d'abord, poussé au serveur
-  ensuite, donc l'application répond même hors ligne. Le contenu détaillé d'un devoir est
-  chargé à l'ouverture de sa fiche.
+  ensuite, donc l'application répond même hors ligne. Le contenu détaillé et les pièces
+  jointes arrivent à l'ouverture de la fiche, et les pièces jointes s'ouvrent réellement.
 - **Notes** — sélection de période, moyenne générale de l'établissement quand elle existe
   (et moyenne calculée clairement annoncée comme telle sinon), moyennes par matière,
-  détail dépliable de chaque note avec coefficient, moyenne de classe et appréciation.
-- **Messages** — liste, recherche, filtre « non lus », lecture du corps complet avec pièces
-  jointes listées.
+  détail dépliable de chaque note avec coefficient, moyenne de classe et appréciation,
+  courbe d'évolution, et un **simulateur** : « si je prends 14 au prochain devoir, ça
+  donne quoi ? », qui sait aussi dire quelle note viser — ou qu'un objectif est hors
+  d'atteinte, plutôt que d'annoncer 27/20.
+- **Messages** — liste paginée (l'année entière, pas les cent derniers), recherche, filtre
+  « non lus », lecture du corps complet et ouverture des pièces jointes.
+- **Vie scolaire** — absences, retards, sanctions et encouragements, avec compteurs et
+  état de justification.
+- **Documents** — bulletins et pièces administratives publiés par l'établissement.
+- **Recherche globale** — une seule question pour toutes les sections.
 - **Couleurs par matière** — une matière garde la même couleur partout ; sans choix
   explicite, elle est dérivée de son nom, donc stable d'un écran et d'un appareil à l'autre.
 - **Thème clair, sombre ou système**, contrastes et libellés pensés pour les lecteurs
   d'écran (états annoncés, pastilles décoratives ignorées, boutons décrits).
-- **Quinze widgets d'écran d'accueil Android** (voir plus bas).
+- **Quinze widgets d'écran d'accueil Android** (voir plus bas), dont un configurable à la pose.
+- **Notifications** — nouvelle note, nouveau devoir, nouveau message, rappel la veille d'une
+  évaluation, chaque type activable séparément et jamais deux fois la même chose.
+- **Synchronisation en arrière-plan** toutes les heures, qui alimente aussi les widgets.
+- **Verrouillage** par empreinte ou code de l'appareil, en option.
+- **Export iCalendar** de l'emploi du temps vers l'agenda du téléphone.
 - **Mode hors ligne** — la dernière synchronisation est relue au lancement, avant tout appel
   réseau ; une section qui échoue laisse les données précédentes en place et signale son
   erreur, et la date de fraîcheur est affichée en permanence.
@@ -76,10 +88,14 @@ app/src/main/java/fr/ecole2recte/app/
 │   ├── settings/              réglages, widgets d'accueil, palette des matières
 │   ├── store/                 contrats de stockage et sérialisation
 │   ├── widget/                contenu des widgets d'écran d'accueil
+│   ├── notify/                ce qui mérite une notification, et à quelles conditions
+│   ├── export/                export iCalendar
+│   ├── diag/                  journal d'erreurs expurgé
 │   ├── format/                dates et textes en français, HTML → texte
 │   └── auth/                  rapprochement d'une proposition de sécurité
 ├── data/                      implémentations Android des contrats de `core`
 ├── widget/                    les quinze widgets d'écran d'accueil (RemoteViews)
+├── sync/                      synchronisation de fond et notifications
 ├── ui/                        écrans Compose, composants et thème
 ├── MainViewModel.kt           état d'interface et actions
 └── MainActivity.kt
@@ -135,26 +151,23 @@ tournent en intégration continue sans risquer de bloquer un compte.
   elle correspond exactement à une information saisie par l'utilisateur, qui garde le dernier
   mot. Aucune tentative n'est enchaînée automatiquement.
 
+## Feuille de route
+
+L'état d'avancement détaillé, et ce qui reste à faire, sont dans [ROADMAP.md](ROADMAP.md).
+
 ## Limites connues
 
 - L'API d'ÉcoleDirecte n'est pas publique ni documentée : un code HTTP `200` ne signifie pas
   que l'opération a réussi, et le protocole peut changer sans préavis. Les chemins, verbes et
   codes sont donc rassemblés dans un seul fichier, et couverts par des tests.
-- Les pièces jointes sont listées mais pas encore téléchargeables.
-- La messagerie est en lecture seule.
-- Les notifications ne sont pas encore implémentées.
+- La messagerie est en lecture seule : envoyer un message depuis un protocole non documenté
+  et non testé pourrait livrer un contenu tronqué à un professeur. De même, le dépôt de copie
+  en ligne n'est pas implémenté — rendre un devoir est irréversible.
 - Les widgets d'écran d'accueil se rafraîchissent d'eux-mêmes toutes les trente minutes au
-  mieux — c'est la limite du système ; entre deux, c'est l'application qui les met à jour
-  quand elle a du nouveau. Un compte à rebours peut donc être en retard de quelques minutes
-  si l'application n'a pas été ouverte.
-
-## Feuille de route
-
-- téléchargement des pièces jointes et ouverture des documents ;
-- notifications utiles (devoir urgent, nouvelle note, message non lu) ;
-- tests d'interface sur les parcours principaux ;
-- signature et distribution d'une version bêta ;
-- extraction de `core` vers un module partagé pour une cible iOS.
+  mieux — c'est la limite du système ; entre deux, la synchronisation de fond horaire et
+  l'application les mettent à jour dès qu'il y a du nouveau.
+- Le parsing est défensif et testé sur des réponses enregistrées, mais chaque établissement
+  configure ÉcoleDirecte à sa façon : certaines variantes n'ont pas pu être vérifiées.
 
 ## Lancer le projet
 
@@ -167,8 +180,12 @@ UX/UI ; elle ne remplace pas l'application native.
 
 ## Build automatique
 
-Le workflow `.github/workflows/android.yml` exécute les tests unitaires puis compile l'APK
-debug à chaque push et pull request. L'APK est publié dans les artefacts du workflow sous le
-nom `ecole2recte-debug-apk`, et le rapport de tests est joint en cas d'échec.
+Le workflow `.github/workflows/android.yml` exécute, à chaque push et pull request : les
+tests unitaires, le lint Android (bloquant), la compilation des tests d'interface, puis les
+APK debug et release. Les deux APK sont publiés dans les artefacts du workflow, et les
+rapports de tests ou de lint sont joints en cas d'échec.
+
+Les tests d'interface eux-mêmes demandent un appareil ou un émulateur :
+`gradle connectedDebugAndroidTest`.
 
 Le build utilise Gradle 8.11.1, Java 17 et le SDK Android API 35.
