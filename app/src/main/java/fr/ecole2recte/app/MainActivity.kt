@@ -68,6 +68,8 @@ import fr.ecole2recte.app.data.TrustedAnswer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.Normalizer
+import java.util.Locale
 
 private val Ink = Color(0xFF18202B)
 private val Muted = Color(0xFF7F8998)
@@ -90,6 +92,50 @@ private val homework = listOf(
     Homework("Exercices 12 à 18", "Mathématiques", "Mardi 8 septembre", 0),
     Homework("Reading comprehension", "Anglais", "Jeudi 10 septembre", 1),
 )
+
+private fun findBirthAnswer(
+    question: String?,
+    choices: List<String>,
+    day: String,
+    month: String,
+    year: String,
+): String? {
+    if (question.isNullOrBlank() || choices.isEmpty()) return null
+    val normalizedQuestion = normalizeSecurityText(question)
+    val candidates = when {
+        listOf("mois", "month").any(normalizedQuestion::contains) ->
+            birthMonthCandidates(month)
+        listOf("annee", "year").any(normalizedQuestion::contains) ->
+            birthYearCandidates(year)
+        listOf("jour", "day").any(normalizedQuestion::contains) ->
+            birthDayCandidates(day)
+        else -> emptySet()
+    }
+    if (candidates.isEmpty()) return null
+    return choices.firstOrNull { normalizeSecurityText(it) in candidates }
+}
+
+private fun birthDayCandidates(value: String): Set<String> =
+    value.toIntOrNull()?.let { setOf(value, it.toString()) } ?: setOf(value)
+
+private fun birthYearCandidates(value: String): Set<String> = setOf(value.trim())
+
+private fun birthMonthCandidates(value: String): Set<String> {
+    val number = value.toIntOrNull() ?: return setOf(normalizeSecurityText(value))
+    val names = listOf(
+        "janvier", "fevrier", "mars", "avril", "mai", "juin",
+        "juillet", "aout", "septembre", "octobre", "novembre", "decembre",
+    )
+    val name = names.getOrNull(number - 1) ?: return setOf(value, number.toString())
+    return setOf(value, number.toString(), name, name.take(3))
+        .map(::normalizeSecurityText)
+        .toSet()
+}
+
+private fun normalizeSecurityText(value: String): String =
+    Normalizer.normalize(value.trim().lowercase(Locale.FRENCH), Normalizer.Form.NFD)
+        .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
+        .replace("[^a-z0-9]+".toRegex(), "")
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -239,6 +285,24 @@ private fun LoginScreen(
     var securityAnswer by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val automaticSecurityAnswer = remember(
+        securityQuestion,
+        securityChoices,
+        birthDay,
+        birthMonth,
+        birthYear,
+    ) {
+        findBirthAnswer(
+            question = securityQuestion,
+            choices = securityChoices,
+            day = birthDay,
+            month = birthMonth,
+            year = birthYear,
+        )
+    }
+    LaunchedEffect(securityQuestion, securityChoices, automaticSecurityAnswer) {
+        securityAnswer = automaticSecurityAnswer.orEmpty()
+    }
     Box(Modifier.fillMaxSize().background(Background), contentAlignment = Alignment.Center) {
         Card(Modifier.fillMaxWidth().padding(24.dp), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(Color.White)) {
             Column(
@@ -258,6 +322,14 @@ private fun LoginScreen(
                 if (securityQuestion != null) {
                     Text("Question de sécurité", color = Indigo, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Text(securityQuestion, color = Ink, fontSize = 13.sp)
+                    if (automaticSecurityAnswer != null) {
+                        Text(
+                            "Réponse trouvée depuis ta date de naissance",
+                            color = Color(0xFF2A8B68),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                     if (securityChoices.isNotEmpty()) {
                         securityChoices.forEach { choice ->
                             Row(
