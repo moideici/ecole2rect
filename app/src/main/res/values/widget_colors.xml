@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Couleurs des widgets d'écran d'accueil. Elles doublent celles du thème Compose parce
+     qu'un widget est dessiné par le lanceur, hors de notre thème : ce sont les mêmes
+     valeurs, déclarées là où RemoteViews peut les lire. -->
+<resources>
+    <color name="widget_surface">#FFFFFFFF</color>
+    <color name="widget_ink">#FF18202B</color>
+    <color name="widget_muted">#FF7F8998</color>
+    <color name="widget_accent">#FF5C62E8</color>
+    <color name="widget_divider">#FFE8EBF0</color>
+</resources>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ecole2recte</string>
+
+    <string name="widget_average_label">Moyenne générale</string>
+    <string name="widget_average_description">La moyenne de la période en cours, en un chiffre.</string>
+    <string name="widget_homework_count_label">Devoirs à faire</string>
+    <string name="widget_homework_count_description">Combien de devoirs restent à faire.</string>
+    <string name="widget_unread_label">Messages non lus</string>
+    <string name="widget_unread_description">Le nombre de messages non lus.</string>
+    <string name="widget_countdown_label">Avant le prochain cours</string>
+    <string name="widget_countdown_description">Le temps restant avant le prochain cours.</string>
+    <string name="widget_room_label">Salle du prochain cours</string>
+    <string name="widget_room_description">Où aller, et à quelle heure.</string>
+    <string name="widget_sync_label">Dernière synchronisation</string>
+    <string name="widget_sync_description">Depuis quand les données affichées datent.</string>
+    <string name="widget_next_lesson_label">Prochain cours</string>
+    <string name="widget_next_lesson_description">Matière, salle, professeur et horaire.</string>
+    <string name="widget_urgent_homework_label">Devoir urgent</string>
+    <string name="widget_urgent_homework_description">Le devoir à ne pas oublier.</string>
+    <string name="widget_last_grade_label">Dernière note</string>
+    <string name="widget_last_grade_description">La note publiée la plus récente.</string>
+    <string name="widget_last_message_label">Dernier message</string>
+    <string name="widget_last_message_description">Le message reçu le plus récent.</string>
+    <string name="widget_today_label">Journée</string>
+    <string name="widget_today_description">La suite des cours de la journée.</string>
+    <string name="widget_homework_list_label">Prochains devoirs</string>
+    <string name="widget_homework_list_description">Les devoirs à rendre en premier.</string>
+    <string name="widget_grades_list_label">Dernières notes</string>
+    <string name="widget_grades_list_description">Les dernières notes publiées.</string>
+    <string name="widget_subject_averages_label">Moyennes par matière</string>
+    <string name="widget_subject_averages_description">Les moyennes de la période, matière par matière.</string>
+    <string name="widget_week_label">Semaine</string>
+    <string name="widget_week_description">La charge de chaque jour de la semaine.</string>
+</resources>

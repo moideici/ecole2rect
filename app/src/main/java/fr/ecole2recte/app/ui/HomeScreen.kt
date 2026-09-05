@@ -48,8 +48,10 @@ import fr.ecole2recte.app.ui.components.SubjectDot
 import fr.ecole2recte.app.ui.components.Tag
 import fr.ecole2recte.app.ui.components.subjectColor
 import fr.ecole2recte.app.ui.theme.AppTheme
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 /**
  * L'accueil.
@@ -93,8 +95,12 @@ fun HomeScreen(
                         HomeWidget.URGENT -> UrgentWidget(snapshot, settings, today, onOpenDetail)
                         HomeWidget.TODAY -> TodayWidget(snapshot, settings, now, onNavigate)
                         HomeWidget.HOMEWORK -> HomeworkWidget(snapshot, settings, today, onNavigate, onToggleHomework)
+                        HomeWidget.EXAMS -> ExamsWidget(snapshot, settings, today, onOpenDetail)
                         HomeWidget.GRADES -> GradesWidget(snapshot, settings, onNavigate)
+                        HomeWidget.SUBJECT_AVERAGES -> SubjectAveragesWidget(snapshot, settings, today, onNavigate)
                         HomeWidget.MESSAGES -> MessagesWidget(snapshot, settings, onNavigate)
+                        HomeWidget.WEEK -> WeekOverviewWidget(snapshot, settings, today, onNavigate)
+                        HomeWidget.TOMORROW -> TomorrowWidget(snapshot, settings, today, onNavigate)
                     }
                 }
             }
@@ -238,7 +244,7 @@ private fun NextClassWidget(
 private fun UrgentWidget(
     snapshot: SchoolSnapshot,
     settings: AppSettings,
-    today: java.time.LocalDate,
+    today: LocalDate,
     onOpenDetail: (Detail) -> Unit,
 ) {
     val urgent = Insights.urgentHomework(snapshot.homework, settings, today) ?: return
@@ -374,7 +380,7 @@ private fun LessonRow(lesson: Lesson, settings: AppSettings, now: LocalDateTime)
 private fun HomeworkWidget(
     snapshot: SchoolSnapshot,
     settings: AppSettings,
-    today: java.time.LocalDate,
+    today: LocalDate,
     onNavigate: (Destination) -> Unit,
     onToggle: (HomeworkItem) -> Unit,
 ) {
@@ -405,7 +411,7 @@ private fun HomeworkWidget(
 fun HomeworkRow(
     item: HomeworkItem,
     settings: AppSettings,
-    today: java.time.LocalDate,
+    today: LocalDate,
     onToggle: (HomeworkItem) -> Unit,
     onOpen: (() -> Unit)? = null,
 ) {
@@ -571,6 +577,260 @@ private fun MessagesWidget(snapshot: SchoolSnapshot, settings: AppSettings, onNa
                 if (!settings.isMessageRead(message.id, message.read)) {
                     SubjectDot(MaterialTheme.colorScheme.primary, 8.dp)
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Évaluations annoncées.
+ *
+ * Un devoir surveillé ne se prépare pas la veille : ce bloc les sort de la liste des devoirs
+ * et les classe par compte à rebours, ce qui est la seule chose qui compte pour réviser.
+ */
+@Composable
+private fun ExamsWidget(
+    snapshot: SchoolSnapshot,
+    settings: AppSettings,
+    today: LocalDate,
+    onOpenDetail: (Detail) -> Unit,
+) {
+    val exams = Insights.upcomingExams(snapshot.homework, settings, today)
+    AppCard {
+        WidgetLabel("ÉVALUATIONS À VENIR")
+        Spacer(Modifier.height(10.dp))
+        if (exams.isEmpty()) {
+            Text(
+                "Aucune évaluation annoncée pour les trois prochaines semaines.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@AppCard
+        }
+        exams.take(3).forEach { exam ->
+            val accent = subjectColor(exam.subject, settings)
+            val days = ChronoUnit.DAYS.between(today, exam.dueDate)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenDetail(Detail.Homework(exam.id)) }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SubjectBadge(exam.subject, accent, 38.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        exam.subject,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        Dates.dayAndMonth(exam.dueDate),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Tag(
+                    text = when {
+                        days < 0L -> "passée"
+                        days == 0L -> "aujourd'hui"
+                        days == 1L -> "demain"
+                        else -> "dans $days j"
+                    },
+                    color = if (days <= 2L) MaterialTheme.colorScheme.error else accent,
+                )
+            }
+        }
+    }
+}
+
+/** Moyennes par matière : la barre rend l'écart lisible sans lire les chiffres. */
+@Composable
+private fun SubjectAveragesWidget(
+    snapshot: SchoolSnapshot,
+    settings: AppSettings,
+    today: LocalDate,
+    onNavigate: (Destination) -> Unit,
+) {
+    val averages = Insights.subjectAverages(snapshot, today)
+    AppCard(onClick = { onNavigate(Destination.GRADES) }) {
+        WidgetLabel("MOYENNES PAR MATIÈRE")
+        Spacer(Modifier.height(10.dp))
+        if (averages.isEmpty()) {
+            Text(
+                "Les moyennes apparaîtront dès la publication des premières notes.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@AppCard
+        }
+        averages.take(5).forEach { (subject, value) ->
+            val accent = subjectColor(subject, settings)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SubjectDot(accent)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    subject,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Box(Modifier.width(64.dp)) {
+                    ProgressBar(
+                        fraction = (value / 20.0).toFloat(),
+                        indicatorColor = accent,
+                        height = 5.dp,
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    formatGrade(value),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = accent,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * La semaine en un coup d'œil.
+ *
+ * Chaque barre est proportionnelle au temps de cours du jour : on voit immédiatement la
+ * journée chargée du mercredi sans lire un seul chiffre.
+ */
+@Composable
+private fun WeekOverviewWidget(
+    snapshot: SchoolSnapshot,
+    settings: AppSettings,
+    today: LocalDate,
+    onNavigate: (Destination) -> Unit,
+) {
+    val weekStart = Dates.startOfWeek(today)
+    val week = Insights.week(snapshot.lessons, weekStart)
+    val busiest = week.maxOfOrNull { it.minutes }?.coerceAtLeast(1L) ?: 1L
+    AppCard(onClick = { onNavigate(Destination.TIMETABLE) }) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            WidgetLabel("SEMAINE", Modifier.weight(1f))
+            Text(
+                "${week.sumOf { it.lessons }} cours",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            week.forEach { day ->
+                val isToday = day.date == today
+                val height = (18 + (54 * day.minutes / busiest)).toInt().dp
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        if (day.isEmpty) "—" else "${day.minutes / 60}h",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(height)
+                            .background(
+                                when {
+                                    day.isEmpty -> MaterialTheme.colorScheme.surfaceVariant
+                                    isToday -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                                },
+                                RoundedCornerShape(8.dp),
+                            ),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        Dates.dayName(day.date).take(1).uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (isToday) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Demain : ce qu'il faut mettre dans le sac ce soir. */
+@Composable
+private fun TomorrowWidget(
+    snapshot: SchoolSnapshot,
+    settings: AppSettings,
+    today: LocalDate,
+    onNavigate: (Destination) -> Unit,
+) {
+    val tomorrow = today.plusDays(1)
+    val summary = Insights.daySummary(snapshot.lessons, tomorrow)
+    val lessons = Insights.lessonsOn(snapshot.lessons, tomorrow).filterNot { it.canceled }
+    val homework = Insights.homeworkDueOn(snapshot.homework, tomorrow)
+        .filterNot { settings.isHomeworkDone(it.id, it.done) }
+    AppCard(onClick = { onNavigate(Destination.TIMETABLE) }) {
+        WidgetLabel("DEMAIN")
+        Spacer(Modifier.height(8.dp))
+        Text(
+            Dates.dayAndMonth(tomorrow).replaceFirstChar { it.uppercase() },
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            if (summary.isEmpty) {
+                "Aucun cours prévu."
+            } else {
+                "${summary.lessons} cours · ${Dates.time(summary.start!!)} — ${Dates.time(summary.end!!)}"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (lessons.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                lessons.take(6).forEach { lesson ->
+                    SubjectDot(subjectColor(lesson.subject, settings), 10.dp)
+                }
+            }
+        }
+        if (homework.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                if (homework.size == 1) {
+                    "1 devoir à rendre demain"
+                } else {
+                    "${homework.size} devoirs à rendre demain"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            homework.take(2).forEach { item ->
+                Text(
+                    "· ${item.subject}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

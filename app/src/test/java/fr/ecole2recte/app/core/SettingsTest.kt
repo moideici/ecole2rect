@@ -22,11 +22,15 @@ class SettingsTest {
 
     @Test
     fun `l accueil se reorganise et se masque`() {
-        val settings = AppSettings()
+        val before = AppSettings()
+        val position = before.orderedWidgets.indexOfFirst { it.widget == HomeWidget.GRADES }
+
+        val settings = before
             .move(HomeWidget.GRADES, -1)
             .toggleWidget(HomeWidget.MESSAGES)
 
-        assertEquals(HomeWidget.GRADES, settings.orderedWidgets[3].widget)
+        assertEquals(position - 1, settings.orderedWidgets.indexOfFirst { it.widget == HomeWidget.GRADES })
+        assertEquals(before.orderedWidgets.size, settings.orderedWidgets.size)
         assertFalse(HomeWidget.MESSAGES in settings.visibleWidgets)
         assertTrue(HomeWidget.NEXT_CLASS in settings.visibleWidgets)
     }

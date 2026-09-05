@@ -5,8 +5,10 @@ import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.model.Period
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.settings.AppSettings
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -97,6 +99,108 @@ object Insights {
         val recent = weightedAverage(ordered.take(recentCount)) ?: return null
         val previous = weightedAverage(ordered.drop(recentCount).take(recentCount)) ?: return null
         return recent - previous
+    }
+
+    // ── Journée et semaine ───────────────────────────────────────────────────
+
+    /** Ce qu'il faut savoir d'une journée avant même de dérouler la liste des cours. */
+    data class DaySummary(
+        val date: LocalDate,
+        val lessons: Int,
+        val minutes: Long,
+        val start: LocalDateTime?,
+        val end: LocalDateTime?,
+        val exams: Int,
+        val canceled: Int,
+    ) {
+        val isEmpty: Boolean get() = lessons == 0
+    }
+
+    fun daySummary(lessons: List<Lesson>, date: LocalDate): DaySummary {
+        val day = lessonsOn(lessons, date)
+        val active = day.filterNot { it.canceled }
+        return DaySummary(
+            date = date,
+            lessons = active.size,
+            minutes = active.sumOf { Duration.between(it.start, it.end).toMinutes() },
+            start = active.minByOrNull { it.start }?.start,
+            end = active.maxByOrNull { it.end }?.end,
+            exams = day.count { it.exam },
+            canceled = day.count { it.canceled },
+        )
+    }
+
+    /** Les six jours d'une semaine scolaire, du lundi au samedi, résumés. */
+    fun week(lessons: List<Lesson>, weekStart: LocalDate, days: Int = 6): List<DaySummary> =
+        (0 until days).map { offset -> daySummary(lessons, weekStart.plusDays(offset.toLong())) }
+
+    /**
+     * Trous entre deux cours consécutifs, à partir d'un quart d'heure : c'est ce qui
+     * distingue une journée de six heures d'une journée de six heures avec deux trous.
+     */
+    fun gaps(lessons: List<Lesson>, minimumMinutes: Long = 15): List<Pair<Lesson, Long>> {
+        val ordered = lessons.filterNot { it.canceled }.sortedBy { it.start }
+        return ordered.zipWithNext()
+            .map { (previous, next) -> next to Duration.between(previous.end, next.start).toMinutes() }
+            .filter { (_, minutes) -> minutes >= minimumMinutes }
+    }
+
+    /** Devoirs à rendre pour un jour donné, cochés compris : l'agenda dit tout. */
+    fun homeworkDueOn(homework: List<HomeworkItem>, date: LocalDate): List<HomeworkItem> =
+        homework.filter { it.dueDate == date }.sortedBy { it.subject }
+
+    /**
+     * Devoirs à rendre pour un cours précis. C'est le croisement qui manque partout
+     * ailleurs : voir « à rendre pour ce cours » dans la case de l'emploi du temps évite
+     * d'ouvrir deux écrans pour préparer son sac.
+     */
+    fun homeworkForLesson(homework: List<HomeworkItem>, lesson: Lesson): List<HomeworkItem> =
+        homeworkDueOn(homework, lesson.date)
+            .filter { Text.normalizeKey(it.subject) == Text.normalizeKey(lesson.subject) }
+
+    /** Évaluations annoncées à venir, la plus proche d'abord. */
+    fun upcomingExams(
+        homework: List<HomeworkItem>,
+        settings: AppSettings,
+        today: LocalDate,
+        horizonDays: Long = 21,
+    ): List<HomeworkItem> = pendingHomework(homework, settings, today, horizonDays)
+        .filter { it.exam }
+
+    // ── Notes ────────────────────────────────────────────────────────────────
+
+    fun currentPeriod(periods: List<Period>, today: LocalDate): Period? =
+        periods.firstOrNull { period ->
+            val start = period.start
+            val end = period.end
+            start != null && end != null && !today.isBefore(start) && !today.isAfter(end)
+        } ?: periods.firstOrNull { it.current } ?: periods.firstOrNull()
+
+    /**
+     * Moyenne générale à afficher : celle de l'établissement si elle existe, sinon celle
+     * calculée depuis les notes. Le drapeau dit laquelle, pour que l'interface ne fasse
+     * jamais passer une estimation pour un bulletin.
+     */
+    data class Average(val value: Double, val official: Boolean, val periodName: String)
+
+    fun generalAverage(snapshot: SchoolSnapshot, today: LocalDate): Average? {
+        val period = currentPeriod(snapshot.periods, today)
+        val grades = gradesForPeriod(snapshot.grades, period?.code)
+        val official = period?.average
+        val value = official ?: weightedAverage(grades) ?: return null
+        return Average(value, official != null, period?.name.orEmpty())
+    }
+
+    /** Matières de la période, moyenne officielle en priorité, calculée à défaut. */
+    fun subjectAverages(snapshot: SchoolSnapshot, today: LocalDate): List<Pair<String, Double>> {
+        val period = currentPeriod(snapshot.periods, today)
+        val official = snapshot.subjectAverages
+            .filter { period == null || it.periodCode == period.code }
+            .mapNotNull { average -> average.average?.let { average.subject to it } }
+        if (official.isNotEmpty()) return official.sortedByDescending { it.second }
+        return averagesBySubject(gradesForPeriod(snapshot.grades, period?.code))
+            .toList()
+            .sortedByDescending { it.second }
     }
 
     /** Matières connues, tous écrans confondus : sert à l'éditeur de couleurs. */

@@ -21,12 +21,18 @@ enum class HomeWidget(val label: String, val description: String) {
     URGENT("À ne pas oublier", "Le devoir le plus urgent, mis en avant."),
     TODAY("Journée", "La suite des cours du jour."),
     HOMEWORK("Devoirs", "Les prochains devoirs à rendre."),
-    GRADES("Notes", "Moyenne générale et dernières notes."),
+    EXAMS("Évaluations", "Les devoirs surveillés annoncés, avec le compte à rebours."),
+    GRADES("Notes", "Moyenne générale, tendance et dernières notes."),
+    SUBJECT_AVERAGES("Moyennes par matière", "Les moyennes de la période, matière par matière."),
     MESSAGES("Messages", "Les derniers messages reçus."),
+    WEEK("Semaine", "La charge de chaque jour, du lundi au samedi."),
+    TOMORROW("Demain", "Les cours et les devoirs de demain, pour préparer son sac."),
     ;
 
     companion object {
-        val DEFAULT_ORDER: List<HomeWidget> = listOf(NEXT_CLASS, URGENT, TODAY, HOMEWORK, GRADES, MESSAGES)
+        val DEFAULT_ORDER: List<HomeWidget> = listOf(
+            NEXT_CLASS, URGENT, TODAY, HOMEWORK, EXAMS, GRADES, SUBJECT_AVERAGES, MESSAGES, WEEK, TOMORROW,
+        )
     }
 }
 

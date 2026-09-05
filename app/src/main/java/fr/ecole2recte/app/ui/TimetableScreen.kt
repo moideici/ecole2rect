@@ -13,12 +13,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.DataSection
+import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
@@ -41,21 +45,27 @@ import fr.ecole2recte.app.core.repo.SyncState
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.ui.components.AppCard
 import fr.ecole2recte.app.ui.components.FilterPill
+import fr.ecole2recte.app.ui.components.ProgressBar
 import fr.ecole2recte.app.ui.components.RoundIconButton
 import fr.ecole2recte.app.ui.components.ScreenHeader
 import fr.ecole2recte.app.ui.components.ScreenPadding
 import fr.ecole2recte.app.ui.components.SectionError
 import fr.ecole2recte.app.ui.components.StatePlaceholder
+import fr.ecole2recte.app.ui.components.SubjectDot
 import fr.ecole2recte.app.ui.components.Tag
 import fr.ecole2recte.app.ui.components.subjectColor
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+
+private enum class TimetableMode(val label: String) { DAY("Jour"), WEEK("Semaine") }
 
 /**
  * L'emploi du temps.
  *
- * Une semaine à la fois, un jour sélectionné, et les trous laissés visibles : savoir qu'on a
- * deux heures de libre est aussi utile que savoir où on doit être.
+ * Deux lectures : la journée, heure par heure, avec ses trous et les devoirs à rendre pour
+ * chaque cours ; et la semaine, pour choisir où regarder. Le cours en cours est toujours
+ * repérable d'un coup d'œil, et un cours annulé se voit sans se lire.
  */
 @Composable
 fun TimetableScreen(
@@ -63,90 +73,335 @@ fun TimetableScreen(
     settings: AppSettings,
     sync: SyncState,
     now: LocalDateTime,
+    onOpenLesson: (Lesson) -> Unit,
+    onOpenHomework: (HomeworkItem) -> Unit,
     onRefresh: () -> Unit,
 ) {
     val today = now.toLocalDate()
+    var mode by remember { mutableStateOf(TimetableMode.DAY) }
     var weekStart by remember { mutableStateOf(Dates.startOfWeek(today)) }
     var selectedDay by remember { mutableStateOf(today) }
 
-    val days = (0..5).map { weekStart.plusDays(it.toLong()) }
+    val week = Insights.week(snapshot.lessons, weekStart)
+    val summary = Insights.daySummary(snapshot.lessons, selectedDay)
     val lessons = Insights.lessonsOn(snapshot.lessons, selectedDay)
+    val homework = Insights.homeworkDueOn(snapshot.homework, selectedDay)
 
     LazyColumn(contentPadding = PaddingValues(bottom = 28.dp)) {
-        item {
+        item("header") {
             ScreenHeader(
                 eyebrow = "Emploi du temps",
-                title = Dates.relativeDay(selectedDay, today).replaceFirstChar { it.uppercase() },
-                subtitle = "Semaine du ${Dates.dayAndMonth(weekStart)}",
+                title = when (mode) {
+                    TimetableMode.DAY -> Dates.relativeDay(selectedDay, today).replaceFirstChar { it.uppercase() }
+                    TimetableMode.WEEK -> "Semaine du ${Dates.dayLabel(weekStart)} ${Dates.monthName(weekStart)}"
+                },
+                subtitle = when (mode) {
+                    TimetableMode.DAY -> Dates.dayAndMonth(selectedDay)
+                    TimetableMode.WEEK ->
+                        "${week.sumOf { it.lessons }} cours · ${Dates.duration(week.sumOf { it.minutes })}"
+                },
                 actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
             )
         }
 
-        item {
+        item("mode") {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = ScreenPadding, vertical = 4.dp),
+                    .padding(horizontal = ScreenPadding, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FilterPill("‹ Semaine", selected = false) {
+                TimetableMode.entries.forEach { entry ->
+                    FilterPill(entry.label, selected = mode == entry) { mode = entry }
+                }
+                Spacer(Modifier.weight(1f))
+                RoundIconButton(Icons.Outlined.ChevronLeft, "Semaine précédente") {
                     weekStart = weekStart.minusWeeks(1)
                     selectedDay = weekStart
                 }
-                FilterPill("Aujourd'hui", selected = selectedDay == today) {
+                RoundIconButton(Icons.Outlined.CalendarMonth, "Revenir à aujourd'hui") {
                     weekStart = Dates.startOfWeek(today)
                     selectedDay = today
                 }
-                FilterPill("Semaine ›", selected = false) {
+                RoundIconButton(Icons.Outlined.ChevronRight, "Semaine suivante") {
                     weekStart = weekStart.plusWeeks(1)
                     selectedDay = weekStart
                 }
             }
         }
 
-        item {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(days, key = { it.toString() }) { day ->
-                    DayChip(
-                        day = day,
-                        selected = day == selectedDay,
-                        isToday = day == today,
-                        lessonCount = snapshot.lessons.count { it.date == day },
-                        onClick = { selectedDay = day },
-                    )
-                }
-            }
-        }
-
         sync.errorFor(DataSection.TIMETABLE)?.let { error ->
-            item { SectionError(error, onRefresh) }
+            item("error") { SectionError(error, onRefresh) }
         }
 
-        if (lessons.isEmpty()) {
-            item {
-                StatePlaceholder(
-                    icon = Icons.Outlined.CalendarMonth,
-                    title = "Aucun cours ce jour-là",
-                    description = if (snapshot.lessons.isEmpty()) {
-                        "L'emploi du temps n'a pas encore été synchronisé."
-                    } else {
-                        "Journée libre, ou emploi du temps non publié pour cette date."
-                    },
-                    actionLabel = "Synchroniser",
-                    onAction = onRefresh,
+        when (mode) {
+            TimetableMode.WEEK -> weekContent(
+                week = week,
+                snapshot = snapshot,
+                settings = settings,
+                today = today,
+                onSelectDay = { day ->
+                    selectedDay = day
+                    mode = TimetableMode.DAY
+                },
+                onRefresh = onRefresh,
+            )
+
+            TimetableMode.DAY -> dayContent(
+                summary = summary,
+                lessons = lessons,
+                homework = homework,
+                snapshot = snapshot,
+                settings = settings,
+                today = today,
+                now = now,
+                weekStart = weekStart,
+                selectedDay = selectedDay,
+                onSelectDay = { selectedDay = it },
+                onOpenLesson = onOpenLesson,
+                onOpenHomework = onOpenHomework,
+                onRefresh = onRefresh,
+            )
+        }
+    }
+}
+
+/** Vue jour : sélecteur, résumé, cours avec leurs trous, puis les devoirs du jour. */
+private fun LazyListScope.dayContent(
+    summary: Insights.DaySummary,
+    lessons: List<Lesson>,
+    homework: List<HomeworkItem>,
+    snapshot: SchoolSnapshot,
+    settings: AppSettings,
+    today: LocalDate,
+    now: LocalDateTime,
+    weekStart: LocalDate,
+    selectedDay: LocalDate,
+    onSelectDay: (LocalDate) -> Unit,
+    onOpenLesson: (Lesson) -> Unit,
+    onOpenHomework: (HomeworkItem) -> Unit,
+    onRefresh: () -> Unit,
+) {
+    item("days") {
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items((0..5).map { weekStart.plusDays(it.toLong()) }, key = { it.toString() }) { day ->
+                DayChip(
+                    day = day,
+                    selected = day == selectedDay,
+                    isToday = day == today,
+                    summary = Insights.daySummary(snapshot.lessons, day),
+                    onClick = { onSelectDay(day) },
                 )
             }
-        } else {
-            itemsIndexed(lessons) { index, lesson ->
-                val previous = lessons.getOrNull(index - 1)
-                Column {
-                    GapBetween(previous, lesson)
-                    LessonCard(lesson, settings, now)
+        }
+    }
+
+    if (!summary.isEmpty) {
+        item("summary") { DaySummaryCard(summary, now) }
+    }
+
+    if (lessons.isEmpty()) {
+        item("empty") {
+            StatePlaceholder(
+                icon = Icons.Outlined.CalendarMonth,
+                title = "Aucun cours ce jour-là",
+                description = if (snapshot.lessons.isEmpty()) {
+                    "L'emploi du temps n'a pas encore été synchronisé."
+                } else {
+                    "Journée libre, ou emploi du temps non publié pour cette date."
+                },
+                actionLabel = "Synchroniser",
+                onAction = onRefresh,
+            )
+        }
+    } else {
+        itemsIndexed(lessons, key = { _, lesson -> lesson.id }) { index, lesson ->
+            Column {
+                GapBetween(lessons.getOrNull(index - 1), lesson)
+                LessonCard(
+                    lesson = lesson,
+                    settings = settings,
+                    now = now,
+                    homework = Insights.homeworkForLesson(snapshot.homework, lesson),
+                    onClick = { onOpenLesson(lesson) },
+                )
+            }
+        }
+    }
+
+    if (homework.isNotEmpty()) {
+        item("homework-title") {
+            Text(
+                "À RENDRE CE JOUR-LÀ",
+                modifier = Modifier.padding(start = ScreenPadding + 4.dp, top = 20.dp, bottom = 6.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        items(homework, key = { "hw-${it.id}" }) { item ->
+            Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
+                AppCard(onClick = { onOpenHomework(item) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SubjectDot(subjectColor(item.subject, settings), 10.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                item.subject,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (item.content.isNotBlank()) {
+                                Text(
+                                    item.content,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        if (item.exam) Tag("Évaluation", MaterialTheme.colorScheme.error)
+                    }
                 }
+            }
+        }
+    }
+}
+
+/** Vue semaine : six journées résumées, une carte par jour, toutes cliquables. */
+private fun LazyListScope.weekContent(
+    week: List<Insights.DaySummary>,
+    snapshot: SchoolSnapshot,
+    settings: AppSettings,
+    today: LocalDate,
+    onSelectDay: (LocalDate) -> Unit,
+    onRefresh: () -> Unit,
+) {
+    if (week.all { it.isEmpty }) {
+        item("week-empty") {
+            StatePlaceholder(
+                icon = Icons.Outlined.CalendarMonth,
+                title = "Semaine vide",
+                description = "Aucun cours n'est publié pour cette semaine.",
+                actionLabel = "Synchroniser",
+                onAction = onRefresh,
+            )
+        }
+        return
+    }
+    items(week, key = { "week-${it.date}" }) { day ->
+        val lessons = Insights.lessonsOn(snapshot.lessons, day.date)
+        Box(Modifier.padding(horizontal = ScreenPadding, vertical = 5.dp)) {
+            AppCard(
+                containerColor = if (day.date == today) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+                onClick = { onSelectDay(day.date) },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            Dates.dayName(day.date).replaceFirstChar { it.uppercase() } +
+                                " ${day.date.dayOfMonth}",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            if (day.isEmpty) {
+                                "Pas de cours"
+                            } else {
+                                "${day.lessons} cours · ${Dates.time(day.start!!)} — ${Dates.time(day.end!!)}"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (day.exams > 0) Tag("${day.exams} éval.", MaterialTheme.colorScheme.error)
+                    if (day.canceled > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        Tag("${day.canceled} annulé", MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (lessons.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    lessons.forEach { lesson ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                Dates.time(lesson.start),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(42.dp),
+                            )
+                            SubjectDot(
+                                subjectColor(lesson.subject, settings)
+                                    .copy(alpha = if (lesson.canceled) 0.35f else 1f),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                lesson.subject,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textDecoration = if (lesson.canceled) TextDecoration.LineThrough else null,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (lesson.room.isNotBlank()) {
+                                Text(
+                                    lesson.room,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Le résumé d'une journée : ce qu'on veut savoir avant de dérouler la liste. */
+@Composable
+private fun DaySummaryCard(summary: Insights.DaySummary, now: LocalDateTime) {
+    val start = summary.start
+    val end = summary.end
+    Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
+        AppCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "${summary.lessons} cours · ${Dates.duration(summary.minutes)}",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    if (start != null && end != null) {
+                        Text(
+                            "${Dates.time(start)} — ${Dates.time(end)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (summary.exams > 0) Tag("${summary.exams} évaluation", MaterialTheme.colorScheme.error)
+                if (summary.canceled > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    Tag("${summary.canceled} annulé", MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            // Avancement de la journée : utile le matin pour savoir ce qu'il reste.
+            if (start != null && end != null && summary.date == now.toLocalDate()) {
+                Spacer(Modifier.height(12.dp))
+                ProgressBar(fraction = Dates.progress(start, end, now))
             }
         }
     }
@@ -158,13 +413,10 @@ private fun DayChip(
     day: LocalDate,
     selected: Boolean,
     isToday: Boolean,
-    lessonCount: Int,
+    summary: Insights.DaySummary,
     onClick: () -> Unit,
 ) {
-    val container = when {
-        selected -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.surface
-    }
+    val container = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
     val content = when {
         selected -> MaterialTheme.colorScheme.onPrimary
         isToday -> MaterialTheme.colorScheme.primary
@@ -179,11 +431,11 @@ private fun DayChip(
     ) {
         Text(Dates.dayName(day).take(3), style = MaterialTheme.typography.labelMedium, color = content)
         Text(day.dayOfMonth.toString(), style = MaterialTheme.typography.titleMedium, color = content)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(5.dp))
         Text(
-            if (lessonCount == 0) "—" else "$lessonCount",
+            if (summary.isEmpty) "—" else Dates.duration(summary.minutes),
             style = MaterialTheme.typography.labelSmall,
-            color = content.copy(alpha = 0.7f),
+            color = content.copy(alpha = 0.75f),
         )
     }
 }
@@ -192,7 +444,7 @@ private fun DayChip(
 @Composable
 private fun GapBetween(previous: Lesson?, lesson: Lesson) {
     if (previous == null) return
-    val minutes = java.time.Duration.between(previous.end, lesson.start).toMinutes()
+    val minutes = Duration.between(previous.end, lesson.start).toMinutes()
     if (minutes < 30) return
     Row(
         Modifier
@@ -216,7 +468,13 @@ private fun GapBetween(previous: Lesson?, lesson: Lesson) {
 }
 
 @Composable
-private fun LessonCard(lesson: Lesson, settings: AppSettings, now: LocalDateTime) {
+private fun LessonCard(
+    lesson: Lesson,
+    settings: AppSettings,
+    now: LocalDateTime,
+    homework: List<HomeworkItem>,
+    onClick: () -> Unit,
+) {
     val accent = subjectColor(lesson.subject, settings)
     val past = lesson.end.isBefore(now)
     val current = !past && !lesson.start.isAfter(now)
@@ -227,13 +485,18 @@ private fun LessonCard(lesson: Lesson, settings: AppSettings, now: LocalDateTime
             } else {
                 MaterialTheme.colorScheme.surface
             },
+            onClick = onClick,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.width(52.dp)) {
                     Text(
                         Dates.time(lesson.start),
                         style = MaterialTheme.typography.titleMedium,
-                        color = if (past) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                        color = if (past) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
                     )
                     Text(
                         Dates.time(lesson.end),
@@ -270,22 +533,50 @@ private fun LessonCard(lesson: Lesson, settings: AppSettings, now: LocalDateTime
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    if (lesson.note.isNotBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            lesson.note,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (lesson.canceled) Tag("Annulé", MaterialTheme.colorScheme.error)
                     if (lesson.exam) Tag("Devoir", accent)
                     if (current) Tag("En cours", MaterialTheme.colorScheme.primary)
                 }
+            }
+            // Le croisement qui manque partout ailleurs : ce qu'il faut rendre à ce cours-là.
+            if (homework.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                homework.forEach { item ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SubjectDot(accent, 6.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (item.exam) "Évaluation" else "À rendre",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = accent,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            item.content.ifBlank { "voir le cahier de textes" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            if (lesson.note.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    lesson.note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

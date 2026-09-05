@@ -11,11 +11,14 @@ fiable.
 
 ## Ce que fait l'application
 
-- **Accueil composable** — six widgets (prochain cours, à ne pas oublier, journée, devoirs,
-  notes, messages) que l'on réordonne et masque depuis un éditeur dédié ; l'ordre est
-  conservé sur l'appareil.
-- **Emploi du temps** — navigation par semaine et par jour, cours annulés barrés, cours en
-  cours mis en avant, trous de plus de trente minutes rendus visibles.
+- **Accueil composable** — dix blocs (prochain cours, à ne pas oublier, journée, devoirs,
+  évaluations, notes, moyennes par matière, messages, semaine, demain) que l'on réordonne et
+  masque depuis un éditeur dédié ; l'ordre est conservé sur l'appareil.
+- **Emploi du temps** — deux lectures : la journée heure par heure, avec son résumé
+  (nombre de cours, durée, première et dernière heure, avancement), ses trous de plus de
+  trente minutes, les cours annulés barrés, le cours en cours mis en avant et **les devoirs
+  à rendre affichés dans la case du cours concerné** ; et la semaine, six journées résumées
+  et cliquables. Chaque cours ouvre une fiche complète.
 - **Devoirs** — regroupés par échéance, filtrables (à faire, évaluations, faits, tout),
   cherchables, cochables d'un geste ; l'état « fait » est local d'abord, poussé au serveur
   ensuite, donc l'application répond même hors ligne. Le contenu détaillé d'un devoir est
@@ -29,11 +32,37 @@ fiable.
   explicite, elle est dérivée de son nom, donc stable d'un écran et d'un appareil à l'autre.
 - **Thème clair, sombre ou système**, contrastes et libellés pensés pour les lecteurs
   d'écran (états annoncés, pastilles décoratives ignorées, boutons décrits).
+- **Quinze widgets d'écran d'accueil Android** (voir plus bas).
 - **Mode hors ligne** — la dernière synchronisation est relue au lancement, avant tout appel
   réseau ; une section qui échoue laisse les données précédentes en place et signale son
   erreur, et la date de fraîcheur est affichée en permanence.
 - **Reconnexion silencieuse** — un jeton expiré déclenche une reconnexion et un seul
   réessai, sans repasser par l'écran de connexion.
+
+## Widgets d'écran d'accueil
+
+Quinze widgets natifs, dans la même direction visuelle que l'application, en quatre tailles :
+
+| Taille | Widgets |
+| --- | --- |
+| 1×1 | moyenne générale · devoirs à faire · messages non lus · temps avant le prochain cours · salle du prochain cours · dernière synchronisation |
+| 2×1 | prochain cours · devoir urgent · dernière note · dernier message |
+| 2×2 | journée · prochains devoirs · dernières notes · moyennes par matière |
+| 4×2 | semaine |
+
+Trois choix de conception :
+
+- **le contenu est calculé dans `core`**, pas dans le widget : les quinze payloads sont des
+  fonctions pures, testées, et un widget ne peut donc pas afficher autre chose que
+  l'application ;
+- **aucun appel réseau depuis un widget** — ils relisent le cache sur disque, celui-là même
+  qu'écrit la synchronisation, ce qui les rend instantanés et silencieux ;
+- **la mise à jour est poussée par l'application** dès qu'une donnée change (fin de
+  synchronisation, devoir coché, couleur de matière modifiée), sans attendre le réveil
+  système, qui n'a lieu qu'une fois par demi-heure au mieux.
+
+Toucher un widget ouvre directement l'écran correspondant, pas seulement l'application. Les
+couleurs suivent le thème clair ou sombre du système, et chaque matière garde la sienne.
 
 ## Architecture
 
@@ -46,9 +75,11 @@ app/src/main/java/fr/ecole2recte/app/
 │   ├── repo/                  dépôt, fusion, règles produit (« quel est le prochain cours ? »)
 │   ├── settings/              réglages, widgets d'accueil, palette des matières
 │   ├── store/                 contrats de stockage et sérialisation
+│   ├── widget/                contenu des widgets d'écran d'accueil
 │   ├── format/                dates et textes en français, HTML → texte
 │   └── auth/                  rapprochement d'une proposition de sécurité
 ├── data/                      implémentations Android des contrats de `core`
+├── widget/                    les quinze widgets d'écran d'accueil (RemoteViews)
 ├── ui/                        écrans Compose, composants et thème
 ├── MainViewModel.kt           état d'interface et actions
 └── MainActivity.kt
@@ -72,7 +103,7 @@ protocole ne rend donc pas illisibles les données déjà enregistrées.
 gradle testDebugUnitTest
 ```
 
-Une cinquantaine de tests couvrent ce qui casse en silence :
+Une soixantaine de tests couvrent ce qui casse en silence :
 
 - les encodages exigés par l'API (séparateurs de `json.dumps`, `ensure_ascii`, corps de
   formulaire, ordre des champs de connexion) ;
@@ -83,8 +114,11 @@ Une cinquantaine de tests couvrent ce qui casse en silence :
 - les règles de fusion (pas de doublons, contenus déjà chargés préservés) ;
 - le dépôt : ouverture hors ligne sur le cache, échec d'une seule section, reconnexion
   silencieuse avec un unique réessai, déconnexion ;
-- les règles d'accueil (prochain cours, devoir urgent, moyennes pondérées) et la
-  personnalisation (ordre des widgets, couleurs, état local des devoirs).
+- les règles d'accueil (prochain cours, devoir urgent, moyennes pondérées, résumé d'une
+  journée, trous, croisement devoirs ↔ cours) et la personnalisation (ordre des blocs,
+  couleurs, état local des devoirs) ;
+- le contenu des quinze widgets d'écran d'accueil, y compris sans aucune donnée : un widget
+  qui plante reste vide jusqu'au redémarrage du lanceur, c'est le pire des échecs silencieux.
 
 Aucun test n'a besoin d'un compte réel ni d'un accès réseau : c'est la condition pour qu'ils
 tournent en intégration continue sans risquer de bloquer un compte.
@@ -108,12 +142,16 @@ tournent en intégration continue sans risquer de bloquer un compte.
   codes sont donc rassemblés dans un seul fichier, et couverts par des tests.
 - Les pièces jointes sont listées mais pas encore téléchargeables.
 - La messagerie est en lecture seule.
-- Notifications et widgets d'écran d'accueil Android ne sont pas encore implémentés.
+- Les notifications ne sont pas encore implémentées.
+- Les widgets d'écran d'accueil se rafraîchissent d'eux-mêmes toutes les trente minutes au
+  mieux — c'est la limite du système ; entre deux, c'est l'application qui les met à jour
+  quand elle a du nouveau. Un compte à rebours peut donc être en retard de quelques minutes
+  si l'application n'a pas été ouverte.
 
 ## Feuille de route
 
 - téléchargement des pièces jointes et ouverture des documents ;
-- notifications utiles (devoir urgent, nouvelle note, message non lu) et widgets Android ;
+- notifications utiles (devoir urgent, nouvelle note, message non lu) ;
 - tests d'interface sur les parcours principaux ;
 - signature et distribution d'une version bêta ;
 - extraction de `core` vers un module partagé pour une cible iOS.

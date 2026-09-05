@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.HomeworkItem
+import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.ui.components.AppCard
@@ -39,6 +41,7 @@ import fr.ecole2recte.app.ui.components.StatePlaceholder
 import fr.ecole2recte.app.ui.components.SubjectBadge
 import fr.ecole2recte.app.ui.components.Tag
 import fr.ecole2recte.app.ui.components.subjectColor
+import java.time.Duration
 import java.time.LocalDate
 
 /** Ossature commune des vues de détail : un retour, un titre, du contenu défilant. */
@@ -83,6 +86,111 @@ fun DetailScaffold(
         }
         content()
         Spacer(Modifier.height(32.dp))
+    }
+}
+
+/**
+ * Fiche d'un cours.
+ *
+ * Tout ce que l'API sait de cette heure-là, plus ce qu'elle ne relie pas d'elle-même : les
+ * devoirs à rendre pour cette matière ce jour-là.
+ */
+@Composable
+fun LessonDetailScreen(
+    lesson: Lesson?,
+    settings: AppSettings,
+    homework: List<HomeworkItem>,
+    onOpenHomework: (HomeworkItem) -> Unit,
+    onClose: () -> Unit,
+) {
+    if (lesson == null) {
+        DetailScaffold("Cours", null, onClose) {
+            StatePlaceholder(
+                icon = Icons.Outlined.Schedule,
+                title = "Cours introuvable",
+                description = "Il a peut-être disparu de l'emploi du temps synchronisé.",
+            )
+        }
+        return
+    }
+    val accent = subjectColor(lesson.subject, settings)
+    DetailScaffold(
+        title = lesson.subject,
+        subtitle = "${Dates.dayAndMonth(lesson.date)} · ${Dates.range(lesson.start, lesson.end)}",
+        onClose = onClose,
+    ) {
+        Box(Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp)) {
+            AppCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SubjectBadge(lesson.subject, accent)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(lesson.subject, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            Dates.duration(Duration.between(lesson.start, lesson.end).toMinutes()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (lesson.canceled) Tag("Annulé", MaterialTheme.colorScheme.error)
+                }
+                Spacer(Modifier.height(16.dp))
+                DetailLine("Horaire", Dates.range(lesson.start, lesson.end))
+                DetailLine("Salle", lesson.room.ifBlank { "non précisée" })
+                DetailLine("Professeur", lesson.teacher.ifBlank { "non précisé" })
+                if (lesson.exam) DetailLine("Type", "Devoir surveillé")
+                if (lesson.note.isNotBlank()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(lesson.note, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+        if (homework.isNotEmpty()) {
+            Text(
+                "À RENDRE POUR CE COURS",
+                modifier = Modifier.padding(start = ScreenPadding + 4.dp, top = 18.dp, bottom = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            homework.forEach { item ->
+                Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
+                    AppCard(onClick = { onOpenHomework(item) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    if (item.exam) "Évaluation" else "Devoir",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = accent,
+                                )
+                                Text(
+                                    item.content.ifBlank { "Contenu non publié" },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 3,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailLine(label: String, value: String) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(96.dp),
+        )
+        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

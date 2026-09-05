@@ -19,6 +19,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,9 +43,17 @@ enum class Destination(val label: String, val icon: ImageVector) {
     MESSAGES("Messages", Icons.Outlined.ChatBubbleOutline),
 }
 
+/**
+ * Une demande de navigation venue de l'extérieur — un widget d'écran d'accueil touché.
+ * Le compteur rend deux demandes identiques distinctes, sinon revenir sur la même page
+ * après l'avoir quittée ne déclencherait rien.
+ */
+data class NavigationRequest(val destination: Destination, val nonce: Long)
+
 /** Les vues secondaires, ouvertes par-dessus une page et fermées par le retour arrière. */
 sealed interface Detail {
     data class Homework(val id: String) : Detail
+    data class Lesson(val id: String) : Detail
     data class Message(val id: String) : Detail
     data object Settings : Detail
     data object HomeEditor : Detail
@@ -52,7 +61,7 @@ sealed interface Detail {
 }
 
 @Composable
-fun Ecole2recteApp(viewModel: MainViewModel) {
+fun Ecole2recteApp(viewModel: MainViewModel, request: NavigationRequest? = null) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val auth by viewModel.auth.collectAsStateWithLifecycle()
 
@@ -69,7 +78,7 @@ fun Ecole2recteApp(viewModel: MainViewModel) {
                 LoginRoute(viewModel)
             }
 
-            is AuthState.SignedIn -> SignedInScaffold(viewModel)
+            is AuthState.SignedIn -> SignedInScaffold(viewModel, request)
             else -> LoginRoute(viewModel)
         }
     }
@@ -109,7 +118,7 @@ private fun LoginRoute(viewModel: MainViewModel) {
 }
 
 @Composable
-private fun SignedInScaffold(viewModel: MainViewModel) {
+private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationRequest?) {
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var detail by remember { mutableStateOf<Detail?>(null) }
 
@@ -118,6 +127,14 @@ private fun SignedInScaffold(viewModel: MainViewModel) {
     val sync by viewModel.sync.collectAsStateWithLifecycle()
     val now by viewModel.now.collectAsStateWithLifecycle()
     val auth by viewModel.auth.collectAsStateWithLifecycle()
+
+    // Un widget d'écran d'accueil ouvre directement sa page.
+    LaunchedEffect(request) {
+        request?.let {
+            destination = it.destination
+            detail = null
+        }
+    }
 
     BackHandler(enabled = detail != null) { detail = null }
     BackHandler(enabled = detail == null && destination != Destination.HOME) {
@@ -149,6 +166,11 @@ private fun SignedInScaffold(viewModel: MainViewModel) {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             val openDetail: (Detail) -> Unit = { detail = it }
+            // Ouvrir un devoir, c'est aussi charger son contenu : la liste ne le porte pas.
+            val openHomework: (fr.ecole2recte.app.core.model.HomeworkItem) -> Unit = { item ->
+                viewModel.loadHomeworkDetails(item.dueDate)
+                openDetail(Detail.Homework(item.id))
+            }
             when (val current = detail) {
                 null -> when (destination) {
                     Destination.HOME -> HomeScreen(
@@ -167,6 +189,8 @@ private fun SignedInScaffold(viewModel: MainViewModel) {
                         settings = settings,
                         sync = sync,
                         now = now,
+                        onOpenLesson = { lesson -> openDetail(Detail.Lesson(lesson.id)) },
+                        onOpenHomework = openHomework,
                         onRefresh = { viewModel.refresh(setOf(DataSection.TIMETABLE)) },
                     )
 
@@ -175,10 +199,7 @@ private fun SignedInScaffold(viewModel: MainViewModel) {
                         settings = settings,
                         sync = sync,
                         now = now,
-                        onOpen = { item ->
-                            viewModel.loadHomeworkDetails(item.dueDate)
-                            openDetail(Detail.Homework(item.id))
-                        },
+                        onOpen = openHomework,
                         onToggle = viewModel::toggleHomework,
                         onRefresh = { viewModel.refresh(setOf(DataSection.HOMEWORK)) },
                     )
@@ -208,6 +229,18 @@ private fun SignedInScaffold(viewModel: MainViewModel) {
                     item = snapshot.homework.firstOrNull { it.id == current.id },
                     settings = settings,
                     onToggle = viewModel::toggleHomework,
+                    onClose = { detail = null },
+                )
+
+                is Detail.Lesson -> LessonDetailScreen(
+                    lesson = snapshot.lessons.firstOrNull { it.id == current.id },
+                    settings = settings,
+                    homework = snapshot.lessons.firstOrNull { it.id == current.id }
+                        ?.let { lesson ->
+                            fr.ecole2recte.app.core.repo.Insights.homeworkForLesson(snapshot.homework, lesson)
+                        }
+                        .orEmpty(),
+                    onOpenHomework = openHomework,
                     onClose = { detail = null },
                 )
 
