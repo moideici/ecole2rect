@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f7fb" />
+    <title>ecole2recte — maquette ÉcoleDirecte</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#" aria-label="Accueil ecole2recte">
+          <span class="brand-mark">é</span>
+          <span>ecole2recte</span>
+        </a>
+        <div class="profile-switcher">
+          <span class="avatar avatar-blue">ML</span>
+          <span><strong>Martin Leroy</strong><small>Terminale · Lycée Victor Hugo</small></span>
+          <button class="icon-button" aria-label="Changer de profil">⌄</button>
+        </div>
+        <nav class="main-nav" aria-label="Navigation principale">
+          <a class="nav-link active" data-view="accueil" href="#accueil"><span>⌂</span>Accueil</a>
+          <a class="nav-link" data-view="planning" href="#planning"><span>▦</span>Emploi du temps</a>
+          <a class="nav-link" data-view="devoirs" href="#devoirs"><span>✓</span>Devoirs <b class="nav-badge">3</b></a>
+          <a class="nav-link" data-view="notes" href="#notes"><span>⌁</span>Notes</a>
+          <a class="nav-link" data-view="messages" href="#messages"><span>◌</span>Messages <b class="nav-badge">2</b></a>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="sync-state"><span class="pulse"></span><span><strong>Synchronisé</strong><small>Il y a 4 min</small></span></div>
+          <a class="nav-link" href="#settings"><span>⚙</span>Réglages</a>
+          <p class="app-version">ecole2recte · aperçu produit</p>
+        </div>
+      </aside>
+
+      <section class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Samedi 5 septembre 2026</p>
+            <h1>Bonjour Martin</h1>
+          </div>
+          <div class="top-actions">
+            <button class="round-button" aria-label="Rechercher">⌕</button>
+            <button class="round-button notification-button" aria-label="Notifications"><span class="notification-dot"></span>♢</button>
+            <button class="edit-button" id="edit-dashboard"><span>✦</span> Personnaliser</button>
+          </div>
+        </header>
+
+        <div class="dashboard-toolbar hidden" id="dashboard-toolbar">
+          <span><strong>Mode édition</strong> · déplace les cartes pour composer ton accueil</span>
+          <div><button class="text-button" id="add-widget">+ Ajouter un widget</button><button class="save-button" id="save-dashboard">Terminé</button></div>
+        </div>
+
+        <div class="dashboard-grid" id="dashboard">
+          <article class="card next-class-card widget" data-widget="next-class">
+            <div class="card-header"><span class="label light-label">PROCHAIN COURS</span><button class="more-button">•••</button></div>
+            <div class="next-class-content">
+              <div><p class="course-time">10:15 <span>dans 24 min</span></p><h2>Philosophie</h2><p class="muted">Salle B204 <span class="separator">·</span> Mme Laurent</p></div>
+              <div class="subject-icon subject-orange">Ph</div>
+            </div>
+            <div class="progress-track"><span style="width: 64%"></span></div>
+            <p class="progress-caption"><span>Matinée en cours</span><span>12:00</span></p>
+          </article>
+
+          <article class="card day-card widget" data-widget="day">
+            <div class="card-header"><span class="label">AUJOURD'HUI</span><button class="more-button">•••</button></div>
+            <div class="day-title"><h2>Samedi 5</h2><a href="#planning">Voir la journée →</a></div>
+            <div class="timeline">
+              <div class="timeline-item done"><span class="timeline-time">08:00</span><span class="timeline-line"></span><span><strong>Histoire-Géo</strong><small>Salle A112</small></span></div>
+              <div class="timeline-item current"><span class="timeline-time">10:15</span><span class="timeline-line"></span><span><strong>Philosophie</strong><small>Salle B204</small></span></div>
+              <div class="timeline-item"><span class="timeline-time">13:30</span><span class="timeline-line"></span><span><strong>Mathématiques</strong><small>Salle C011</small></span></div>
+            </div>
+          </article>
+
+          <article class="card grades-card widget" data-widget="grades">
+            <div class="card-header"><span class="label">DERNIÈRES NOTES</span><button class="more-button">•••</button></div>
+            <div class="grade-main"><div><strong>15,8</strong><span>/ 20</span></div><span class="trend">↗ +1,2</span></div>
+            <p class="muted">Moyenne générale</p>
+            <div class="grade-row"><span class="subject-dot dot-purple"></span><span>Mathématiques</span><strong>17,5</strong></div>
+            <div class="grade-row"><span class="subject-dot dot-blue"></span><span>Anglais</span><strong>16,0</strong></div>
+            <div class="grade-row"><span class="subject-dot dot-orange"></span><span>Philosophie</span><strong>14,0</strong></div>
+          </article>
+
+          <article class="card homework-card widget" data-widget="homework">
+            <div class="card-header"><span class="label">À FAIRE CETTE SEMAINE</span><button class="more-button">•••</button></div>
+            <div class="homework-heading"><h2>3 devoirs</h2><span class="soft-badge">2 urgents</span></div>
+            <div class="task-item"><span class="check"></span><span><strong>Dissertation — Philosophie</strong><small>Pour lundi 7 septembre</small></span></div>
+            <div class="task-item"><span class="check"></span><span><strong>Exercices 12 à 18 — Maths</strong><small>Pour mardi 8 septembre</small></span></div>
+            <a class="card-link" href="#devoirs">Tout voir <span>→</span></a>
+          </article>
+
+          <article class="card focus-card widget" data-widget="focus">
+            <span class="focus-decoration">!</span>
+            <span class="label light-label">À NE PAS OUBLIER</span>
+            <h2>Dissertation de philosophie</h2>
+            <p>À rendre lundi 7 septembre</p>
+            <button class="focus-action">Ouvrir le devoir <span>→</span></button>
+          </article>
+
+          <article class="card messages-card widget" data-widget="messages">
+            <div class="card-header"><span class="label">À LIRE</span><button class="more-button">•••</button></div>
+            <div class="message-preview"><span class="avatar avatar-pink">CL</span><span><strong>Vie scolaire</strong><small>Réunion parents-professeurs...</small></span><time>09:42</time></div>
+            <div class="message-preview"><span class="avatar avatar-green">PL</span><span><strong>M. Petit · Maths</strong><small>Correction du devoir maison</small></span><time>Hier</time></div>
+            <a class="card-link" href="#messages">Voir les messages <span>→</span></a>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop hidden" id="setup-modal" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+      <div class="modal setup-modal">
+        <button class="modal-close" data-close-modal aria-label="Fermer">×</button>
+        <div class="modal-icon">✦</div>
+        <p class="eyebrow">Première connexion</p>
+        <h2 id="setup-title">On prépare ta connexion</h2>
+        <p class="modal-intro">Ces informations serviront uniquement de réponses candidates si ÉcoleDirecte les demande. Elles restent chiffrées sur cet appareil.</p>
+        <form id="setup-form">
+          <label>Identifiant<input type="text" placeholder="Ton identifiant ÉcoleDirecte" required /></label>
+          <label>Mot de passe<input type="password" placeholder="Ton mot de passe" required /></label>
+          <div class="form-row"><label>Jour de naissance<input type="number" min="1" max="31" placeholder="15" /></label><label>Mois<select><option value="">Mois</option><option>Janvier</option><option>Février</option><option>Mars</option><option>Avril</option><option>Mai</option><option>Juin</option><option>Juillet</option><option>Août</option><option>Septembre</option><option>Octobre</option><option>Novembre</option><option>Décembre</option></select></label><label>Année<input type="number" min="1900" max="2020" placeholder="2008" /></label></div>
+          <label>Classe<input type="text" placeholder="Ex. Terminale générale" /></label>
+          <label class="checkbox-label"><input type="checkbox" checked /> Mémoriser cet appareil pour éviter les reconnexions</label>
+          <button class="primary-button" type="submit">Se connecter <span>→</span></button>
+        </form>
+        <button class="fallback-link" id="show-security">La question demandée ne correspond pas ?</button>
+      </div>
+    </div>
+
+    <div class="modal-backdrop hidden" id="security-modal" role="dialog" aria-modal="true" aria-labelledby="security-title">
+      <div class="modal setup-modal security-modal">
+        <button class="modal-close" data-close-security aria-label="Fermer">×</button>
+        <div class="modal-icon security-icon">?</div>
+        <p class="eyebrow">Vérification nécessaire</p>
+        <h2 id="security-title">Une dernière vérification</h2>
+        <p class="modal-intro">ÉcoleDirecte demande une question différente. Ta réponse sera enregistrée localement pour les prochaines reconnexions.</p>
+        <p class="security-question">Dans quelle ville es-tu né(e) ?</p>
+        <form id="security-form">
+          <label>Ta réponse<input type="text" placeholder="Écris ta réponse" required /></label>
+          <label class="checkbox-label"><input type="checkbox" checked /> Mémoriser cette réponse sur cet appareil</label>
+          <button class="primary-button" type="submit">Valider la réponse <span>→</span></button>
+        </form>
+        <button class="fallback-link" data-close-security>Annuler et réessayer plus tard</button>
+      </div>
+    </div>
+
+    <div class="toast hidden" id="toast"><span>✓</span><span id="toast-message">Accueil sauvegardé</span></div>
+    <script src="app.js"></script>
+  </body>
+</html>
