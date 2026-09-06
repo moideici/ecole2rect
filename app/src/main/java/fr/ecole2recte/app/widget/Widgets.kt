@@ -79,15 +79,19 @@ abstract class Ecole2recteWidget(private val kind: WidgetKind) : AppWidgetProvid
 /**
  * La place accordée à un widget, telle que le système la décrit.
  *
- * Android 12 a changé la règle : le lanceur ne donne plus une taille mais **la liste des
- * tailles** auxquelles le widget peut apparaître (portrait, paysage, écran plié ou déplié),
- * et attend un rendu pour chacune — il choisit ensuite sans réveiller l'application. Avant
- * 12, il n'y a qu'un minimum en largeur et en hauteur, et un seul rendu à fournir.
+ * Le lanceur annonce la place dans un `Bundle` : à partir d'Android 12 la liste des tailles
+ * auxquelles le widget peut apparaître (`OPTION_APPWIDGET_SIZES`), avant cela un minimum en
+ * largeur et en hauteur pour chaque orientation.
+ *
+ * On pourrait fournir un rendu par taille — c'est ce que permet `RemoteViews(Map<SizeF,
+ * RemoteViews>)`, et cela évite de réveiller l'application à chaque redimensionnement. Ce
+ * n'est pas ce qu'on fait ici, et c'est un choix : un seul rendu, celui de la taille
+ * courante, recalculé quand le lanceur signale un changement. C'est la voie « exact
+ * layouts » de la documentation, elle se comporte de la même façon sur toutes les versions
+ * d'Android, et surtout elle est vérifiable — une carte de rendus hétérogènes ne se
+ * diagnostique qu'un appareil à la main.
  */
 object WidgetSizes {
-
-    /** Au-delà, `RemoteViews` refuse la carte des tailles ; le système n'en propose jamais tant. */
-    private const val MAX_MAPPED_SIZES = 8
 
     fun remoteViews(
         context: Context,
@@ -95,43 +99,31 @@ object WidgetSizes {
         data: WidgetData.Loaded,
         options: WidgetOptions,
         bundle: Bundle?,
-    ): RemoteViews {
-        val sizes = sizes(bundle)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && sizes.size > 1) {
-            val mapping = sizes.take(MAX_MAPPED_SIZES).associate { size ->
-                SizeF(size.widthDp.toFloat(), size.heightDp.toFloat()) to
-                    WidgetRenderer.render(context, kind, data, options, size)
-            }
-            // La carte doit être non vide ; en cas de doute on retombe sur un rendu unique.
-            if (mapping.isNotEmpty()) return RemoteViews(mapping)
-        }
-        return WidgetRenderer.render(context, kind, data, options, sizes.firstOrNull() ?: WidgetSize.SMALL)
+    ): RemoteViews = runCatching {
+        WidgetRenderer.render(context, kind, data, options, size(bundle))
+    }.getOrElse {
+        // Un widget ne doit jamais rester blanc : si le rendu échoue, on pose une vue
+        // minimale qui ouvre l'application plutôt qu'une carte vide et muette.
+        WidgetRenderer.fallback(context, kind)
     }
 
-    /** Les tailles annoncées par le lanceur, de la plus petite à la plus grande. */
-    fun sizes(bundle: Bundle?): List<WidgetSize> {
-        val options = bundle ?: return listOf(WidgetSize.SMALL)
+    /** La taille à retenir : la plus petite annoncée, celle dans laquelle tout doit tenir. */
+    fun size(bundle: Bundle?): WidgetSize {
+        val options = bundle ?: return WidgetSize.SMALL
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val declared = runCatching {
                 @Suppress("DEPRECATION")
                 options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
             }.getOrNull().orEmpty()
-            if (declared.isNotEmpty()) {
-                return declared.map { WidgetSize(it.width.toInt(), it.height.toInt()) }
-                    .sortedBy { it.widthDp * it.heightDp }
-            }
+            val smallest = declared.minByOrNull { it.width * it.height }
+            if (smallest != null) return WidgetSize(smallest.width.toInt(), smallest.height.toInt())
         }
-        // Repli d'avant Android 12 : le minimum en portrait, et le minimum en paysage —
-        // les deux orientations dans lesquelles le widget devra tenir.
+        // Repli d'avant Android 12 : le minimum des deux orientations est la seule taille
+        // dans laquelle le widget est certain de tenir.
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
-        val maxWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 0)
         val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
-        val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
-        if (minWidth <= 0 || minHeight <= 0) return listOf(WidgetSize.SMALL)
-        return listOf(
-            WidgetSize(minWidth, maxHeight.coerceAtLeast(minHeight)),
-            WidgetSize(maxWidth.coerceAtLeast(minWidth), minHeight),
-        ).distinct().sortedBy { it.widthDp * it.heightDp }
+        if (minWidth <= 0 || minHeight <= 0) return WidgetSize.SMALL
+        return WidgetSize(minWidth, minHeight)
     }
 }
 

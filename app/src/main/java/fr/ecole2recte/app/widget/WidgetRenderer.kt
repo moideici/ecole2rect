@@ -23,6 +23,12 @@ import fr.ecole2recte.app.core.widget.WidgetSizing
  * qui décide lequel est utilisé et combien de lignes il porte. Ici on ne fait que poser des
  * chaînes, des couleurs et des visibilités — ce qui s'affiche est décidé dans `core`, où
  * c'est testable sans appareil.
+ *
+ * Une règle traverse tout le fichier : **chaque couleur est posée par le code**, fond
+ * compris, jamais laissée au XML seul. Le gabarit est inflaté par le lanceur, avec la
+ * configuration du lanceur ; le jour où elle diffère de la nôtre, une couleur XML et une
+ * couleur programmée cessent d'être d'accord, et le widget affiche du texte clair sur fond
+ * clair. Voir [WidgetPalette].
  */
 object WidgetRenderer {
 
@@ -66,42 +72,78 @@ object WidgetRenderer {
             shape = layout.shape,
             maxLines = layout.maxLines,
         )
+        val palette = WidgetPalette.of(context)
         val views = when (layout.shape) {
-            WidgetShape.TILE -> tile(context, payload)
-            WidgetShape.ROW -> row(context, payload)
-            WidgetShape.LIST -> list(context, payload)
-            WidgetShape.WEEK -> week(context, payload)
+            WidgetShape.TILE -> tile(context, payload, palette)
+            WidgetShape.ROW -> row(context, payload, palette)
+            WidgetShape.LIST -> list(context, payload, palette)
+            WidgetShape.WEEK -> week(context, payload, palette)
         }
         views.setOnClickPendingIntent(R.id.widget_root, openApp(context, kind))
         return views
     }
 
-    private fun tile(context: Context, payload: WidgetPayload) =
+    /**
+     * La vue de secours : le nom de l'application et de quoi l'ouvrir.
+     *
+     * Elle n'apparaît que si le rendu normal échoue — un cache illisible, une donnée
+     * inattendue. Un widget blanc laisse croire que l'application est cassée ; celui-ci dit
+     * quoi faire.
+     */
+    fun fallback(context: Context, kind: WidgetKind): RemoteViews {
+        val palette = WidgetPalette.of(context)
+        return RemoteViews(context.packageName, R.layout.widget_tile).apply {
+            dress(palette)
+            setTextViewText(R.id.widget_label, kind.label.uppercase())
+            setTextViewText(R.id.widget_value, "—")
+            setTextViewText(R.id.widget_caption, "Ouvre l'application")
+            setTextColor(R.id.widget_label, palette.muted)
+            setTextColor(R.id.widget_value, palette.ink)
+            setTextColor(R.id.widget_caption, palette.muted)
+            setViewVisibility(R.id.widget_progress, View.GONE)
+            setOnClickPendingIntent(R.id.widget_root, openApp(context, kind))
+        }
+    }
+
+    private fun tile(context: Context, payload: WidgetPayload, palette: WidgetPalette) =
         RemoteViews(context.packageName, R.layout.widget_tile).apply {
+            dress(palette)
             setTextViewText(R.id.widget_label, payload.label)
             setTextViewText(R.id.widget_value, payload.title)
             setTextViewText(R.id.widget_caption, payload.subtitle)
-            setTextColor(R.id.widget_value, accent(payload) ?: ink(context))
+            setTextColor(R.id.widget_label, palette.muted)
+            setTextColor(R.id.widget_value, accent(payload) ?: palette.ink)
+            setTextColor(R.id.widget_caption, palette.muted)
             progress(payload)
         }
 
-    private fun row(context: Context, payload: WidgetPayload) =
+    private fun row(context: Context, payload: WidgetPayload, palette: WidgetPalette) =
         RemoteViews(context.packageName, R.layout.widget_row).apply {
+            dress(palette)
             setTextViewText(R.id.widget_label, payload.label)
             setTextViewText(R.id.widget_title, payload.title)
             setTextViewText(R.id.widget_subtitle, payload.subtitle)
             setTextViewText(R.id.widget_trailing, payload.trailing)
+            setTextColor(R.id.widget_label, palette.muted)
+            setTextColor(R.id.widget_title, palette.ink)
+            setTextColor(R.id.widget_subtitle, palette.muted)
+            setTextColor(R.id.widget_trailing, palette.ink)
             // La barre est blanche dans le drawable : c'est le filtre qui lui donne la
             // couleur de la matière, sans un drawable par couleur.
-            setInt(R.id.widget_accent, "setColorFilter", accent(payload) ?: defaultAccent(context))
+            setInt(R.id.widget_accent, "setColorFilter", accent(payload) ?: palette.accent)
             progress(payload)
         }
 
-    private fun list(context: Context, payload: WidgetPayload) =
+    private fun list(context: Context, payload: WidgetPayload, palette: WidgetPalette) =
         RemoteViews(context.packageName, R.layout.widget_list).apply {
+            dress(palette)
             setTextViewText(R.id.widget_label, payload.label)
             setTextViewText(R.id.widget_title, payload.title)
             setTextViewText(R.id.widget_subtitle, payload.subtitle)
+            setTextColor(R.id.widget_label, palette.muted)
+            setTextColor(R.id.widget_title, palette.ink)
+            setTextColor(R.id.widget_subtitle, palette.muted)
+            setTextColor(R.id.widget_empty, palette.muted)
             LINE_IDS.forEachIndexed { index, (rowId, dotId, textId) ->
                 val line = payload.lines.getOrNull(index)
                 if (line == null) {
@@ -114,18 +156,25 @@ object WidgetRenderer {
                     LINE_VALUE_IDS[index],
                     line.trailing.ifBlank { line.secondary },
                 )
-                setInt(dotId, "setColorFilter", line.accent?.toInt() ?: defaultAccent(context))
+                setTextColor(textId, palette.ink)
+                setTextColor(LINE_VALUE_IDS[index], palette.muted)
+                setInt(dotId, "setColorFilter", line.accent?.toInt() ?: palette.accent)
             }
             setViewVisibility(R.id.widget_empty, if (payload.lines.isEmpty()) View.VISIBLE else View.GONE)
             setTextViewText(R.id.widget_empty, payload.subtitle)
             progress(payload)
         }
 
-    private fun week(context: Context, payload: WidgetPayload) =
+    private fun week(context: Context, payload: WidgetPayload, palette: WidgetPalette) =
         RemoteViews(context.packageName, R.layout.widget_week).apply {
+            dress(palette)
             setTextViewText(R.id.widget_label, payload.label)
             setTextViewText(R.id.widget_title, payload.title)
             setTextViewText(R.id.widget_subtitle, payload.subtitle)
+            setTextColor(R.id.widget_label, palette.muted)
+            setTextColor(R.id.widget_title, palette.ink)
+            setTextColor(R.id.widget_subtitle, palette.muted)
+            setTextColor(R.id.widget_empty, palette.muted)
             DAY_IDS.forEachIndexed { index, (nameId, valueId) ->
                 val day = payload.days.getOrNull(index)
                 setTextViewText(nameId, day?.name.orEmpty())
@@ -133,13 +182,13 @@ object WidgetRenderer {
                 // Le jour courant est la seule information mise en couleur : c'est ce qu'on
                 // cherche des yeux en premier.
                 val color = when {
-                    day == null -> muted(context)
-                    day.today -> defaultAccent(context)
-                    day.empty -> muted(context)
-                    else -> ink(context)
+                    day == null -> palette.muted
+                    day.today -> palette.accent
+                    day.empty -> palette.muted
+                    else -> palette.ink
                 }
                 setTextColor(valueId, color)
-                setTextColor(nameId, if (day?.today == true) defaultAccent(context) else muted(context))
+                setTextColor(nameId, if (day?.today == true) palette.accent else palette.muted)
             }
             setViewVisibility(R.id.widget_empty, if (payload.empty) View.VISIBLE else View.GONE)
             setTextViewText(R.id.widget_empty, payload.subtitle)
@@ -156,13 +205,17 @@ object WidgetRenderer {
         setProgressBar(R.id.widget_progress, 100, (progress * 100).toInt().coerceIn(0, 100), false)
     }
 
+    /**
+     * Pose le fond du widget.
+     *
+     * Le fond vient d'un drawable choisi par le code, pas d'un `values-night` que le lanceur
+     * résoudrait à sa façon : c'est ce qui garantit qu'il s'accorde avec la couleur du texte.
+     */
+    private fun RemoteViews.dress(palette: WidgetPalette) {
+        setInt(R.id.widget_root, "setBackgroundResource", palette.background)
+    }
+
     private fun accent(payload: WidgetPayload): Int? = payload.accent?.toInt()
-
-    private fun defaultAccent(context: Context): Int = context.getColor(R.color.widget_accent)
-
-    private fun ink(context: Context): Int = context.getColor(R.color.widget_ink)
-
-    private fun muted(context: Context): Int = context.getColor(R.color.widget_muted)
 
     /** Toucher un widget ouvre l'écran correspondant, pas seulement l'application. */
     private fun openApp(context: Context, kind: WidgetKind): PendingIntent {

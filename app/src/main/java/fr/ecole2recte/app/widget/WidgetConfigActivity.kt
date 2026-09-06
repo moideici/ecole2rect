@@ -93,9 +93,32 @@ class WidgetConfigActivity : ComponentActivity() {
         )
     }.getOrNull()
 
+    /**
+     * Valide la configuration — et **dessine le widget**.
+     *
+     * C'est le point le plus facile à rater de toute l'API des widgets : quand un widget
+     * déclare un écran de configuration, le système n'envoie pas `ACTION_APPWIDGET_UPDATE`
+     * à sa création, et `onUpdate` n'est donc jamais appelé. C'est à cet écran de pousser
+     * les premières vues, pour *son* identifiant. Passer par une mise à jour globale ne
+     * suffit pas : tant que la configuration n'est pas rendue, le lanceur ne liste pas
+     * encore ce widget, et il resterait une carte blanche jusqu'au réveil suivant — une
+     * demi-heure plus tard, dans le meilleur des cas.
+     */
     private fun confirm(options: WidgetOptions) {
         WidgetOptionsStore(this).save(widgetId, options)
-        WidgetUpdater.updateAll(this)
+        runCatching {
+            val manager = AppWidgetManager.getInstance(this)
+            manager.updateAppWidget(
+                widgetId,
+                WidgetSizes.remoteViews(
+                    context = this,
+                    kind = kindOfWidget() ?: WidgetKind.TODAY,
+                    data = WidgetData.load(this, options.accountId),
+                    options = options,
+                    bundle = manager.getAppWidgetOptions(widgetId),
+                ),
+            )
+        }
         setResult(Activity.RESULT_OK, resultIntent())
         finish()
     }
