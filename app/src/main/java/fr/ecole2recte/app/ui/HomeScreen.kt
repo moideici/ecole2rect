@@ -139,6 +139,7 @@ fun HomeScreen(
                             settings = settings,
                             today = today,
                             skipUrgent = HomeWidget.URGENT in visible,
+                            skipExams = HomeWidget.EXAMS in visible,
                             onNavigate = onNavigate,
                             onToggle = onToggleHomework,
                         )
@@ -495,6 +496,7 @@ private fun HomeworkWidget(
     settings: AppSettings,
     today: LocalDate,
     skipUrgent: Boolean,
+    skipExams: Boolean,
     onNavigate: (Destination) -> Unit,
     onToggle: (HomeworkItem) -> Unit,
 ) {
@@ -503,7 +505,12 @@ private fun HomeworkWidget(
     // Le devoir mis en avant par le bloc « à ne pas oublier » n'a pas à réapparaître trois
     // lignes plus bas : le compte reste juste, seule la liste saute son premier élément.
     val urgent = if (skipUrgent) Insights.urgentHomework(snapshot.homework, settings, today) else null
-    val listed = pending.filterNot { it.id == urgent?.id }
+    // Même règle pour les évaluations : quand elles ont leur propre bloc avec compte à
+    // rebours, les relister ici n'ajoute rien. Le compte, lui, les garde : ce sont bien des
+    // devoirs à faire.
+    val listed = pending
+        .filterNot { it.id == urgent?.id }
+        .filterNot { skipExams && it.exam }
     AppCard(onClick = { onNavigate(Destination.HOMEWORK) }) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             WidgetLabel("À FAIRE", Modifier.weight(1f))
@@ -522,9 +529,9 @@ private fun HomeworkWidget(
         listed.take(3).forEach { item ->
             HomeworkRow(item, settings, today, onToggle)
         }
-        if (listed.isEmpty() && urgent != null) {
+        if (listed.isEmpty() && pending.isNotEmpty()) {
             Text(
-                "Le seul devoir en attente est celui mis en avant ci-dessus.",
+                "Tout ce qui reste est déjà mis en avant ci-dessus.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

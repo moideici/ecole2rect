@@ -103,10 +103,18 @@ Quinze widgets natifs, dans la même direction visuelle que l'application, en qu
 
 | Taille | Widgets |
 | --- | --- |
-| 1×1 | moyenne générale · devoirs à faire · messages non lus · temps avant le prochain cours · salle du prochain cours · dernière synchronisation |
+| 1×1 | moyenne générale · devoirs à faire · messages non lus · avant le prochain cours (matière et salle comprises) · prochaine évaluation · absences à justifier |
 | 2×1 | prochain cours · devoir urgent · dernière note · dernier message |
 | 2×2 | journée · prochains devoirs · dernières notes · moyennes par matière |
 | 4×2 | semaine |
+
+Deux d'entre eux ont été remplacés en cours de route, et c'est la règle qui vaut d'être
+retenue : **un widget qui répète un autre widget ne mérite pas sa place**. « Salle du
+prochain cours » redisait ce que « prochain cours » affichait déjà, et « dernière
+synchronisation » renseignait sur l'application plutôt que sur l'école. La salle a rejoint
+le compte à rebours — qui se suffit maintenant à lui-même — et les deux tuiles libérées
+répondent à des questions qu'on se pose vraiment : quand tombe la prochaine évaluation, et
+combien d'absences attendent un justificatif.
 
 Trois choix de conception :
 

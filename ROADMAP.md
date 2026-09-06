@@ -86,6 +86,11 @@ ensuite les modules absents, puis l'approfondissement, enfin la qualité et la d
 - [x] **Raccourcis d'application** (appui long sur l'icône).
 - [x] **Tirer pour rafraîchir** sur les écrans de liste.
 - [x] **Audit d'accessibilité** : libellés, tailles de police, contrastes.
+- [x] **Chasse aux redondances.** Deux widgets d'écran d'accueil répétaient un autre widget
+      ou parlaient de l'application plutôt que de l'école ; ils ont laissé la place à la
+      prochaine évaluation et aux absences à justifier. Sur l'accueil de l'application, la
+      journée et la liste des devoirs sautent désormais ce que le bloc voisin met déjà en
+      avant.
 
 ## Ce qui restera à faire avec un compte réel
 
