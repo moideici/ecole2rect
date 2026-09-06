@@ -3,18 +3,23 @@ package fr.ecole2recte.app.core.store
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.AttachmentSource
+import fr.ecole2recte.app.core.model.CloudFile
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.Document
 import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
+import fr.ecole2recte.app.core.model.MessageFolder
 import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.model.NewsItem
 import fr.ecole2recte.app.core.model.Period
 import fr.ecole2recte.app.core.model.SchoolLifeEvent
 import fr.ecole2recte.app.core.model.SchoolLifeKind
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.model.SessionContent
+import fr.ecole2recte.app.core.model.Skill
 import fr.ecole2recte.app.core.model.SubjectAverage
+import fr.ecole2recte.app.core.model.Textbook
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -31,11 +36,11 @@ import java.time.LocalDateTime
 object SnapshotCodec {
 
     /**
-     * Version 2 : ajout de la vie scolaire, des contenus de séance et des documents. Un
-     * cache d'une version antérieure est ignoré plutôt que réinterprété — il sera reconstruit
-     * à la première synchronisation.
+     * Version 3 : compte famille, dossiers de messagerie, compétences, actualités, manuels
+     * numériques et espace de stockage. Un cache d'une version antérieure est ignoré plutôt
+     * que réinterprété — il sera reconstruit à la première synchronisation.
      */
-    const val VERSION = 2
+    const val VERSION = 3
 
     fun encode(snapshot: SchoolSnapshot): String = JSONObject().apply {
         put("version", VERSION)
@@ -49,6 +54,9 @@ object SnapshotCodec {
         put("schoolLife", snapshot.schoolLife.jsonArray(::encodeSchoolLife))
         put("sessionContents", snapshot.sessionContents.jsonArray(::encodeSession))
         put("documents", snapshot.documents.jsonArray(::encodeDocument))
+        put("news", snapshot.news.jsonArray(::encodeNews))
+        put("textbooks", snapshot.textbooks.jsonArray(::encodeTextbook))
+        put("cloudFiles", snapshot.cloudFiles.jsonArray(::encodeCloudFile))
         put(
             "syncedAt",
             JSONObject().apply {
@@ -73,6 +81,9 @@ object SnapshotCodec {
                 schoolLife = root.optJSONArray("schoolLife").decode(::decodeSchoolLife),
                 sessionContents = root.optJSONArray("sessionContents").decode(::decodeSession),
                 documents = root.optJSONArray("documents").decode(::decodeDocument),
+                news = root.optJSONArray("news").decode(::decodeNews),
+                textbooks = root.optJSONArray("textbooks").decode(::decodeTextbook),
+                cloudFiles = root.optJSONArray("cloudFiles").decode(::decodeCloudFile),
                 syncedAt = decodeSyncedAt(root.optJSONObject("syncedAt")),
             )
         }.getOrNull()
@@ -90,6 +101,10 @@ object SnapshotCodec {
         put("lastName", account.lastName)
         put("className", account.className)
         put("schoolName", account.schoolName)
+        // Sans la famille, un parent rouvrant l'application hors ligne verrait sa messagerie
+        // demandée au nom de son enfant, donc refusée.
+        account.familyId?.let { put("familyId", it) }
+        put("familyName", account.familyName)
     }
 
     private fun encodeLesson(lesson: Lesson) = JSONObject().apply {
@@ -102,6 +117,8 @@ object SnapshotCodec {
         put("canceled", lesson.canceled)
         put("exam", lesson.exam)
         put("note", lesson.note)
+        put("group", lesson.group)
+        put("kind", lesson.kind)
     }
 
     private fun encodeHomework(item: HomeworkItem) = JSONObject().apply {
@@ -113,6 +130,7 @@ object SnapshotCodec {
         put("exam", item.exam)
         put("done", item.done)
         put("attachments", item.attachments.jsonArray(::encodeAttachment))
+        put("onlineSubmission", item.onlineSubmission)
     }
 
     private fun encodeAttachment(attachment: Attachment) = JSONObject().apply {
@@ -120,6 +138,7 @@ object SnapshotCodec {
         put("name", attachment.name)
         put("type", attachment.type)
         put("source", attachment.source.name)
+        put("downloadType", attachment.downloadType)
     }
 
     private fun encodeGrade(grade: Grade) = JSONObject().apply {
@@ -134,6 +153,16 @@ object SnapshotCodec {
         put("periodCode", grade.periodCode)
         put("counted", grade.counted)
         put("comment", grade.comment)
+        grade.minimum?.let { put("minimum", it) }
+        grade.maximum?.let { put("maximum", it) }
+        put("kind", grade.kind)
+        put("skills", grade.skills.jsonArray(::encodeSkill))
+    }
+
+    private fun encodeSkill(skill: Skill) = JSONObject().apply {
+        put("label", skill.label)
+        put("level", skill.level)
+        skill.value?.let { put("value", it) }
     }
 
     private fun encodePeriod(period: Period) = JSONObject().apply {
@@ -144,6 +173,12 @@ object SnapshotCodec {
         period.start?.let { put("start", it.toString()) }
         period.end?.let { put("end", it.toString()) }
         put("current", period.current)
+        put("appreciation", period.appreciation)
+        put("headTeacher", period.headTeacher)
+        period.councilDate?.let { put("councilDate", it.toString()) }
+        put("councilTime", period.councilTime)
+        period.minimum?.let { put("minimum", it) }
+        period.maximum?.let { put("maximum", it) }
     }
 
     private fun encodeSubjectAverage(average: SubjectAverage) = JSONObject().apply {
@@ -154,6 +189,10 @@ object SnapshotCodec {
         average.coefficient?.let { put("coefficient", it) }
         put("teacher", average.teacher)
         put("appreciation", average.appreciation)
+        average.minimum?.let { put("minimum", it) }
+        average.maximum?.let { put("maximum", it) }
+        put("teachers", JSONArray(average.teachers))
+        put("parentSubject", average.parentSubject)
     }
 
     private fun encodeMessage(message: MessageItem) = JSONObject().apply {
@@ -165,6 +204,8 @@ object SnapshotCodec {
         put("preview", message.preview)
         put("body", message.body)
         put("attachments", message.attachments.jsonArray(::encodeAttachment))
+        put("folder", message.folder.name)
+        put("recipients", JSONArray(message.recipients))
     }
 
     private fun encodeSchoolLife(event: SchoolLifeEvent) = JSONObject().apply {
@@ -176,6 +217,7 @@ object SnapshotCodec {
         put("justified", event.justified)
         put("reason", event.reason)
         put("comment", event.comment)
+        put("duration", event.duration)
     }
 
     private fun encodeSession(session: SessionContent) = JSONObject().apply {
@@ -192,6 +234,33 @@ object SnapshotCodec {
         put("category", document.category)
         document.date?.let { put("date", it.toString()) }
         put("type", document.type)
+    }
+
+    private fun encodeNews(item: NewsItem) = JSONObject().apply {
+        put("id", item.id)
+        put("title", item.title)
+        put("content", item.content)
+        item.date?.let { put("date", it.toString()) }
+        put("author", item.author)
+        put("category", item.category)
+        put("attachments", item.attachments.jsonArray(::encodeAttachment))
+    }
+
+    private fun encodeTextbook(book: Textbook) = JSONObject().apply {
+        put("id", book.id)
+        put("title", book.title)
+        put("subject", book.subject)
+        put("publisher", book.publisher)
+        put("url", book.url)
+    }
+
+    private fun encodeCloudFile(file: CloudFile) = JSONObject().apply {
+        put("id", file.id)
+        put("name", file.name)
+        put("folder", file.folder)
+        file.date?.let { put("date", it.toString()) }
+        file.size?.let { put("size", it) }
+        put("ownerId", file.ownerId)
     }
 
     // ── Décodage ─────────────────────────────────────────────────────────────
@@ -212,6 +281,8 @@ object SnapshotCodec {
         lastName = entry.optString("lastName"),
         className = entry.optString("className"),
         schoolName = entry.optString("schoolName"),
+        familyId = entry.optString("familyId").takeIf { it.isNotBlank() },
+        familyName = entry.optString("familyName"),
     )
 
     private fun decodeLesson(entry: JSONObject): Lesson? {
@@ -226,6 +297,8 @@ object SnapshotCodec {
             canceled = entry.optBoolean("canceled"),
             exam = entry.optBoolean("exam"),
             note = entry.optString("note"),
+            group = entry.optString("group"),
+            kind = entry.optString("kind"),
         )
     }
 
@@ -240,6 +313,7 @@ object SnapshotCodec {
             exam = entry.optBoolean("exam"),
             done = entry.optBoolean("done"),
             attachments = entry.optJSONArray("attachments").decode(::decodeAttachment),
+            onlineSubmission = entry.optBoolean("onlineSubmission"),
         )
     }
 
@@ -249,6 +323,7 @@ object SnapshotCodec {
         type = entry.optString("type"),
         source = AttachmentSource.entries.firstOrNull { it.name == entry.optString("source") }
             ?: AttachmentSource.HOMEWORK,
+        downloadType = entry.optString("downloadType"),
     )
 
     private fun decodeGrade(entry: JSONObject) = Grade(
@@ -263,7 +338,20 @@ object SnapshotCodec {
         periodCode = entry.optString("periodCode"),
         counted = entry.optBoolean("counted", true),
         comment = entry.optString("comment"),
+        minimum = entry.number("minimum"),
+        maximum = entry.number("maximum"),
+        kind = entry.optString("kind"),
+        skills = entry.optJSONArray("skills").decode(::decodeSkill),
     )
+
+    private fun decodeSkill(entry: JSONObject): Skill? {
+        val label = entry.optString("label").takeIf { it.isNotBlank() } ?: return null
+        return Skill(
+            label = label,
+            level = entry.optString("level"),
+            value = entry.number("value")?.toInt(),
+        )
+    }
 
     private fun decodePeriod(entry: JSONObject) = Period(
         code = entry.optString("code"),
@@ -273,6 +361,12 @@ object SnapshotCodec {
         start = entry.date("start"),
         end = entry.date("end"),
         current = entry.optBoolean("current"),
+        appreciation = entry.optString("appreciation"),
+        headTeacher = entry.optString("headTeacher"),
+        councilDate = entry.date("councilDate"),
+        councilTime = entry.optString("councilTime"),
+        minimum = entry.number("minimum"),
+        maximum = entry.number("maximum"),
     )
 
     private fun decodeSubjectAverage(entry: JSONObject) = SubjectAverage(
@@ -283,6 +377,10 @@ object SnapshotCodec {
         coefficient = entry.number("coefficient"),
         teacher = entry.optString("teacher"),
         appreciation = entry.optString("appreciation"),
+        minimum = entry.number("minimum"),
+        maximum = entry.number("maximum"),
+        teachers = entry.optJSONArray("teachers").strings(),
+        parentSubject = entry.optString("parentSubject"),
     )
 
     private fun decodeMessage(entry: JSONObject) = MessageItem(
@@ -294,6 +392,9 @@ object SnapshotCodec {
         preview = entry.optString("preview"),
         body = entry.optString("body"),
         attachments = entry.optJSONArray("attachments").decode(::decodeAttachment),
+        folder = MessageFolder.entries.firstOrNull { it.name == entry.optString("folder") }
+            ?: MessageFolder.RECEIVED,
+        recipients = entry.optJSONArray("recipients").strings(),
     )
 
     private fun decodeSchoolLife(entry: JSONObject): SchoolLifeEvent? {
@@ -308,6 +409,7 @@ object SnapshotCodec {
             justified = entry.optBoolean("justified"),
             reason = entry.optString("reason"),
             comment = entry.optString("comment"),
+            duration = entry.optString("duration"),
         )
     }
 
@@ -329,6 +431,51 @@ object SnapshotCodec {
         date = entry.date("date"),
         type = entry.optString("type"),
     )
+
+    private fun decodeNews(entry: JSONObject): NewsItem? {
+        val title = entry.optString("title").takeIf { it.isNotBlank() } ?: return null
+        return NewsItem(
+            id = entry.optString("id"),
+            title = title,
+            content = entry.optString("content"),
+            date = entry.date("date"),
+            author = entry.optString("author"),
+            category = entry.optString("category"),
+            attachments = entry.optJSONArray("attachments").decode(::decodeAttachment),
+        )
+    }
+
+    private fun decodeTextbook(entry: JSONObject): Textbook? {
+        val title = entry.optString("title").takeIf { it.isNotBlank() } ?: return null
+        return Textbook(
+            id = entry.optString("id"),
+            title = title,
+            subject = entry.optString("subject"),
+            publisher = entry.optString("publisher"),
+            url = entry.optString("url"),
+        )
+    }
+
+    private fun decodeCloudFile(entry: JSONObject): CloudFile? {
+        val name = entry.optString("name").takeIf { it.isNotBlank() } ?: return null
+        return CloudFile(
+            id = entry.optString("id"),
+            name = name,
+            folder = entry.optString("folder"),
+            date = entry.date("date"),
+            size = entry.number("size")?.toLong(),
+            ownerId = entry.optString("ownerId"),
+        )
+    }
+
+    private fun JSONArray?.strings(): List<String> {
+        val array = this ?: return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                array.optString(index).takeIf { it.isNotBlank() }?.let(::add)
+            }
+        }
+    }
 
     private fun decodeSyncedAt(entry: JSONObject?): Map<DataSection, Long> {
         val source = entry ?: return emptyMap()

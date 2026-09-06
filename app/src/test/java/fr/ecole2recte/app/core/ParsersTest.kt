@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.core
 
+import fr.ecole2recte.app.core.model.MessageFolder
 import fr.ecole2recte.app.core.model.SchoolLifeKind
 import fr.ecole2recte.app.core.parse.Parsers
 import org.json.JSONObject
@@ -45,6 +46,67 @@ class ParsersTest {
         assertEquals("le nom de famille manquant est repris du responsable", "Leroy", second.lastName)
         assertEquals("3e B", second.className)
         assertEquals("Collège Jean Moulin", second.schoolName)
+    }
+
+    // ── Modules de l'établissement ───────────────────────────────────────────
+
+    @Test
+    fun `lit les actualites avec leur contenu et leurs pieces jointes`() {
+        val news = Parsers.news(JSONObject(Payloads.NEWS))
+
+        assertEquals(2, news.size)
+        val first = news.first { it.id == "12" }
+        assertEquals("Sortie au musée", first.title)
+        assertEquals("Départ à 8h.\nPrévoir un pique-nique.", first.content)
+        assertEquals(LocalDate.of(2026, 9, 4), first.date)
+        assertEquals("Mme Bernard", first.author)
+        assertEquals("Sortie", first.category)
+        assertEquals("autorisation.pdf", first.attachments.single().name)
+        assertTrue("une actualité sans corps reste lisible", news.any { it.content.isBlank() })
+    }
+
+    @Test
+    fun `lit les manuels numeriques et sait lesquels s ouvrent`() {
+        val textbooks = Parsers.textbooks(JSONObject(Payloads.TEXTBOOKS))
+
+        assertEquals(2, textbooks.size)
+        val maths = textbooks.first { it.subject == "Mathématiques" }
+        assertEquals("Maths 3e", maths.title)
+        assertEquals("Hatier", maths.publisher)
+        assertTrue(maths.hasLink)
+        assertFalse(
+            "sans URL, la carte ne doit pas se prétendre cliquable",
+            textbooks.first { it.subject == "Histoire-Géographie" }.hasLink,
+        )
+    }
+
+    @Test
+    fun `aplatit l arborescence de l espace de stockage`() {
+        val files = Parsers.cloudFiles(JSONObject(Payloads.CLOUD))
+
+        assertEquals("seuls les fichiers comptent, pas les dossiers", 2, files.size)
+        val chapter = files.first { it.name == "chapitre1.pdf" }
+        assertEquals("Documents partagés / Cours", chapter.folder)
+        assertEquals(2_500_000L, chapter.size)
+        assertEquals(LocalDate.of(2026, 9, 3), chapter.date)
+        assertEquals("CLOUD", chapter.asAttachment().apiDownloadType)
+    }
+
+    @Test
+    fun `lit les messages envoyes avec leurs destinataires et les classeurs`() {
+        val payload = JSONObject(Payloads.MESSAGES_SENT)
+        val sent = Parsers.messages(payload, MessageFolder.SENT)
+
+        val message = sent.single()
+        assertEquals(MessageFolder.SENT, message.folder)
+        assertEquals("Absence de mardi", message.subject)
+        assertEquals(listOf("Mme Claire Bernard", "Vie scolaire"), message.recipients)
+        assertEquals(
+            "dans les envoyés, c'est le destinataire qui compte",
+            "Mme Claire Bernard, Vie scolaire",
+            message.counterpart,
+        )
+        assertEquals(listOf("7" to "Professeurs"), Parsers.messageFolders(payload))
     }
 
     @Test
@@ -115,6 +177,38 @@ class ParsersTest {
         assertEquals(10.0, philosophy.scale, 0.001)
         assertEquals(14.0, philosophy.outOfTwenty!!, 0.001)
         assertFalse("nonSignificatif ne doit pas compter dans les moyennes", philosophy.counted)
+    }
+
+    @Test
+    fun `lit ce que le bulletin dit autour des chiffres`() {
+        val payload = Parsers.grades(JSONObject(Payloads.GRADES), today = LocalDate.of(2026, 10, 1))
+        val period = payload.periods.single()
+
+        assertEquals("Trimestre solide, participation à encourager.", period.appreciation)
+        assertEquals("Mme Bernard", period.headTeacher)
+        assertEquals(LocalDate.of(2026, 12, 18), period.councilDate)
+        assertEquals("17:30", period.councilTime)
+        assertEquals(6.4, period.minimum!!, 0.001)
+        assertEquals(18.9, period.maximum!!, 0.001)
+
+        val maths = payload.subjectAverages.single()
+        assertEquals(listOf("M. Petit", "Mme Roy"), maths.teachers)
+        assertEquals(
+            "deux professeurs, deux appréciations : aucune ne doit disparaître",
+            "Excellent trimestre.\n\nOral à travailler.",
+            maths.appreciation,
+        )
+        assertEquals(7.0, maths.minimum!!, 0.001)
+        assertEquals(19.0, maths.maximum!!, 0.001)
+
+        val best = payload.grades.first { it.subject == "Mathématiques" }
+        assertEquals(4.5, best.minimum!!, 0.001)
+        assertEquals(19.5, best.maximum!!, 0.001)
+        assertEquals("Devoir Surveille", best.kind)
+        val skill = best.skills.single()
+        assertEquals("Résoudre un problème", skill.label)
+        assertEquals("Maitrise Satisfaisante", skill.level)
+        assertEquals(3, skill.value)
     }
 
     @Test

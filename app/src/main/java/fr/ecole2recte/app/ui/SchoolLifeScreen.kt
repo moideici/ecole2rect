@@ -117,6 +117,12 @@ private fun SchoolLifeRow(event: SchoolLifeEvent) {
                         append(" — ")
                         append(Dates.time(it))
                     }
+                    // La durée telle que l'établissement la compte : c'est elle qui figure
+                    // sur le bulletin, pas l'écart entre les deux heures affichées.
+                    if (event.duration.isNotBlank()) {
+                        append(" · ")
+                        append(event.duration)
+                    }
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

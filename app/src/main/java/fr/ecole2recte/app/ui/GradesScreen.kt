@@ -40,6 +40,7 @@ import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.SchoolSnapshot
+import fr.ecole2recte.app.core.model.SubjectAverage
 import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.repo.Simulator
 import fr.ecole2recte.app.core.repo.SyncState
@@ -154,6 +155,43 @@ fun GradesScreen(
                     )
                     Spacer(Modifier.height(14.dp))
                     ProgressBar(fraction = (average / 20.0).toFloat())
+
+                    // Les extrêmes de la classe situent la moyenne bien mieux qu'un chiffre
+                    // seul : 12 dans une classe qui va de 8 à 13 n'est pas 12 sur 4 à 19.
+                    val range = listOfNotNull(
+                        period?.minimum?.let { "min. ${formatGrade(it)}" },
+                        period?.maximum?.let { "max. ${formatGrade(it)}" },
+                        period?.headTeacher?.takeIf { it.isNotBlank() }?.let { "prof. principal $it" },
+                    )
+                    if (range.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            range.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    period?.appreciation?.takeIf { it.isNotBlank() }?.let { appreciation ->
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            "APPRÉCIATION DU CONSEIL",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(appreciation, style = MaterialTheme.typography.bodyMedium)
+                        period.councilDate?.let { date ->
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                listOfNotNull(
+                                    "Conseil du ${Dates.dayAndMonth(date)}",
+                                    period.councilTime.takeIf { it.isNotBlank() },
+                                ).joinToString(" à "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -176,14 +214,12 @@ fun GradesScreen(
         }
 
         items(subjects, key = { it }) { subject ->
+            val detail = subjectAverages.firstOrNull { it.subject == subject }
             SubjectCard(
                 subject = subject,
                 settings = settings,
-                average = subjectAverages.firstOrNull { it.subject == subject }?.average
-                    ?: computedBySubject[subject],
-                classAverage = subjectAverages.firstOrNull { it.subject == subject }?.classAverage,
-                teacher = subjectAverages.firstOrNull { it.subject == subject }?.teacher.orEmpty(),
-                appreciation = subjectAverages.firstOrNull { it.subject == subject }?.appreciation.orEmpty(),
+                average = detail?.average ?: computedBySubject[subject],
+                detail = detail,
                 grades = grades.filter { it.subject == subject },
             )
         }
@@ -411,11 +447,11 @@ private fun SubjectCard(
     subject: String,
     settings: AppSettings,
     average: Double?,
-    classAverage: Double?,
-    teacher: String,
-    appreciation: String,
+    detail: SubjectAverage?,
     grades: List<Grade>,
 ) {
+    val teachers = detail?.teachers.orEmpty().ifEmpty { listOfNotNull(detail?.teacher?.takeIf { it.isNotBlank() }) }
+    val appreciation = detail?.appreciation.orEmpty()
     var expanded by remember { mutableStateOf(false) }
     val accent = subjectColor(subject, settings)
     Box(Modifier.padding(horizontal = ScreenPadding, vertical = 5.dp)) {
@@ -432,8 +468,8 @@ private fun SubjectCard(
                     )
                     Text(
                         listOfNotNull(
-                            teacher.takeIf { it.isNotBlank() },
-                            classAverage?.let { "classe ${formatGrade(it)}" },
+                            teachers.joinToString(", ").takeIf { it.isNotBlank() },
+                            detail?.classAverage?.let { "classe ${formatGrade(it)}" },
                             "${grades.size} note${if (grades.size > 1) "s" else ""}",
                         ).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
@@ -449,6 +485,19 @@ private fun SubjectCard(
             AnimatedVisibility(visible = expanded) {
                 Column {
                     Spacer(Modifier.height(12.dp))
+                    val range = listOfNotNull(
+                        detail?.minimum?.let { "min. ${formatGrade(it)}" },
+                        detail?.maximum?.let { "max. ${formatGrade(it)}" },
+                        detail?.coefficient?.let { "coef. ${formatGrade(it)}" },
+                    )
+                    if (range.isNotEmpty()) {
+                        Text(
+                            range.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
                     if (appreciation.isNotBlank()) {
                         Text(
                             appreciation,
@@ -474,6 +523,16 @@ private fun SubjectCard(
     }
 }
 
+/** Du rouge au vert selon le niveau de maîtrise, quand l'établissement le chiffre. */
+@Composable
+private fun skillColor(value: Int?): androidx.compose.ui.graphics.Color = when (value) {
+    1 -> MaterialTheme.colorScheme.error
+    2 -> AppTheme.palette.warning
+    3 -> MaterialTheme.colorScheme.primary
+    4 -> AppTheme.palette.success
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
 @Composable
 private fun GradeRow(grade: Grade) {
     Row(
@@ -492,12 +551,45 @@ private fun GradeRow(grade: Grade) {
             Text(
                 listOfNotNull(
                     grade.date?.let { Dates.dayAndMonth(it) },
+                    grade.kind.takeIf { it.isNotBlank() },
                     "coef. ${formatGrade(grade.coefficient)}",
                     grade.classAverage?.let { "classe ${formatGrade(it)}" },
+                    // Le meilleur et le pire de la classe : c'est ce qui manque le plus
+                    // souvent pour savoir ce que vaut une note.
+                    grade.minimum?.let { "min. ${formatGrade(it)}" },
+                    grade.maximum?.let { "max. ${formatGrade(it)}" },
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (grade.comment.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    grade.comment,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Le socle commun se note par niveau, pas par point : une note de 12 et
+            // « maîtrise fragile » ne disent pas la même chose, et la seconde est souvent
+            // la plus utile pour progresser.
+            if (grade.skills.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                grade.skills.forEach { skill ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SubjectDot(skillColor(skill.value), 7.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            listOfNotNull(skill.label, skill.level.takeIf { it.isNotBlank() })
+                                .joinToString(" — "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
             if (!grade.counted) {
                 Spacer(Modifier.height(4.dp))
                 Text(

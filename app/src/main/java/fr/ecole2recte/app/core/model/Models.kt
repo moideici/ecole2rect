@@ -58,6 +58,10 @@ data class Lesson(
     val canceled: Boolean = false,
     val exam: Boolean = false,
     val note: String = "",
+    /** Groupe ou demi-classe : deux élèves d'une même classe n'ont pas toujours le même cours. */
+    val group: String = "",
+    /** « Devoir surveillé », « Permanence », « Sortie » : ce que l'établissement a saisi. */
+    val kind: String = "",
 ) {
     val date: LocalDate get() = start.toLocalDate()
 }
@@ -99,10 +103,30 @@ data class HomeworkItem(
     val exam: Boolean = false,
     val done: Boolean = false,
     val attachments: List<Attachment> = emptyList(),
+    /**
+     * Le professeur attend une copie déposée en ligne. L'application ne sait pas déposer —
+     * c'est irréversible et invérifiable sans compte réel — mais le taire serait pire : un
+     * élève croirait un devoir rendu en le cochant.
+     */
+    val onlineSubmission: Boolean = false,
 ) {
     /** Vrai quand le contenu n'a pas encore été chargé par l'appel détaillé du jour. */
     val hasContent: Boolean get() = content.isNotBlank()
 }
+
+/**
+ * Une compétence évaluée en même temps qu'une note.
+ *
+ * Le socle commun se note par niveau, pas par point : une note de 12 accompagnée de
+ * « Résoudre un problème : maîtrise fragile » dit deux choses différentes, et la seconde est
+ * souvent la plus utile.
+ */
+data class Skill(
+    val label: String,
+    val level: String = "",
+    /** 1 à 4 quand l'établissement code le niveau ; sert à colorer la pastille. */
+    val value: Int? = null,
+)
 
 /** Une note d'un devoir surveillé. */
 data class Grade(
@@ -117,6 +141,12 @@ data class Grade(
     val periodCode: String,
     val counted: Boolean = true,
     val comment: String = "",
+    /** Note la plus basse et la plus haute de la classe : une moyenne seule ne situe pas. */
+    val minimum: Double? = null,
+    val maximum: Double? = null,
+    /** « Devoir surveillé », « Interrogation orale »… tel que le professeur l'a saisi. */
+    val kind: String = "",
+    val skills: List<Skill> = emptyList(),
 ) {
     /** Note ramenée sur 20, seule façon de comparer un /10 et un /20 dans une moyenne. */
     val outOfTwenty: Double? get() = value?.takeIf { scale > 0 }?.let { it * 20.0 / scale }
@@ -131,6 +161,14 @@ data class Period(
     val start: LocalDate? = null,
     val end: LocalDate? = null,
     val current: Boolean = false,
+    /** Appréciation générale du conseil de classe : le bulletin en une phrase. */
+    val appreciation: String = "",
+    val headTeacher: String = "",
+    val councilDate: LocalDate? = null,
+    val councilTime: String = "",
+    /** Extrêmes de la classe sur la période, quand l'établissement les publie. */
+    val minimum: Double? = null,
+    val maximum: Double? = null,
 )
 
 /** Moyenne d'une matière sur une période, telle que l'établissement la calcule. */
@@ -142,7 +180,27 @@ data class SubjectAverage(
     val coefficient: Double? = null,
     val teacher: String = "",
     val appreciation: String = "",
-)
+    val minimum: Double? = null,
+    val maximum: Double? = null,
+    /** Une matière a parfois plusieurs professeurs : les nommer tous évite de choisir. */
+    val teachers: List<String> = emptyList(),
+    /** Matière mère d'une sous-matière (« Écrit » sous « Français »), vide sinon. */
+    val parentSubject: String = "",
+) {
+    val isSubSubject: Boolean get() = parentSubject.isNotBlank()
+}
+
+/**
+ * Les boîtes de la messagerie.
+ *
+ * ÉcoleDirecte range les messages en trois dossiers, et l'application n'en lisait qu'un :
+ * un message envoyé depuis le site n'existait tout simplement pas ici.
+ */
+enum class MessageFolder(val label: String, val apiValue: String) {
+    RECEIVED("Reçus", "received"),
+    SENT("Envoyés", "sent"),
+    ARCHIVED("Archivés", "archived"),
+}
 
 /** Un message de la messagerie. */
 data class MessageItem(
@@ -154,8 +212,19 @@ data class MessageItem(
     val preview: String = "",
     val body: String = "",
     val attachments: List<Attachment> = emptyList(),
+    val folder: MessageFolder = MessageFolder.RECEIVED,
+    /** Destinataires, pour les messages envoyés — « à qui ai-je écrit, déjà ? ». */
+    val recipients: List<String> = emptyList(),
 ) {
     val hasBody: Boolean get() = body.isNotBlank()
+
+    /** Qui s'affiche en tête de ligne : l'expéditeur, ou les destinataires si c'est nous. */
+    val counterpart: String
+        get() = if (folder == MessageFolder.SENT && recipients.isNotEmpty()) {
+            recipients.joinToString(", ")
+        } else {
+            sender
+        }
 }
 
 /**
@@ -173,6 +242,8 @@ data class SchoolLifeEvent(
     val justified: Boolean = false,
     val reason: String = "",
     val comment: String = "",
+    /** Durée telle que l'établissement la compte (« 2h », « 1 demi-journée »). */
+    val duration: String = "",
 ) {
     val date: LocalDate get() = start.toLocalDate()
 }
@@ -229,14 +300,80 @@ data class Document(
     )
 }
 
-/** Les familles de données synchronisées, chacune avec son état propre. */
-enum class DataSection(val label: String) {
+/**
+ * Une actualité de l'établissement.
+ *
+ * Le module « vie de l'établissement » porte ce que l'école adresse à tout le monde :
+ * sorties, réunions, fermetures, menus. C'est souvent là que se trouve l'information qu'un
+ * élève apprend en dernier.
+ */
+data class NewsItem(
+    val id: String,
+    val title: String,
+    val content: String = "",
+    val date: LocalDate? = null,
+    val author: String = "",
+    val category: String = "",
+    val attachments: List<Attachment> = emptyList(),
+)
+
+/** Un manuel numérique mis à disposition par l'établissement. */
+data class Textbook(
+    val id: String,
+    val title: String,
+    val subject: String = "",
+    val publisher: String = "",
+    val url: String = "",
+) {
+    val hasLink: Boolean get() = url.startsWith("http")
+}
+
+/**
+ * Un fichier de l'espace de stockage.
+ *
+ * L'arborescence du cloud ÉcoleDirecte est aplatie ici : ce qui intéresse, c'est de
+ * retrouver un fichier et de l'ouvrir, pas de reproduire un explorateur.
+ */
+data class CloudFile(
+    val id: String,
+    val name: String,
+    val folder: String = "",
+    val date: LocalDate? = null,
+    val size: Long? = null,
+    /** Identifiant d'espace exigé par le téléchargement, quand l'API le fournit. */
+    val ownerId: String = "",
+) {
+    fun asAttachment(): Attachment = Attachment(
+        id = id,
+        name = name,
+        source = AttachmentSource.RESOURCE,
+        downloadType = "CLOUD",
+    )
+}
+
+/**
+ * Les familles de données synchronisées, chacune avec son état propre.
+ *
+ * Les sections facultatives correspondent à des modules qu'un établissement peut ne pas
+ * ouvrir. Les demander toutes les heures en arrière-plan coûterait trois requêtes refusées
+ * par synchronisation : elles sont donc chargées à l'ouverture de leur écran.
+ */
+enum class DataSection(val label: String, val optional: Boolean = false) {
     TIMETABLE("Emploi du temps"),
     HOMEWORK("Devoirs"),
     GRADES("Notes"),
     MESSAGES("Messages"),
     SCHOOL_LIFE("Vie scolaire"),
     DOCUMENTS("Documents"),
+    NEWS("Actualités", optional = true),
+    TEXTBOOKS("Manuels numériques", optional = true),
+    CLOUD("Espace de stockage", optional = true),
+    ;
+
+    companion object {
+        /** Ce qui est synchronisé systématiquement, en fond comme au lancement. */
+        val ESSENTIAL: Set<DataSection> get() = entries.filterNot { it.optional }.toSet()
+    }
 }
 
 /**
@@ -257,6 +394,9 @@ data class SchoolSnapshot(
     val schoolLife: List<SchoolLifeEvent> = emptyList(),
     val sessionContents: List<SessionContent> = emptyList(),
     val documents: List<Document> = emptyList(),
+    val news: List<NewsItem> = emptyList(),
+    val textbooks: List<Textbook> = emptyList(),
+    val cloudFiles: List<CloudFile> = emptyList(),
     /** Millisecondes epoch de la dernière synchronisation réussie, section par section. */
     val syncedAt: Map<DataSection, Long> = emptyMap(),
 ) {
@@ -265,4 +405,10 @@ data class SchoolSnapshot(
             schoolLife.isEmpty() && documents.isEmpty()
 
     val lastSyncedAt: Long? get() = syncedAt.values.maxOrNull()
+
+    /**
+     * Les messages reçus, seuls concernés par les compteurs de non-lus, les notifications
+     * et les widgets : un message envoyé n'est pas une nouvelle à signaler.
+     */
+    val inbox: List<MessageItem> get() = messages.filter { it.folder == MessageFolder.RECEIVED }
 }

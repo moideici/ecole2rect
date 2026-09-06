@@ -189,7 +189,7 @@ object WidgetContent {
     }
 
     private fun unread(kind: WidgetKind, snapshot: SchoolSnapshot, settings: AppSettings): WidgetPayload {
-        val unread = Insights.unreadMessages(snapshot.messages, settings)
+        val unread = Insights.unreadMessages(snapshot.inbox, settings)
         return WidgetPayload(
             kind = kind,
             label = "MESSAGES",
@@ -321,7 +321,7 @@ object WidgetContent {
         settings: AppSettings,
         today: java.time.LocalDate,
     ): WidgetPayload {
-        val message = snapshot.messages.firstOrNull()
+        val message = snapshot.inbox.firstOrNull()
             ?: return empty(kind, "DERNIER MESSAGE", "Aucun message", "boîte vide")
         val unread = !settings.isMessageRead(message.id, message.read)
         return WidgetPayload(

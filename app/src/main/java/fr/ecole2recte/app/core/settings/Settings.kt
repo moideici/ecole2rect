@@ -28,12 +28,13 @@ enum class HomeWidget(val label: String, val description: String) {
     WEEK("Semaine", "La charge de chaque jour, du lundi au samedi."),
     TOMORROW("Demain", "Les cours et les devoirs de demain, pour préparer son sac."),
     SCHOOL_LIFE("Vie scolaire", "Absences, retards et sanctions du mois."),
+    NEWS("Actualités", "Ce que l'établissement vient de publier."),
     ;
 
     companion object {
         val DEFAULT_ORDER: List<HomeWidget> = listOf(
             NEXT_CLASS, URGENT, TODAY, HOMEWORK, EXAMS, GRADES, SUBJECT_AVERAGES, MESSAGES,
-            WEEK, TOMORROW, SCHOOL_LIFE,
+            WEEK, TOMORROW, SCHOOL_LIFE, NEWS,
         )
     }
 }

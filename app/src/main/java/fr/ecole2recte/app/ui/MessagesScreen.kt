@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.DataSection
+import fr.ecole2recte.app.core.model.MessageFolder
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
@@ -57,6 +58,10 @@ import java.time.LocalDateTime
  *
  * Lecture seule et assumée : l'application ne prétend pas remplacer l'envoi de messages
  * d'ÉcoleDirecte, mais elle rend la lecture agréable et signale clairement le non-lu.
+ *
+ * Les trois dossiers du service sont là, et pas seulement les messages reçus : un message
+ * envoyé depuis le site existait bel et bien, l'application se contentait de l'ignorer. Les
+ * envoyés et les archivés se chargent au premier passage sur leur onglet, jamais avant.
  */
 @Composable
 fun MessagesScreen(
@@ -83,9 +88,10 @@ fun MessagesScreen(
             ScreenHeader(
                 eyebrow = "Messagerie",
                 title = "Messages",
-                subtitle = when (unread.size) {
-                    0 -> "Tout est lu"
-                    1 -> "1 message non lu"
+                subtitle = when {
+                    folder != MessageFolder.RECEIVED -> folder.label.lowercase().replaceFirstChar { it.uppercase() }
+                    unread.isEmpty() -> "Tout est lu"
+                    unread.size == 1 -> "1 message non lu"
                     else -> "${unread.size} messages non lus"
                 },
                 actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
@@ -99,23 +105,44 @@ fun MessagesScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = ScreenPadding),
-                placeholder = { Text("Rechercher un expéditeur, un objet…") },
+                placeholder = {
+                    Text(
+                        if (folder == MessageFolder.SENT) {
+                            "Rechercher un destinataire, un objet…"
+                        } else {
+                            "Rechercher un expéditeur, un objet…"
+                        },
+                    )
+                },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
             )
         }
 
-        item {
+        item("dossiers") {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(listOf(false, true), key = { it.toString() }) { onlyUnread ->
-                    FilterPill(
-                        text = if (onlyUnread) "Non lus" else "Tous",
-                        selected = unreadOnly == onlyUnread,
-                    ) { unreadOnly = onlyUnread }
+                items(MessageFolder.entries, key = { it.name }) { entry ->
+                    FilterPill(text = entry.label, selected = folder == entry) { onSelectFolder(entry) }
+                }
+            }
+        }
+
+        if (folder == MessageFolder.RECEIVED) {
+            item("filtre-lecture") {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = ScreenPadding),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(listOf(false, true), key = { it.toString() }) { onlyUnread ->
+                        FilterPill(
+                            text = if (onlyUnread) "Non lus" else "Tous",
+                            selected = unreadOnly == onlyUnread,
+                        ) { unreadOnly = onlyUnread }
+                    }
                 }
             }
         }
@@ -129,10 +156,10 @@ fun MessagesScreen(
                 StatePlaceholder(
                     icon = Icons.Outlined.ChatBubbleOutline,
                     title = if (query.isBlank()) "Aucun message" else "Aucun résultat",
-                    description = if (snapshot.messages.isEmpty()) {
-                        "La messagerie n'a pas encore été synchronisée."
-                    } else {
-                        "Rien ne correspond à ce filtre."
+                    description = when {
+                        query.isNotBlank() || unreadOnly -> "Rien ne correspond à ce filtre."
+                        folder == MessageFolder.RECEIVED -> "La messagerie n'a pas encore été synchronisée."
+                        else -> "Ce dossier est vide."
                     },
                     actionLabel = "Synchroniser",
                     onAction = onRefresh,
@@ -145,12 +172,15 @@ fun MessagesScreen(
             Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
                 AppCard(onClick = { onOpen(message) }) {
                     Row(verticalAlignment = Alignment.Top) {
-                        SubjectBadge(message.sender, subjectColor(message.sender, settings), 42.dp)
+                        // Dans les envoyés, la vignette et la ligne de tête portent le
+                        // destinataire : « moi » en tête de chaque message n'apprendrait rien.
+                        val counterpart = message.counterpart
+                        SubjectBadge(counterpart, subjectColor(counterpart, settings), 42.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    message.sender,
+                                    counterpart,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (read) FontWeight.Normal else FontWeight.Bold,
                                     modifier = Modifier.weight(1f),

@@ -92,7 +92,7 @@ object Search {
                 )
             }
 
-        val messages = snapshot.messages
+        val messages = snapshot.inbox
             .filter { Insights.matches(query, it.subject, it.sender, it.preview, it.body) }
             .take(MAX_PER_KIND)
             .map {

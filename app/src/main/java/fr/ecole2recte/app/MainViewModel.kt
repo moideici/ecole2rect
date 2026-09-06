@@ -9,6 +9,7 @@ import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.HomeworkItem
+import fr.ecole2recte.app.core.model.MessageFolder
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.protocol.ApiResult
 import fr.ecole2recte.app.core.repo.AuthState
@@ -66,6 +67,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val errorLog = repository.errorLog.entries
     val autoAnswer = repository.autoAnswer
     val messagesComplete = repository.messagesComplete
+    val messageFolder = repository.messageFolder
     val loadingMoreMessages = repository.loadingMoreMessages
 
     private val _attachment = MutableStateFlow<AttachmentState>(AttachmentState.Idle)
@@ -145,8 +147,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Données ──────────────────────────────────────────────────────────────
 
-    fun refresh(sections: Set<DataSection> = DataSection.entries.toSet()) {
+    fun refresh(sections: Set<DataSection> = DataSection.ESSENTIAL) {
         viewModelScope.launch { repository.refresh(sections) }
+    }
+
+    /**
+     * Tout, modules facultatifs compris.
+     *
+     * C'est ce que déclenche un geste explicite — tirer vers le bas, toucher l'icône de
+     * synchronisation. La synchronisation de fond, elle, s'en tient à l'essentiel : demander
+     * chaque heure trois modules qu'un établissement n'a pas ouverts n'apporterait rien.
+     */
+    fun refreshEverything() {
+        viewModelScope.launch { repository.refresh(DataSection.entries.toSet()) }
+    }
+
+    /** Charge un module facultatif à l'ouverture de son écran, s'il n'a jamais répondu. */
+    fun loadModule(section: DataSection) {
+        if (snapshot.value.syncedAt.containsKey(section)) return
+        viewModelScope.launch { repository.refresh(setOf(section)) }
+    }
+
+    fun selectMessageFolder(folder: MessageFolder) {
+        viewModelScope.launch { repository.selectMessageFolder(folder) }
     }
 
     /** Synchronise seulement si la dernière donnée date de plus de cinq minutes. */

@@ -71,6 +71,9 @@ sealed interface Detail {
     data object SubjectColors : Detail
     data object SchoolLife : Detail
     data object Documents : Detail
+    data object News : Detail
+    data object Textbooks : Detail
+    data object Cloud : Detail
     data object Search : Detail
     data object ErrorLog : Detail
 }
@@ -156,6 +159,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     val loadingMore by viewModel.loadingMoreMessages.collectAsStateWithLifecycle()
     val errors by viewModel.errorLog.collectAsStateWithLifecycle()
     val autoAnswer by viewModel.autoAnswer.collectAsStateWithLifecycle()
+    val messageFolder by viewModel.messageFolder.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
 
@@ -167,7 +171,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     }
 
     // Le nombre de messages non lus, tel qu'il apparaît sur l'onglet.
-    val unreadMessages = snapshot.messages.count { !settings.isMessageRead(it.id, it.read) }
+    val unreadMessages = snapshot.inbox.count { !settings.isMessageRead(it.id, it.read) }
 
     // Une pièce jointe prête part vers l'application capable de l'ouvrir, puis l'état est
     // remis à zéro : sans quoi revenir sur la fiche la rouvrirait toute seule.
@@ -183,6 +187,17 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
         request?.let {
             destination = it.destination
             detail = null
+        }
+    }
+
+    // Un module facultatif n'est demandé qu'à l'ouverture de son écran, et une seule fois :
+    // s'il a déjà répondu, le cache suffit jusqu'à la prochaine synchronisation complète.
+    LaunchedEffect(detail) {
+        when (detail) {
+            Detail.News -> viewModel.loadModule(DataSection.NEWS)
+            Detail.Textbooks -> viewModel.loadModule(DataSection.TEXTBOOKS)
+            Detail.Cloud -> viewModel.loadModule(DataSection.CLOUD)
+            else -> Unit
         }
     }
 
@@ -241,7 +256,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                 // Tirer vers le bas synchronise : le geste attendu partout ailleurs.
                 null -> PullToRefreshBox(
                     isRefreshing = sync.running,
-                    onRefresh = { viewModel.refresh() },
+                    onRefresh = { viewModel.refreshEverything() },
                 ) {
                     // Un fondu court entre les pages : le changement d'onglet cesse d'être un
                     // clignotement, sans jamais retarder l'affichage de ce qu'on est venu voir.
@@ -255,7 +270,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         accounts = (auth as? AuthState.SignedIn)?.accounts.orEmpty(),
                         onNavigate = { destination = it },
                         onOpenDetail = openDetail,
-                        onRefresh = { viewModel.refresh() },
+                        onRefresh = { viewModel.refreshEverything() },
                         onToggleHomework = toggleHomework,
                         onSelectAccount = viewModel::selectAccount,
                     )
@@ -298,12 +313,15 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         settings = settings,
                         sync = sync,
                         now = now,
+                        folder = messageFolder,
+                        onSelectFolder = viewModel::selectMessageFolder,
                         onOpen = { message ->
                             viewModel.openMessage(message)
                             openDetail(Detail.Message(message.id))
                         },
                         onLoadMore = viewModel::loadMoreMessages,
-                        canLoadMore = !messagesComplete && snapshot.messages.isNotEmpty(),
+                        canLoadMore = !messagesComplete &&
+                            snapshot.messages.any { it.folder == messageFolder },
                         loadingMore = loadingMore,
                         onRefresh = { viewModel.refresh(setOf(DataSection.MESSAGES)) },
                     )
@@ -423,6 +441,38 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     snapshot = snapshot,
                     attachmentState = attachment,
                     onOpen = { document -> viewModel.openAttachment(document.asAttachment()) },
+                    onClose = { detail = null },
+                )
+
+                Detail.News -> NewsScreen(
+                    snapshot = snapshot,
+                    attachmentState = attachment,
+                    onOpenAttachment = viewModel::openAttachment,
+                    onClose = { detail = null },
+                )
+
+                Detail.Textbooks -> TextbooksScreen(
+                    snapshot = snapshot,
+                    settings = settings,
+                    // Un manuel numérique s'ouvre chez son éditeur : l'application n'a pas à
+                    // s'interposer entre l'élève et un site conçu pour être lu au navigateur.
+                    onOpen = { book ->
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(book.url),
+                                ),
+                            )
+                        }
+                    },
+                    onClose = { detail = null },
+                )
+
+                Detail.Cloud -> CloudScreen(
+                    snapshot = snapshot,
+                    attachmentState = attachment,
+                    onOpen = { file -> viewModel.openAttachment(file.asAttachment()) },
                     onClose = { detail = null },
                 )
 

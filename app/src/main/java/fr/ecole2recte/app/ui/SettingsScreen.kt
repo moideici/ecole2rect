@@ -185,6 +185,21 @@ fun SettingsScreen(
                 onClick = { onOpenDetail(Detail.SchoolLife) },
             )
             SettingsRow(
+                title = "Actualités",
+                description = "Ce que l'établissement publie pour tout le monde.",
+                onClick = { onOpenDetail(Detail.News) },
+            )
+            SettingsRow(
+                title = "Manuels numériques",
+                description = "Les manuels mis à disposition par l'établissement.",
+                onClick = { onOpenDetail(Detail.Textbooks) },
+            )
+            SettingsRow(
+                title = "Espace de stockage",
+                description = "Les fichiers partagés par l'établissement.",
+                onClick = { onOpenDetail(Detail.Cloud) },
+            )
+            SettingsRow(
                 title = "Documents",
                 description = "Bulletins et pièces publiés par l'établissement.",
                 onClick = { onOpenDetail(Detail.Documents) },

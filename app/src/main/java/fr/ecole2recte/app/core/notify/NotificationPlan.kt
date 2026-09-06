@@ -119,7 +119,7 @@ object NotificationPlan {
             }
 
     private fun messages(snapshot: SchoolSnapshot, settings: AppSettings) =
-        Insights.unreadMessages(snapshot.messages, settings).map { message ->
+        Insights.unreadMessages(snapshot.inbox, settings).map { message ->
             PlannedNotification(
                 id = "message:${message.id}",
                 kind = NotificationKind.MESSAGE,

@@ -10,6 +10,7 @@ import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.HomeworkItem
+import fr.ecole2recte.app.core.model.MessageFolder
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.diag.ErrorLog
 import fr.ecole2recte.app.core.model.SchoolSnapshot
@@ -125,7 +126,16 @@ class SchoolRepository(
     private val _loadingMore = MutableStateFlow(false)
     val loadingMoreMessages: StateFlow<Boolean> = _loadingMore.asStateFlow()
 
-    private var messagesPage = 0
+    /** Dossier de messagerie affiché : reçus, envoyés ou archivés. */
+    private val _messageFolder = MutableStateFlow(MessageFolder.RECEIVED)
+    val messageFolder: StateFlow<MessageFolder> = _messageFolder.asStateFlow()
+
+    /** Classeurs créés par l'utilisateur sur le site, découverts à la synchronisation. */
+    private val _messageBoxes = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+    val messageBoxes: StateFlow<List<Pair<String, String>>> = _messageBoxes.asStateFlow()
+
+    private val pages = mutableMapOf<MessageFolder, Int>()
+    private val completeFolders = mutableSetOf<MessageFolder>()
 
     /** Jours dont le détail (devoirs et contenu de séance) a déjà été demandé. */
     private val loadedDays = mutableSetOf<LocalDate>()
@@ -414,8 +424,7 @@ class SchoolRepository(
         withContext(io) { snapshots.write(profile, _snapshot.value) }
         profile = account.id
         loadedDays.clear()
-        messagesPage = 0
-        _messagesComplete.value = false
+        resetMessages()
         _auth.value = AuthState.SignedIn(account, state.accounts)
         _snapshot.value = withContext(io) { snapshots.read(account.id) }
             ?: SchoolSnapshot(account = account)
@@ -437,8 +446,7 @@ class SchoolRepository(
         _snapshot.value = SchoolSnapshot()
         _sync.value = SyncState()
         loadedDays.clear()
-        messagesPage = 0
-        _messagesComplete.value = false
+        resetMessages()
         _auth.value = AuthState.SignedOut
     }
 
@@ -448,7 +456,7 @@ class SchoolRepository(
      * Récupère les sections demandées. Chaque section est indépendante : l'échec de l'une
      * n'annule pas les autres, et laisse en place la donnée déjà connue.
      */
-    suspend fun refresh(sections: Set<DataSection> = DataSection.entries.toSet()) {
+    suspend fun refresh(sections: Set<DataSection> = DataSection.ESSENTIAL) {
         val account = currentAccount ?: return
         syncLock.withLock {
             _sync.update { it.copy(running = true) }
@@ -459,11 +467,19 @@ class SchoolRepository(
                     is ApiResult.Ok -> errors.remove(section)
                     is ApiResult.Failure -> {
                         if (result.kind == ApiErrorKind.NETWORK) offline = true
-                        errors[section] = result.message
-                        // Une panne réseau n'apprend rien ; un refus ou un format inattendu,
-                        // si : c'est ce qu'on veut retrouver quand l'API change.
-                        if (result.kind != ApiErrorKind.NETWORK) {
-                            errorLog.record(section.label, result.message, result.diagnostic)
+                        // Un module qu'un établissement n'a pas ouvert n'est pas une panne :
+                        // l'annoncer en rouge à chaque synchronisation apprendrait seulement à
+                        // ignorer les erreurs. La section reste vide, et l'écran le dit.
+                        val closedModule = section.optional && result.kind == ApiErrorKind.ACCESS_DENIED
+                        if (closedModule) {
+                            errors.remove(section)
+                        } else {
+                            errors[section] = result.message
+                            // Une panne réseau n'apprend rien ; un refus ou un format
+                            // inattendu, si : c'est ce qu'on veut retrouver quand l'API change.
+                            if (result.kind != ApiErrorKind.NETWORK) {
+                                errorLog.record(section.label, result.message, result.diagnostic)
+                            }
                         }
                     }
                 }
@@ -507,15 +523,20 @@ class SchoolRepository(
             }
         }
 
+        // La synchronisation ne rafraîchit que les messages reçus : les envoyés et les
+        // archivés se chargent quand on ouvre leur onglet, et ne changent pas tout seuls.
         DataSection.MESSAGES -> withSession { api.messages(account, page = 0) }.onOk { messages ->
-            messagesPage = 0
-            _messagesComplete.value = messages.size < EcoleDirecteApi.MESSAGES_PER_PAGE
+            pages[MessageFolder.RECEIVED] = 0
+            setComplete(MessageFolder.RECEIVED, messages.size < EcoleDirecteApi.MESSAGES_PER_PAGE)
             _snapshot.update {
                 it.copy(
-                    messages = Merge.messages(it.messages, messages),
+                    messages = Merge.messages(it.messages, messages, MessageFolder.RECEIVED),
                     syncedAt = it.syncedAt + (section to now()),
                 )
             }
+            // Les classeurs arrivent avec la même réponse : les lire ne coûte rien de plus.
+            val boxes = withSession { api.messageFolders(account) }
+            if (boxes is ApiResult.Ok) _messageBoxes.value = boxes.value
         }
 
         DataSection.SCHOOL_LIFE -> withSession { api.schoolLife(account.id) }.onOk { events ->
@@ -529,6 +550,24 @@ class SchoolRepository(
                 it.copy(documents = documents, syncedAt = it.syncedAt + (section to now()))
             }
         }
+
+        DataSection.NEWS -> withSession { api.news(account.id) }.onOk { news ->
+            _snapshot.update {
+                it.copy(news = news, syncedAt = it.syncedAt + (section to now()))
+            }
+        }
+
+        DataSection.TEXTBOOKS -> withSession { api.textbooks(account.id) }.onOk { textbooks ->
+            _snapshot.update {
+                it.copy(textbooks = textbooks, syncedAt = it.syncedAt + (section to now()))
+            }
+        }
+
+        DataSection.CLOUD -> withSession { api.cloud(account) }.onOk { files ->
+            _snapshot.update {
+                it.copy(cloudFiles = files, syncedAt = it.syncedAt + (section to now()))
+            }
+        }
     }
 
     /**
@@ -540,18 +579,62 @@ class SchoolRepository(
     suspend fun loadMoreMessages() {
         val account = currentAccount ?: return
         if (_messagesComplete.value || _loadingMore.value) return
+        val folder = _messageFolder.value
         _loadingMore.value = true
-        val nextPage = messagesPage + 1
-        val result = withSession { api.messages(account, page = nextPage) }
+        val nextPage = (pages[folder] ?: 0) + 1
+        val result = withSession { api.messages(account, page = nextPage, folder = folder) }
         if (result is ApiResult.Ok) {
-            messagesPage = nextPage
-            _messagesComplete.value = result.value.size < EcoleDirecteApi.MESSAGES_PER_PAGE
+            pages[folder] = nextPage
+            setComplete(folder, result.value.size < EcoleDirecteApi.MESSAGES_PER_PAGE)
             _snapshot.update { snapshot ->
                 snapshot.copy(messages = Merge.appendMessages(snapshot.messages, result.value))
             }
             withContext(io) { snapshots.write(profile, _snapshot.value) }
         }
         _loadingMore.value = false
+    }
+
+    /**
+     * Change de dossier de messagerie.
+     *
+     * Le premier passage charge la première page ; les suivants sont instantanés, puisque
+     * les messages déjà lus restent dans l'instantané avec leur dossier d'origine.
+     */
+    suspend fun selectMessageFolder(folder: MessageFolder) {
+        if (_messageFolder.value == folder) return
+        _messageFolder.value = folder
+        _messagesComplete.value = folder in completeFolders
+        if (_snapshot.value.messages.none { it.folder == folder }) loadMessageFolder(folder)
+    }
+
+    /** Recharge la première page du dossier affiché. */
+    suspend fun loadMessageFolder(folder: MessageFolder = _messageFolder.value) {
+        val account = currentAccount ?: return
+        if (_loadingMore.value) return
+        _loadingMore.value = true
+        val result = withSession { api.messages(account, page = 0, folder = folder) }
+        if (result is ApiResult.Ok) {
+            pages[folder] = 0
+            setComplete(folder, result.value.size < EcoleDirecteApi.MESSAGES_PER_PAGE)
+            _snapshot.update { snapshot ->
+                snapshot.copy(messages = Merge.messages(snapshot.messages, result.value, folder))
+            }
+            withContext(io) { snapshots.write(profile, _snapshot.value) }
+        }
+        _loadingMore.value = false
+    }
+
+    private fun setComplete(folder: MessageFolder, complete: Boolean) {
+        if (complete) completeFolders += folder else completeFolders -= folder
+        if (_messageFolder.value == folder) _messagesComplete.value = complete
+    }
+
+    private fun resetMessages() {
+        pages.clear()
+        completeFolders.clear()
+        _messageFolder.value = MessageFolder.RECEIVED
+        _messageBoxes.value = emptyList()
+        _messagesComplete.value = false
     }
 
     /**
@@ -588,7 +671,7 @@ class SchoolRepository(
         markMessageRead(message)
         val account = currentAccount ?: return
         if (message.hasBody) return
-        val result = withSession { api.messageBody(account, message.id) }
+        val result = withSession { api.messageBody(account, message.id, message.folder) }
         val loaded = (result as? ApiResult.Ok)?.value ?: return
         _snapshot.update {
             it.copy(

@@ -3,7 +3,11 @@ package fr.ecole2recte.app.core.protocol
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.Attachment
+import fr.ecole2recte.app.core.model.CloudFile
 import fr.ecole2recte.app.core.model.Document
+import fr.ecole2recte.app.core.model.MessageFolder
+import fr.ecole2recte.app.core.model.NewsItem
+import fr.ecole2recte.app.core.model.Textbook
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
@@ -289,13 +293,18 @@ class EcoleDirecteApi(
      * page : sans le paramètre, l'application prétendrait que l'histoire s'arrête au
      * centième message.
      */
-    fun messages(account: Account, page: Int = 0): ApiResult<List<MessageItem>> = call(
+    fun messages(
+        account: Account,
+        page: Int = 0,
+        folder: MessageFolder = MessageFolder.RECEIVED,
+        folderId: String = "0",
+    ): ApiResult<List<MessageItem>> = call(
         path = "/${mailboxSegment(account)}/${account.mailboxId}/messages.awp",
         payload = JSONObject().put("anneeMessages", ""),
         params = linkedMapOf(
             "force" to "false",
-            "typeRecuperation" to "received",
-            "idClasseur" to "0",
+            "typeRecuperation" to folder.apiValue,
+            "idClasseur" to folderId,
             "orderBy" to "date",
             "order" to "desc",
             "page" to page.toString(),
@@ -303,13 +312,61 @@ class EcoleDirecteApi(
             "onlyRead" to "",
             "query" to "",
         ),
-    ) { Parsers.messages(it) }
+    ) { Parsers.messages(it, folder) }
 
-    fun messageBody(account: Account, messageId: String): ApiResult<MessageItem?> = call(
+    fun messageBody(
+        account: Account,
+        messageId: String,
+        folder: MessageFolder = MessageFolder.RECEIVED,
+    ): ApiResult<MessageItem?> = call(
         path = "/${mailboxSegment(account)}/${account.mailboxId}/messages/$messageId.awp",
         payload = JSONObject(),
         params = linkedMapOf("mode" to "destinataire"),
-    ) { Parsers.messageBody(it) }
+    ) { Parsers.messageBody(it, folder) }
+
+    /**
+     * Les classeurs de la messagerie, tels que l'utilisateur les a créés sur le site.
+     * Ils arrivent avec la première page de messages : pas d'appel supplémentaire.
+     */
+    fun messageFolders(account: Account): ApiResult<List<Pair<String, String>>> = call(
+        path = "/${mailboxSegment(account)}/${account.mailboxId}/messages.awp",
+        payload = JSONObject().put("anneeMessages", ""),
+        params = linkedMapOf(
+            "force" to "false",
+            "typeRecuperation" to MessageFolder.RECEIVED.apiValue,
+            "idClasseur" to "0",
+            "orderBy" to "date",
+            "order" to "desc",
+            "page" to "0",
+            "itemsPerPage" to "1",
+            "onlyRead" to "",
+            "query" to "",
+        ),
+    ) { Parsers.messageFolders(it) }
+
+    // ── Modules de l'établissement ───────────────────────────────────────────
+
+    /**
+     * Les actualités de l'établissement.
+     *
+     * Ce module n'est pas ouvert partout : un refus n'est pas une panne, seulement une
+     * section vide — c'est pourquoi chaque section porte son erreur sans annuler les autres.
+     */
+    fun news(studentId: String): ApiResult<List<NewsItem>> = call(
+        path = "/E/$studentId/viedeletablissement.awp",
+        payload = JSONObject(),
+    ) { Parsers.news(it) }
+
+    fun textbooks(studentId: String): ApiResult<List<Textbook>> = call(
+        path = "/E/$studentId/manuelsnumeriques.awp",
+        payload = JSONObject(),
+    ) { Parsers.textbooks(it) }
+
+    /** L'espace de stockage, celui que le site appelle « cloud ». */
+    fun cloud(account: Account): ApiResult<List<CloudFile>> = call(
+        path = "/${mailboxSegment(account)}/${account.mailboxId}/cloud.awp",
+        payload = JSONObject(),
+    ) { Parsers.cloudFiles(it) }
 
     /**
      * Coche ou décoche un devoir côté serveur. L'écriture reste facultative : l'état local

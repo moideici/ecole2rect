@@ -143,7 +143,14 @@ fun LessonDetailScreen(
                 DetailLine("Horaire", Dates.range(lesson.start, lesson.end))
                 DetailLine("Salle", lesson.room.ifBlank { "non précisée" })
                 DetailLine("Professeur", lesson.teacher.ifBlank { "non précisé" })
-                if (lesson.exam) DetailLine("Type", "Devoir surveillé")
+                // Le groupe change tout quand la classe est dédoublée : deux élèves de la
+                // même classe ne sont alors pas au même cours.
+                if (lesson.group.isNotBlank()) DetailLine("Groupe", lesson.group)
+                if (lesson.exam) {
+                    DetailLine("Type", "Devoir surveillé")
+                } else if (lesson.kind.isNotBlank()) {
+                    DetailLine("Type", lesson.kind)
+                }
                 if (lesson.note.isNotBlank()) {
                     Spacer(Modifier.height(12.dp))
                     Text(lesson.note, style = MaterialTheme.typography.bodyMedium)
@@ -266,6 +273,15 @@ fun HomeworkDetailScreen(
                     }
                     if (item.exam) Tag("Évaluation", accent)
                 }
+                if (item.onlineSubmission) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "À rendre en ligne sur ÉcoleDirecte. L'application ne dépose pas de " +
+                            "copie : cocher ce devoir ici ne le rend pas.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.palette.warning,
+                    )
+                }
                 Spacer(Modifier.height(16.dp))
                 if (item.content.isBlank()) {
                     Text(
@@ -371,7 +387,7 @@ fun MessageDetailScreen(
  * quel — mieux vaut un message clair qu'un fichier de trente octets qui ne s'ouvre pas.
  */
 @Composable
-private fun AttachmentList(
+internal fun AttachmentList(
     attachments: List<Attachment>,
     state: AttachmentState,
     onOpen: (Attachment) -> Unit,

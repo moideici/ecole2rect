@@ -12,7 +12,12 @@ import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.model.Period
 import fr.ecole2recte.app.core.model.SchoolLifeEvent
 import fr.ecole2recte.app.core.model.SchoolLifeKind
+import fr.ecole2recte.app.core.model.CloudFile
+import fr.ecole2recte.app.core.model.MessageFolder
+import fr.ecole2recte.app.core.model.NewsItem
 import fr.ecole2recte.app.core.model.SessionContent
+import fr.ecole2recte.app.core.model.Skill
+import fr.ecole2recte.app.core.model.Textbook
 import fr.ecole2recte.app.core.model.SubjectAverage
 import fr.ecole2recte.app.core.protocol.Encoding
 import org.json.JSONObject
@@ -98,6 +103,12 @@ object Parsers {
                 exam = entry.bool("isDevoir", "devoir") ||
                     entry.string("typeCours").contains("DEVOIR", ignoreCase = true),
                 note = entry.string("commentaire"),
+                // Le groupe distingue deux élèves de la même classe qui ne sont pas au même
+                // cours ; il ne figure pas toujours dans le libellé de la matière.
+                group = entry.string("groupeCode", "groupe", "classe")
+                    .takeIf { it.isNotBlank() && !it.equals(entry.string("matiere"), ignoreCase = true) }
+                    .orEmpty(),
+                kind = Text.prettySubject(entry.string("typeCours")),
             )
         }.sortedBy { it.start }
     }
@@ -129,6 +140,7 @@ object Parsers {
             givenOn = parseDate(entry.string("donneLe")),
             exam = entry.bool("interrogation"),
             done = entry.bool("effectue"),
+            onlineSubmission = entry.bool("rendreEnLigne", "aRendre"),
         )
     }
 
@@ -156,6 +168,7 @@ object Parsers {
                 exam = entry.bool("interrogation"),
                 done = toDo?.bool("effectue") ?: false,
                 attachments = attachments(toDo, AttachmentSource.HOMEWORK),
+                onlineSubmission = toDo?.bool("rendreEnLigne", "aRendre") ?: false,
             )
         }
     }
@@ -196,6 +209,19 @@ object Parsers {
                 start = start,
                 end = end,
                 current = start != null && end != null && !today.isBefore(start) && !today.isAfter(end),
+                // L'appréciation du conseil de classe est le bulletin en une phrase : elle
+                // arrive tantôt à la racine de la période, tantôt dans l'ensemble des matières.
+                appreciation = Text.fromHtml(
+                    Encoding.maybeBase64(
+                        entry.string("appreciationPP", "appreciation")
+                            .ifBlank { ensemble?.string("appreciationPP", "appreciation").orEmpty() },
+                    ),
+                ),
+                headTeacher = entry.string("nomProfesseurPrincipal", "professeurPrincipal"),
+                councilDate = parseDate(entry.string("dateConseil")),
+                councilTime = entry.string("heureConseil"),
+                minimum = ensemble?.decimal("moyenneMin"),
+                maximum = ensemble?.decimal("moyenneMax"),
             )
         }
         val averages = data.objects("periodes").flatMap { entry ->
@@ -204,14 +230,30 @@ object Parsers {
                 val subject = Text.prettySubject(discipline.string("discipline", "codeMatiere").ifBlank { return@mapNotNull null })
                 // Les regroupements (« Total », « Pôle scientifique ») ne sont pas des matières.
                 if (discipline.bool("groupeMatiere")) return@mapNotNull null
+                val teachers = discipline.objects("professeurs")
+                    .map { it.string("nom", "libelle") }
+                    .filter { it.isNotBlank() }
                 SubjectAverage(
                     periodCode = code,
                     subject = subject,
                     average = discipline.decimal("moyenne"),
                     classAverage = discipline.decimal("moyenneClasse"),
                     coefficient = discipline.decimal("coef"),
-                    teacher = discipline.objects("professeurs").firstOrNull()?.string("nom").orEmpty(),
-                    appreciation = discipline.objects("appreciations").firstOrNull()?.string("appreciation").orEmpty(),
+                    teacher = teachers.firstOrNull().orEmpty(),
+                    // Plusieurs appréciations quand plusieurs professeurs se partagent la
+                    // matière : les coller les unes aux autres vaut mieux que n'en lire qu'une.
+                    appreciation = discipline.objects("appreciations")
+                        .map { it.string("appreciation", "libelle") }
+                        .filter { it.isNotBlank() }
+                        .joinToString("\n\n"),
+                    minimum = discipline.decimal("moyenneMin", "minClasse"),
+                    maximum = discipline.decimal("moyenneMax", "maxClasse"),
+                    teachers = teachers,
+                    // Une sous-matière (« Écrit », « Oral ») n'a de sens que rattachée à sa
+                    // matière mère, sinon elle apparaît comme une matière de plus.
+                    parentSubject = Text.prettySubject(discipline.string("codeSousMatiere").let { code ->
+                        if (code.isBlank()) "" else discipline.string("codeMatiere")
+                    }),
                 )
             }
         }
@@ -232,10 +274,33 @@ object Parsers {
                 periodCode = entry.string("codePeriode"),
                 counted = !entry.bool("nonSignificatif"),
                 comment = entry.string("commentaire"),
+                minimum = entry.decimal("minClasse"),
+                maximum = entry.decimal("maxClasse"),
+                kind = Text.prettySubject(entry.string("typeDevoir")),
+                skills = skills(entry),
             )
         }.sortedByDescending { it.date ?: LocalDate.MIN }
         return GradesPayload(periods, grades, averages)
     }
+
+    /**
+     * Les compétences évaluées avec une note.
+     *
+     * Le socle commun se note par niveau et non par point : l'API les range dans
+     * `elementsProgramme`, avec un libellé et une valeur de 1 à 4 selon les établissements.
+     */
+    private fun skills(entry: JSONObject): List<Skill> =
+        entry.objects("elementsProgramme", "competences").mapNotNull { element ->
+            val label = element.string("libelleCompetence", "descriptif", "libelle")
+                .ifBlank { return@mapNotNull null }
+            val level = element.optJSONObject("valeur")?.string("libelle")
+                ?: element.string("valeur", "niveau", "libelleValeur")
+            Skill(
+                label = label,
+                level = Text.prettySubject(level),
+                value = level.trim().toIntOrNull() ?: element.int("valeurNumerique"),
+            )
+        }
 
     private fun JSONObject?.objectsOrEmpty(vararg keys: String): List<JSONObject> =
         this?.objects(*keys).orEmpty()
@@ -266,6 +331,7 @@ object Parsers {
                 justified = entry.bool("justifie", "justifiee"),
                 reason = entry.string("motif", "libelle"),
                 comment = entry.string("commentaire"),
+                duration = entry.string("duree", "nbHeures", "displayDuree"),
             )
         }.distinctBy { it.id }.sortedByDescending { it.start }
     }
@@ -331,16 +397,29 @@ object Parsers {
 
     // ── Messagerie ───────────────────────────────────────────────────────────
 
-    fun messages(payload: JSONObject): List<MessageItem> {
+    fun messages(payload: JSONObject, folder: MessageFolder = MessageFolder.RECEIVED): List<MessageItem> {
         val data = payload.optJSONObject("data") ?: return emptyList()
         val container = data.optJSONObject("messages") ?: data
-        val entries = container.objects("received", "messages")
-            .ifEmpty { data.objects("received") }
-        return entries.mapNotNull { entry -> message(entry) }
+        // Le tableau porte le nom du dossier demandé ; « messages » sert de repli pour les
+        // établissements dont la réponse ne le nomme pas.
+        val entries = container.objects(folder.apiValue, "messages")
+            .ifEmpty { data.objects(folder.apiValue, "messages") }
+        return entries.mapNotNull { entry -> message(entry, folder) }
             .sortedByDescending { it.date }
     }
 
-    fun message(entry: JSONObject): MessageItem? {
+    /** Les classeurs créés par l'utilisateur sur le site : autant de dossiers en plus. */
+    fun messageFolders(payload: JSONObject): List<Pair<String, String>> {
+        val data = payload.optJSONObject("data") ?: return emptyList()
+        val container = data.optJSONObject("messages") ?: data
+        return container.objects("classeurs").mapNotNull { entry ->
+            val id = entry.stringOrNull("id") ?: return@mapNotNull null
+            val label = entry.string("libelle", "nom").ifBlank { return@mapNotNull null }
+            id to label
+        }
+    }
+
+    fun message(entry: JSONObject, folder: MessageFolder = MessageFolder.RECEIVED): MessageItem? {
         val id = entry.stringOrNull("id") ?: return null
         val from = entry.optJSONObject("from")
         val sender = listOfNotNull(
@@ -358,12 +437,120 @@ object Parsers {
             preview = Text.preview(body),
             body = body,
             attachments = attachments(entry, AttachmentSource.MESSAGE),
+            folder = folder,
+            recipients = recipients(entry),
         )
     }
 
+    /**
+     * Les destinataires d'un message envoyé.
+     *
+     * L'API en donne parfois des dizaines (une classe entière) : au-delà de quelques noms,
+     * la liste est résumée, sinon l'aperçu du message disparaîtrait sous les adresses.
+     */
+    private fun recipients(entry: JSONObject): List<String> {
+        val all = entry.objects("to", "destinataires").mapNotNull { person ->
+            listOfNotNull(
+                person.stringOrNull("civilite"),
+                person.stringOrNull("prenom"),
+                person.stringOrNull("nom", "name"),
+            ).joinToString(" ").takeIf { it.isNotBlank() }
+        }
+        if (all.size <= MAX_VISIBLE_RECIPIENTS) return all
+        return all.take(MAX_VISIBLE_RECIPIENTS) + "et ${all.size - MAX_VISIBLE_RECIPIENTS} autres"
+    }
+
+    private const val MAX_VISIBLE_RECIPIENTS = 3
+
     /** Détail d'un message : seul le corps et les pièces jointes sont nouveaux. */
-    fun messageBody(payload: JSONObject): MessageItem? =
-        payload.optJSONObject("data")?.let { message(it) }
+    fun messageBody(payload: JSONObject, folder: MessageFolder = MessageFolder.RECEIVED): MessageItem? =
+        payload.optJSONObject("data")?.let { message(it, folder) }
+
+    // ── Vie de l'établissement ───────────────────────────────────────────────
+
+    /**
+     * Les actualités publiées par l'établissement.
+     *
+     * La réponse range les entrées sous des clés qui varient (`actualites`, `articles`,
+     * parfois directement le tableau) : on prend la première qui donne quelque chose.
+     */
+    fun news(payload: JSONObject): List<NewsItem> {
+        val data = payload.optJSONObject("data")
+        val entries = data?.objects("actualites", "articles", "news")
+            ?.ifEmpty { payload.optJSONArray("data").objects() }
+            ?: payload.optJSONArray("data").objects()
+        return entries.mapNotNull { entry ->
+            val title = Encoding.maybeBase64(entry.string("titre", "libelle", "title"))
+                .ifBlank { return@mapNotNull null }
+            NewsItem(
+                id = entry.stringOrNull("id") ?: stableId("news", title),
+                title = title,
+                content = Text.fromHtml(Encoding.maybeBase64(entry.string("contenu", "texte", "content"))),
+                date = parseDate(entry.string("date", "dateDebut", "datePublication")),
+                author = entry.string("auteur", "expediteur"),
+                category = Text.prettySubject(entry.string("categorie", "type")),
+                attachments = attachments(entry, AttachmentSource.RESOURCE),
+            )
+        }.sortedByDescending { it.date ?: LocalDate.MIN }
+    }
+
+    // ── Manuels numériques ───────────────────────────────────────────────────
+
+    fun textbooks(payload: JSONObject): List<Textbook> {
+        val data = payload.optJSONObject("data")
+        val entries = data?.objects("manuels", "manuelsNumeriques")
+            ?.ifEmpty { payload.optJSONArray("data").objects() }
+            ?: payload.optJSONArray("data").objects()
+        return entries.mapNotNull { entry ->
+            val title = entry.string("libelle", "titre", "nom").ifBlank { return@mapNotNull null }
+            Textbook(
+                id = entry.stringOrNull("id") ?: stableId("manuel", title),
+                title = title,
+                subject = Text.prettySubject(entry.string("matiere", "discipline")),
+                publisher = entry.string("editeur", "publisher"),
+                url = entry.string("url", "lien", "href"),
+            )
+        }.sortedWith(compareBy({ it.subject }, { it.title }))
+    }
+
+    // ── Espace de stockage ───────────────────────────────────────────────────
+
+    /**
+     * Les fichiers du cloud, à plat.
+     *
+     * L'API renvoie une arborescence de dossiers imbriqués ; ce qui intéresse ici, c'est de
+     * retrouver un fichier et de l'ouvrir. On descend donc l'arbre en gardant le chemin
+     * comme simple libellé de dossier.
+     */
+    fun cloudFiles(payload: JSONObject): List<CloudFile> {
+        val roots = payload.optJSONObject("data")?.objects("cloud", "espaces", "documents")
+            ?.ifEmpty { payload.optJSONArray("data").objects() }
+            ?: payload.optJSONArray("data").objects()
+        return buildList { roots.forEach { root -> collectCloud(root, "", this) } }
+            .distinctBy { it.id }
+            .sortedWith(compareBy({ it.folder }, { it.name }))
+    }
+
+    private fun collectCloud(entry: JSONObject, path: String, into: MutableList<CloudFile>) {
+        val name = entry.string("libelle", "nom", "fichier")
+        val isFolder = entry.bool("isFolder", "estDossier") ||
+            entry.string("type").equals("folder", ignoreCase = true) ||
+            entry.optJSONArray("children") != null
+        val here = listOf(path, name).filter { it.isNotBlank() }.joinToString(" / ")
+        if (!isFolder && name.isNotBlank()) {
+            into += CloudFile(
+                id = entry.stringOrNull("id", "idFichier") ?: stableId("cloud", here),
+                name = name,
+                folder = path,
+                date = parseDate(entry.string("date", "dateModification")),
+                size = entry.int("taille", "size")?.toLong(),
+                ownerId = entry.string("idEspace", "owner"),
+            )
+        }
+        entry.objects("children", "documents", "fichiers", "contenu").forEach { child ->
+            collectCloud(child, here, into)
+        }
+    }
 
     /**
      * Identifiant reproductible pour les entrées sans clé côté serveur : même entrée,

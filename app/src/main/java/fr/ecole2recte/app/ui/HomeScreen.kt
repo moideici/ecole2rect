@@ -132,6 +132,7 @@ fun HomeScreen(
                         HomeWidget.WEEK -> WeekOverviewWidget(snapshot, settings, today, onNavigate)
                         HomeWidget.TOMORROW -> TomorrowWidget(snapshot, settings, today, onNavigate)
                         HomeWidget.SCHOOL_LIFE -> SchoolLifeWidget(snapshot, today, onOpenDetail)
+                        HomeWidget.NEWS -> NewsWidget(snapshot, onOpenDetail)
                     }
                 }
             }
@@ -168,6 +169,39 @@ private fun ChildSwitcher(accounts: List<Account>, selectedId: String?, onSelect
                 text = entry.firstName.ifBlank { entry.displayName },
                 selected = entry.id == selectedId,
                 onClick = { onSelect(entry) },
+            )
+        }
+    }
+}
+
+/**
+ * Les dernières actualités de l'établissement.
+ *
+ * Le bloc ne s'affiche que si le module a répondu : un établissement qui ne l'a pas ouvert
+ * ne doit pas laisser un cadre vide sur l'accueil de tous ses élèves.
+ */
+@Composable
+private fun NewsWidget(snapshot: SchoolSnapshot, onOpenDetail: (Detail) -> Unit) {
+    val news = snapshot.news.take(2)
+    if (news.isEmpty()) return
+    AppCard(onClick = { onOpenDetail(Detail.News) }) {
+        WidgetLabel("ACTUALITÉS")
+        Spacer(Modifier.height(10.dp))
+        news.forEachIndexed { index, item ->
+            if (index > 0) Spacer(Modifier.height(10.dp))
+            Text(
+                item.title,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                listOfNotNull(
+                    item.date?.let { Dates.dayAndMonth(it) },
+                    item.category.takeIf { it.isNotBlank() },
+                ).joinToString(" · ").ifBlank { "Publication" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -504,6 +538,12 @@ fun HomeworkRow(
                     Spacer(Modifier.width(8.dp))
                     Tag("Évaluation", accent)
                 }
+                // Un devoir à déposer en ligne ne se termine pas en cochant une case : le
+                // signaler dans la liste évite la mauvaise surprise de la veille au soir.
+                if (item.onlineSubmission) {
+                    Spacer(Modifier.width(8.dp))
+                    Tag("En ligne", AppTheme.palette.warning)
+                }
             }
             Text(
                 buildString {
@@ -595,14 +635,14 @@ private fun GradesWidget(snapshot: SchoolSnapshot, settings: AppSettings, onNavi
 
 @Composable
 private fun MessagesWidget(snapshot: SchoolSnapshot, settings: AppSettings, onNavigate: (Destination) -> Unit) {
-    val unread = Insights.unreadMessages(snapshot.messages, settings)
+    val unread = Insights.unreadMessages(snapshot.inbox, settings)
     AppCard(onClick = { onNavigate(Destination.MESSAGES) }) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             WidgetLabel("MESSAGES", Modifier.weight(1f))
             if (unread.isNotEmpty()) Tag("${unread.size} non lus")
         }
         Spacer(Modifier.height(10.dp))
-        val preview = snapshot.messages.take(3)
+        val preview = snapshot.inbox.take(3)
         if (preview.isEmpty()) {
             Text(
                 "Aucun message.",

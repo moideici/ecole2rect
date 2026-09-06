@@ -88,6 +88,89 @@ object Payloads {
         { "code": 200, "data": { "cn": "identifiant-question", "cv": "valeur-reponse" } }
     """.trimIndent()
 
+    val NEWS = """
+        {
+          "code": 200,
+          "data": {
+            "actualites": [
+              {
+                "id": 12,
+                "titre": "Sortie au musée",
+                "contenu": "${Encoding.base64Encode("<p>Départ à 8h.</p><p>Prévoir un pique-nique.</p>")}",
+                "date": "2026-09-04",
+                "auteur": "Mme Bernard",
+                "categorie": "SORTIE",
+                "documents": [ { "id": 88, "libelle": "autorisation.pdf", "type": "PDF" } ]
+              },
+              {
+                "id": 13,
+                "titre": "Réunion parents-professeurs",
+                "date": "2026-09-12"
+              }
+            ]
+          }
+        }
+    """.trimIndent()
+
+    val TEXTBOOKS = """
+        {
+          "code": 200,
+          "data": {
+            "manuels": [
+              { "id": 1, "libelle": "Maths 3e", "matiere": "MATHEMATIQUES", "editeur": "Hatier", "url": "https://exemple.fr/maths" },
+              { "id": 2, "libelle": "Histoire-Géo 3e", "matiere": "HISTOIRE GEOGRAPHIE", "editeur": "Nathan" }
+            ]
+          }
+        }
+    """.trimIndent()
+
+    val CLOUD = """
+        {
+          "code": 200,
+          "data": [
+            {
+              "id": "racine",
+              "libelle": "Documents partagés",
+              "isFolder": true,
+              "children": [
+                { "id": "f1", "libelle": "reglement.pdf", "date": "2026-09-01", "taille": 125000 },
+                {
+                  "id": "sous",
+                  "libelle": "Cours",
+                  "isFolder": true,
+                  "children": [
+                    { "id": "f2", "libelle": "chapitre1.pdf", "date": "2026-09-03", "taille": 2500000 }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+    """.trimIndent()
+
+    val MESSAGES_SENT = """
+        {
+          "code": 200,
+          "data": {
+            "messages": {
+              "sent": [
+                {
+                  "id": 900,
+                  "subject": "${Encoding.base64Encode("Absence de mardi")}",
+                  "date": "2026-09-03 18:20:00",
+                  "read": true,
+                  "to": [
+                    { "civilite": "Mme", "prenom": "Claire", "nom": "Bernard" },
+                    { "nom": "Vie scolaire" }
+                  ]
+                }
+              ],
+              "classeurs": [ { "id": 7, "libelle": "Professeurs" } ]
+            }
+          }
+        }
+    """.trimIndent()
+
     val DOUBLE_AUTH_REFUSED = """{ "code": 505, "message": "Réponse incorrecte" }"""
 
     /** Question portant sur l'enfant : c'est la forme posée à un compte parent. */
@@ -206,17 +289,29 @@ object Payloads {
                 "periode": "Trimestre 1",
                 "dateDebut": "2026-09-01",
                 "dateFin": "2026-12-15",
+                "nomProfesseurPrincipal": "Mme Bernard",
+                "dateConseil": "2026-12-18",
+                "heureConseil": "17:30",
                 "ensembleMatieres": {
                   "moyenneGenerale": "15,80",
                   "moyenneClasse": "12,50",
+                  "moyenneMin": "6,40",
+                  "moyenneMax": "18,90",
+                  "appreciationPP": "Trimestre solide, participation à encourager.",
                   "disciplines": [
                     {
                       "discipline": "MATHEMATIQUES",
                       "codeMatiere": "MATHS",
                       "moyenne": "17,50",
                       "moyenneClasse": "13,20",
+                      "moyenneMin": "7,00",
+                      "moyenneMax": "19,00",
                       "coef": "5",
-                      "professeurs": [ { "nom": "M. Petit" } ]
+                      "professeurs": [ { "nom": "M. Petit" }, { "nom": "Mme Roy" } ],
+                      "appreciations": [
+                        { "appreciation": "Excellent trimestre." },
+                        { "appreciation": "Oral à travailler." }
+                      ]
                     },
                     {
                       "discipline": "Pôle scientifique",
@@ -237,8 +332,18 @@ object Payloads {
                 "noteSur": "20",
                 "valeur": "17,5",
                 "moyenneClasse": "13,2",
+                "minClasse": "4,5",
+                "maxClasse": "19,5",
+                "typeDevoir": "DEVOIR SURVEILLE",
                 "date": "2026-09-20",
-                "nonSignificatif": false
+                "nonSignificatif": false,
+                "elementsProgramme": [
+                  {
+                    "libelleCompetence": "Résoudre un problème",
+                    "valeur": { "libelle": "MAITRISE SATISFAISANTE" },
+                    "valeurNumerique": 3
+                  }
+                ]
               },
               {
                 "id": 5002,

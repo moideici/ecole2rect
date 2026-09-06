@@ -2,6 +2,7 @@ package fr.ecole2recte.app.core.repo
 
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
+import fr.ecole2recte.app.core.model.MessageFolder
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.model.SessionContent
 import java.time.LocalDate
@@ -61,9 +62,16 @@ object Merge {
     }
 
     /** Même principe pour la messagerie : la liste n'apporte pas les corps déjà lus. */
-    fun messages(existing: List<MessageItem>, fetched: List<MessageItem>): List<MessageItem> {
+    fun messages(
+        existing: List<MessageItem>,
+        fetched: List<MessageItem>,
+        folder: MessageFolder = MessageFolder.RECEIVED,
+    ): List<MessageItem> {
         val known = existing.associateBy { it.id }
-        return fetched.map { message ->
+        // Une page de « reçus » ne dit rien des « envoyés » : les autres dossiers déjà
+        // chargés restent en place, sinon changer d'onglet les rechargerait chaque fois.
+        val untouched = existing.filter { it.folder != folder }
+        return (untouched + fetched.map { message ->
             val previous = known[message.id]
             if (previous != null && !message.hasBody && previous.hasBody) {
                 message.copy(
@@ -74,7 +82,7 @@ object Merge {
             } else {
                 message
             }
-        }.sortedByDescending { it.date }
+        }).sortedByDescending { it.date }
     }
 
     /** Le contenu de séance d'un jour remplace celui du même jour, et lui seul. */

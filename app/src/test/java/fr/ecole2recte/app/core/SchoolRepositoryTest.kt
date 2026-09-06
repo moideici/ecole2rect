@@ -96,7 +96,9 @@ class SchoolRepositoryTest {
         assertEquals(2, snapshot.messages.size)
         assertEquals(3, snapshot.schoolLife.size)
         assertEquals(2, snapshot.documents.size)
-        assertEquals(DataSection.entries.size, snapshot.syncedAt.size)
+        // Les modules facultatifs ne sont pas de la synchronisation courante : ils se
+        // chargent à l'ouverture de leur écran.
+        assertEquals(DataSection.ESSENTIAL.size, snapshot.syncedAt.size)
         assertFalse(repository.sync.value.offline)
         assertTrue("le cache doit être écrit après la synchronisation", snapshots.writes > 0)
     }
@@ -271,7 +273,7 @@ class SchoolRepositoryTest {
         assertTrue("le cache doit ouvrir l'application, pas l'écran de connexion", auth is AuthState.SignedIn)
         assertEquals(1, repository.snapshot.value.homework.size)
         assertTrue(repository.sync.value.offline)
-        assertEquals(DataSection.entries.size, repository.sync.value.errors.size)
+        assertEquals(DataSection.ESSENTIAL.size, repository.sync.value.errors.size)
     }
 
     @Test
