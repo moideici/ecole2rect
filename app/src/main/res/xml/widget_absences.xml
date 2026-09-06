@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Le widget est redimensionnable dans les deux sens, et son contenu suit : réduit à une
+     case il montre l'essentiel, étiré il montre le détail. Les tailles minimales autorisent
+     la case unique, les maximales couvrent un écran de tablette. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="fr.ecole2recte.app.widget.WidgetConfigActivity"
     android:description="@string/widget_absences_description"
     android:initialLayout="@layout/widget_tile"
     android:minHeight="40dp"
+    android:minResizeHeight="40dp"
+    android:minResizeWidth="40dp"
     android:minWidth="40dp"
+    android:maxResizeHeight="450dp"
+    android:maxResizeWidth="450dp"
     android:previewLayout="@layout/widget_tile"
-    android:resizeMode="none"
+    android:resizeMode="horizontal|vertical"
     android:targetCellHeight="1"
     android:targetCellWidth="1"
     android:updatePeriodMillis="1800000"

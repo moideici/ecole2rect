@@ -8,51 +8,64 @@ import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.core.settings.SubjectPalette
 import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
  * Le contenu des widgets d'écran d'accueil Android, calculé sans rien connaître d'Android.
  *
- * Un widget est une phrase courte lue en une seconde depuis l'écran de verrouillage : ce qui
- * s'y affiche est une décision produit, pas de la mise en page. Tout est donc décidé ici, en
- * fonctions pures et testées, et la couche Android ne fait plus que poser les chaînes dans
- * quatre gabarits `RemoteViews`.
+ * Deux règles font tout le fichier.
+ *
+ * **Le contenu suit la taille.** Un widget n'a pas de dimensions fixes : on l'étire, et deux
+ * lanceurs ne donnent pas la même place pour « 2×2 ». Chaque widget sait donc se dire de
+ * quatre façons — une tuile, une ligne, une liste, une semaine — et c'est la place réellement
+ * disponible qui choisit. Agrandir un widget ajoute de l'information, jamais du vide.
+ *
+ * **Un widget ne dit jamais « rien ».** Vendredi soir, « aucun cours aujourd'hui » n'apprend
+ * rien ; ce qu'on veut savoir, c'est ce qui attend lundi. Chaque widget qui peut être vide a
+ * donc une suite : le jour d'école suivant, la prochaine évaluation, le dernier message.
  */
 
-/** Gabarit d'affichage — quatre formes suffisent aux quinze widgets. */
+/** Gabarit d'affichage — quatre formes suffisent à tout dire. */
 enum class WidgetShape { TILE, ROW, LIST, WEEK }
 
 /** Écran ouvert quand on touche le widget. */
 enum class WidgetTarget { HOME, TIMETABLE, HOMEWORK, GRADES, MESSAGES }
 
+/**
+ * Les quinze widgets.
+ *
+ * [natural] est la forme du widget à sa taille d'installation : c'est ce que l'utilisateur
+ * choisit dans la liste du lanceur. Étiré, il prend la forme que sa place permet.
+ */
 enum class WidgetKind(
     val label: String,
     val description: String,
-    val shape: WidgetShape,
+    val natural: WidgetShape,
     val target: WidgetTarget,
 ) {
-    // 1×1
-    AVERAGE("Moyenne générale", "La moyenne de la période en cours.", WidgetShape.TILE, WidgetTarget.GRADES),
-    HOMEWORK_COUNT("Devoirs à faire", "Combien de devoirs restent à faire.", WidgetShape.TILE, WidgetTarget.HOMEWORK),
-    UNREAD("Messages non lus", "Le nombre de messages non lus.", WidgetShape.TILE, WidgetTarget.MESSAGES),
+    // 1×1 à l'installation
+    AVERAGE("Moyenne générale", "La moyenne de la période, le détail par matière si on l'agrandit.", WidgetShape.TILE, WidgetTarget.GRADES),
+    HOMEWORK_COUNT("Devoirs à faire", "Combien de devoirs restent, puis lesquels.", WidgetShape.TILE, WidgetTarget.HOMEWORK),
+    UNREAD("Messages non lus", "Le nombre de non-lus, puis les derniers messages.", WidgetShape.TILE, WidgetTarget.MESSAGES),
     COUNTDOWN("Avant le prochain cours", "Le temps restant, la matière et la salle.", WidgetShape.TILE, WidgetTarget.TIMETABLE),
-    NEXT_EXAM("Prochaine évaluation", "Le devoir surveillé qui arrive, et dans combien de temps.", WidgetShape.TILE, WidgetTarget.HOMEWORK),
-    ABSENCES("Absences à justifier", "Les absences du mois qui attendent un justificatif.", WidgetShape.TILE, WidgetTarget.HOME),
+    NEXT_EXAM("Prochaine évaluation", "Le devoir surveillé qui arrive, puis tous ceux annoncés.", WidgetShape.TILE, WidgetTarget.HOMEWORK),
+    ABSENCES("Absences à justifier", "Ce qui attend un justificatif, puis le détail.", WidgetShape.TILE, WidgetTarget.HOME),
 
-    // 2×1
-    NEXT_LESSON("Prochain cours", "Matière, salle et horaire du prochain cours.", WidgetShape.ROW, WidgetTarget.TIMETABLE),
-    URGENT_HOMEWORK("Devoir urgent", "Le devoir à ne pas oublier.", WidgetShape.ROW, WidgetTarget.HOMEWORK),
-    LAST_GRADE("Dernière note", "La note publiée la plus récente.", WidgetShape.ROW, WidgetTarget.GRADES),
-    LAST_MESSAGE("Dernier message", "Le message reçu le plus récent.", WidgetShape.ROW, WidgetTarget.MESSAGES),
+    // 2×1 à l'installation
+    NEXT_LESSON("Prochain cours", "Matière, salle et horaire — la journée si on l'agrandit.", WidgetShape.ROW, WidgetTarget.TIMETABLE),
+    URGENT_HOMEWORK("Devoir urgent", "Le devoir à ne pas oublier, puis la liste.", WidgetShape.ROW, WidgetTarget.HOMEWORK),
+    LAST_GRADE("Dernière note", "La note la plus récente, puis les précédentes.", WidgetShape.ROW, WidgetTarget.GRADES),
+    LAST_MESSAGE("Dernier message", "Le message reçu le plus récent, puis les précédents.", WidgetShape.ROW, WidgetTarget.MESSAGES),
 
-    // 2×2
-    TODAY("Journée", "Les prochains cours de la journée.", WidgetShape.LIST, WidgetTarget.TIMETABLE),
+    // 2×2 à l'installation
+    TODAY("Journée", "La suite de la journée, ou le prochain jour d'école.", WidgetShape.LIST, WidgetTarget.TIMETABLE),
     HOMEWORK_LIST("Prochains devoirs", "Les devoirs à rendre en premier.", WidgetShape.LIST, WidgetTarget.HOMEWORK),
     GRADES_LIST("Dernières notes", "Les notes les plus récentes.", WidgetShape.LIST, WidgetTarget.GRADES),
-    SUBJECT_AVERAGES("Moyennes par matière", "Les meilleures moyennes de la période.", WidgetShape.LIST, WidgetTarget.GRADES),
+    SUBJECT_AVERAGES("Moyennes par matière", "Les moyennes de la période, matière par matière.", WidgetShape.LIST, WidgetTarget.GRADES),
 
-    // 4×2
-    WEEK("Semaine", "La charge de chaque jour de la semaine.", WidgetShape.WEEK, WidgetTarget.TIMETABLE),
+    // 4×2 à l'installation
+    WEEK("Semaine", "La charge de chaque jour ; rétréci, il devient une liste.", WidgetShape.WEEK, WidgetTarget.TIMETABLE),
 }
 
 /** Une ligne de liste : un texte, un complément, une valeur à droite, une couleur. */
@@ -73,6 +86,7 @@ data class WidgetDay(
 /** Ce qu'un widget affiche, quelle que soit sa forme. */
 data class WidgetPayload(
     val kind: WidgetKind,
+    val shape: WidgetShape,
     val label: String,
     val title: String,
     val subtitle: String = "",
@@ -80,6 +94,11 @@ data class WidgetPayload(
     val accent: Long? = null,
     val lines: List<WidgetLine> = emptyList(),
     val days: List<WidgetDay> = emptyList(),
+    /**
+     * Avancement du cours en cours, de 0 à 1, quand il y en a un. C'est la seule chose qu'un
+     * emploi du temps peut montrer et qu'un texte ne dit pas bien.
+     */
+    val progress: Float? = null,
     /** Vrai quand il n'y a rien à montrer : le gabarit affiche alors [title] seul. */
     val empty: Boolean = false,
 )
@@ -88,95 +107,213 @@ data class WidgetPayload(
  * Réglages posés à l'installation d'un widget.
  *
  * Un widget d'écran d'accueil est choisi une fois et regardé mille : qu'il montre la moyenne
- * générale ou celle d'une matière précise change tout, et personne ne veut rouvrir
- * l'application pour ça.
+ * générale ou celle d'une matière, les cours de l'aîné ou ceux de la cadette, change tout, et
+ * personne ne veut rouvrir l'application pour ça.
  */
-data class WidgetOptions(val subject: String? = null) {
+data class WidgetOptions(val subject: String? = null, val accountId: String? = null) {
     companion object {
-        /** Les seuls widgets qui ont quelque chose à configurer aujourd'hui. */
-        val CONFIGURABLE = setOf(WidgetKind.AVERAGE)
+        /** Les widgets à qui l'on peut désigner une matière précise. */
+        val SUBJECT_AWARE = setOf(WidgetKind.AVERAGE)
     }
 }
 
 object WidgetContent {
 
-    /** Nombre maximum de lignes tenant dans un widget 2×2 sans devenir illisible. */
+    /** Ce que tient un widget de taille d'installation, quand personne ne l'a étiré. */
     const val MAX_LINES = 4
 
+    /**
+     * Le contenu d'un widget, décidé par sa nature *et* par la place qu'on lui laisse.
+     *
+     * [shape] et [maxLines] viennent de [WidgetSizing] ; les valeurs par défaut donnent le
+     * widget tel qu'il apparaît à l'installation.
+     */
     fun payload(
         kind: WidgetKind,
         snapshot: SchoolSnapshot,
         settings: AppSettings,
         now: LocalDateTime,
         options: WidgetOptions = WidgetOptions(),
+        shape: WidgetShape = kind.natural,
+        maxLines: Int = MAX_LINES,
     ): WidgetPayload {
         val today = now.toLocalDate()
+        val context = Context(snapshot, settings, now, today, options, shape, maxLines)
         return when (kind) {
-            WidgetKind.AVERAGE -> average(kind, snapshot, settings, today, options)
-            WidgetKind.HOMEWORK_COUNT -> homeworkCount(kind, snapshot, settings, today)
-            WidgetKind.UNREAD -> unread(kind, snapshot, settings)
-            WidgetKind.COUNTDOWN -> countdown(kind, snapshot, settings, now)
-            WidgetKind.NEXT_EXAM -> nextExam(kind, snapshot, settings, today)
-            WidgetKind.ABSENCES -> absences(kind, snapshot, today)
-            WidgetKind.NEXT_LESSON -> nextLesson(kind, snapshot, settings, now)
-            WidgetKind.URGENT_HOMEWORK -> urgentHomework(kind, snapshot, settings, today)
-            WidgetKind.LAST_GRADE -> lastGrade(kind, snapshot, settings)
-            WidgetKind.LAST_MESSAGE -> lastMessage(kind, snapshot, settings, today)
-            WidgetKind.TODAY -> todayList(kind, snapshot, settings, now)
-            WidgetKind.HOMEWORK_LIST -> homeworkList(kind, snapshot, settings, today)
-            WidgetKind.GRADES_LIST -> gradesList(kind, snapshot, settings)
-            WidgetKind.SUBJECT_AVERAGES -> subjectAverages(kind, snapshot, settings, today)
-            WidgetKind.WEEK -> week(kind, snapshot, today)
+            WidgetKind.AVERAGE, WidgetKind.SUBJECT_AVERAGES -> when (shape) {
+                WidgetShape.TILE -> average(kind, context)
+                WidgetShape.ROW -> averageRow(kind, context)
+                else -> subjectAverages(kind, context)
+            }
+
+            WidgetKind.LAST_GRADE, WidgetKind.GRADES_LIST -> when (shape) {
+                WidgetShape.TILE -> average(kind, context)
+                WidgetShape.ROW -> lastGrade(kind, context)
+                else -> gradesList(kind, context)
+            }
+
+            WidgetKind.HOMEWORK_COUNT, WidgetKind.URGENT_HOMEWORK, WidgetKind.HOMEWORK_LIST -> when (shape) {
+                WidgetShape.TILE -> homeworkCount(kind, context)
+                WidgetShape.ROW -> urgentHomework(kind, context)
+                else -> homeworkList(kind, context)
+            }
+
+            WidgetKind.UNREAD, WidgetKind.LAST_MESSAGE -> when (shape) {
+                WidgetShape.TILE -> unread(kind, context)
+                WidgetShape.ROW -> lastMessage(kind, context)
+                else -> messageList(kind, context)
+            }
+
+            WidgetKind.COUNTDOWN, WidgetKind.NEXT_LESSON, WidgetKind.TODAY -> when (shape) {
+                WidgetShape.TILE -> countdown(kind, context)
+                WidgetShape.ROW -> nextLesson(kind, context)
+                WidgetShape.LIST -> dayList(kind, context)
+                WidgetShape.WEEK -> week(kind, context)
+            }
+
+            WidgetKind.NEXT_EXAM -> when (shape) {
+                WidgetShape.TILE -> nextExam(kind, context)
+                WidgetShape.ROW -> nextExamRow(kind, context)
+                else -> examList(kind, context)
+            }
+
+            WidgetKind.ABSENCES -> when (shape) {
+                WidgetShape.TILE -> absences(kind, context)
+                WidgetShape.ROW -> lastSchoolLife(kind, context)
+                else -> schoolLifeList(kind, context)
+            }
+
+            WidgetKind.WEEK -> when (shape) {
+                WidgetShape.TILE -> countdown(kind, context)
+                WidgetShape.ROW -> daySummaryRow(kind, context)
+                WidgetShape.LIST -> weekList(kind, context)
+                WidgetShape.WEEK -> week(kind, context)
+            }
         }
     }
 
-    // ── 1×1 ──────────────────────────────────────────────────────────────────
+    /** Tout ce dont un constructeur de contenu a besoin, pour ne pas répéter six paramètres. */
+    private data class Context(
+        val snapshot: SchoolSnapshot,
+        val settings: AppSettings,
+        val now: LocalDateTime,
+        val today: LocalDate,
+        val options: WidgetOptions,
+        val shape: WidgetShape,
+        val maxLines: Int,
+    )
 
-    private fun average(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        today: java.time.LocalDate,
-        options: WidgetOptions,
-    ): WidgetPayload {
-        val subject = options.subject
+    // ── Notes ────────────────────────────────────────────────────────────────
+
+    private fun average(kind: WidgetKind, context: Context): WidgetPayload {
+        val subject = context.options.subject
         if (subject != null) {
-            val value = Insights.subjectAverages(snapshot, today)
+            val value = Insights.subjectAverages(context.snapshot, context.today)
                 .firstOrNull { it.first == subject }
                 ?.second
-                ?: return empty(kind, "MOYENNE", "—", subject)
-            return WidgetPayload(
-                kind = kind,
+                ?: return empty(kind, context, "MOYENNE", "—", subject)
+            return payloadOf(
+                kind, context,
                 label = "MOYENNE",
                 title = number(value),
                 subtitle = subject,
-                accent = SubjectPalette.colorFor(subject, settings.subjectColors),
+                accent = SubjectPalette.colorFor(subject, context.settings.subjectColors),
             )
         }
-        val average = Insights.generalAverage(snapshot, today)
-            ?: return empty(kind, "MOYENNE", "—", "aucune note")
-        return WidgetPayload(
-            kind = kind,
+        val average = Insights.generalAverage(context.snapshot, context.today)
+            ?: return empty(kind, context, "MOYENNE", "—", "aucune note")
+        return payloadOf(
+            kind, context,
             label = "MOYENNE",
             title = number(average.value),
-            subtitle = if (average.official) {
-                average.periodName.ifBlank { "générale" }
-            } else {
-                "estimée"
-            },
+            subtitle = if (average.official) average.periodName.ifBlank { "générale" } else "estimée",
         )
     }
 
-    private fun homeworkCount(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        today: java.time.LocalDate,
-    ): WidgetPayload {
-        val pending = Insights.pendingHomework(snapshot.homework, settings, today)
-        val late = pending.count { it.dueDate.isBefore(today) }
-        return WidgetPayload(
-            kind = kind,
+    /** La moyenne accompagnée de sa tendance : un chiffre seul ne dit pas s'il monte. */
+    private fun averageRow(kind: WidgetKind, context: Context): WidgetPayload {
+        val average = Insights.generalAverage(context.snapshot, context.today)
+            ?: return empty(kind, context, "MOYENNE", "Aucune note", "rien de publié")
+        val period = Insights.currentPeriod(context.snapshot.periods, context.today)
+        val grades = Insights.gradesForPeriod(context.snapshot.grades, period?.code)
+        val trend = Insights.trend(grades)
+        return payloadOf(
+            kind, context,
+            label = "MOYENNE",
+            title = number(average.value),
+            subtitle = listOfNotNull(
+                average.periodName.takeIf { it.isNotBlank() },
+                period?.classAverage?.let { "classe ${number(it)}" },
+                trend?.let { if (it >= 0) "↗ +${number(it)}" else "↘ ${number(it)}" },
+            ).joinToString(" · "),
+            trailing = "/20",
+        )
+    }
+
+    private fun lastGrade(kind: WidgetKind, context: Context): WidgetPayload {
+        val grade = context.snapshot.grades.firstOrNull { it.value != null }
+            ?: return empty(kind, context, "DERNIÈRE NOTE", "Aucune note", "rien de publié")
+        return payloadOf(
+            kind, context,
+            label = "DERNIÈRE NOTE",
+            title = grade.subject,
+            subtitle = listOfNotNull(
+                grade.label.takeIf { it.isNotBlank() },
+                grade.classAverage?.let { "classe ${number(it)}" },
+                grade.date?.let { shortDay(it, context.today) },
+            ).joinToString(" · "),
+            trailing = "${number(grade.value ?: 0.0)}/${number(grade.scale)}",
+            accent = SubjectPalette.colorFor(grade.subject, context.settings.subjectColors),
+        )
+    }
+
+    private fun gradesList(kind: WidgetKind, context: Context): WidgetPayload {
+        val grades = context.snapshot.grades.filter { it.value != null }
+        return payloadOf(
+            kind, context,
+            label = "DERNIÈRES NOTES",
+            title = if (grades.isEmpty()) "Aucune note" else "${grades.size} notes",
+            subtitle = Insights.generalAverage(context.snapshot, context.today)
+                ?.let { "moyenne ${number(it.value)}" }
+                .orEmpty(),
+            lines = grades.take(context.maxLines).map { grade ->
+                WidgetLine(
+                    text = grade.subject,
+                    secondary = grade.label,
+                    trailing = "${number(grade.value ?: 0.0)}/${number(grade.scale)}",
+                    accent = SubjectPalette.colorFor(grade.subject, context.settings.subjectColors),
+                )
+            },
+            empty = grades.isEmpty(),
+        ).withEmptyText("Aucune note publiée")
+    }
+
+    private fun subjectAverages(kind: WidgetKind, context: Context): WidgetPayload {
+        val averages = Insights.subjectAverages(context.snapshot, context.today)
+        val general = Insights.generalAverage(context.snapshot, context.today)
+        return payloadOf(
+            kind, context,
+            label = "MOYENNES",
+            title = general?.let { number(it.value) } ?: "—",
+            subtitle = general?.periodName.orEmpty(),
+            lines = averages.take(context.maxLines).map { (subject, value) ->
+                WidgetLine(
+                    text = subject,
+                    trailing = number(value),
+                    accent = SubjectPalette.colorFor(subject, context.settings.subjectColors),
+                )
+            },
+            empty = averages.isEmpty(),
+        ).withEmptyText("Aucune moyenne publiée")
+    }
+
+    // ── Devoirs ──────────────────────────────────────────────────────────────
+
+    private fun homeworkCount(kind: WidgetKind, context: Context): WidgetPayload {
+        val pending = Insights.pendingHomework(context.snapshot.homework, context.settings, context.today)
+        val late = pending.count { it.dueDate.isBefore(context.today) }
+        return payloadOf(
+            kind, context,
             label = "DEVOIRS",
             title = pending.size.toString(),
             subtitle = when {
@@ -187,30 +324,212 @@ object WidgetContent {
         )
     }
 
-    private fun unread(kind: WidgetKind, snapshot: SchoolSnapshot, settings: AppSettings): WidgetPayload {
-        val unread = Insights.unreadMessages(snapshot.inbox, settings)
-        return WidgetPayload(
-            kind = kind,
+    private fun urgentHomework(kind: WidgetKind, context: Context): WidgetPayload {
+        val item = Insights.urgentHomework(context.snapshot.homework, context.settings, context.today)
+            ?: return nextExamRow(kind, context, fallbackLabel = "À NE PAS OUBLIER")
+        return payloadOf(
+            kind, context,
+            label = if (item.exam) "ÉVALUATION" else "À NE PAS OUBLIER",
+            title = item.subject,
+            subtitle = Text.preview(item.content, 60).ifBlank { Dates.dueLabel(item.dueDate, context.today) },
+            trailing = shortDay(item.dueDate, context.today),
+            accent = SubjectPalette.colorFor(item.subject, context.settings.subjectColors),
+        )
+    }
+
+    private fun homeworkList(kind: WidgetKind, context: Context): WidgetPayload {
+        val pending = Insights.pendingHomework(context.snapshot.homework, context.settings, context.today)
+        val late = pending.count { it.dueDate.isBefore(context.today) }
+        return payloadOf(
+            kind, context,
+            label = "À FAIRE",
+            title = when (pending.size) {
+                0 -> "Rien à faire"
+                1 -> "1 devoir"
+                else -> "${pending.size} devoirs"
+            },
+            subtitle = if (late > 0) "$late en retard" else "",
+            lines = pending.take(context.maxLines).map { item ->
+                WidgetLine(
+                    text = item.subject,
+                    secondary = if (item.exam) "évaluation" else Text.preview(item.content, 40),
+                    trailing = shortDay(item.dueDate, context.today),
+                    accent = SubjectPalette.colorFor(item.subject, context.settings.subjectColors),
+                )
+            },
+            empty = pending.isEmpty(),
+        ).withEmptyText("Tout est coché")
+    }
+
+    // ── Évaluations ──────────────────────────────────────────────────────────
+
+    private fun nextExam(kind: WidgetKind, context: Context): WidgetPayload {
+        val exam = Insights.upcomingExams(context.snapshot.homework, context.settings, context.today).firstOrNull()
+            ?: return empty(kind, context, "ÉVALUATION", "—", "rien d'annoncé")
+        return payloadOf(
+            kind, context,
+            label = "ÉVALUATION",
+            title = countdownLabel(exam.dueDate, context.today),
+            subtitle = exam.subject,
+            accent = SubjectPalette.colorFor(exam.subject, context.settings.subjectColors),
+        )
+    }
+
+    private fun nextExamRow(
+        kind: WidgetKind,
+        context: Context,
+        fallbackLabel: String = "ÉVALUATION",
+    ): WidgetPayload {
+        val exam = Insights.upcomingExams(context.snapshot.homework, context.settings, context.today).firstOrNull()
+            ?: return empty(kind, context, fallbackLabel, "Rien à faire", "aucune évaluation annoncée")
+        return payloadOf(
+            kind, context,
+            label = fallbackLabel,
+            title = exam.subject,
+            subtitle = Text.preview(exam.content, 60).ifBlank { "évaluation annoncée" },
+            trailing = countdownLabel(exam.dueDate, context.today),
+            accent = SubjectPalette.colorFor(exam.subject, context.settings.subjectColors),
+        )
+    }
+
+    private fun examList(kind: WidgetKind, context: Context): WidgetPayload {
+        val exams = Insights.upcomingExams(context.snapshot.homework, context.settings, context.today)
+        return payloadOf(
+            kind, context,
+            label = "ÉVALUATIONS",
+            title = when (exams.size) {
+                0 -> "Aucune évaluation"
+                1 -> "1 évaluation"
+                else -> "${exams.size} évaluations"
+            },
+            subtitle = exams.firstOrNull()?.let { countdownLabel(it.dueDate, context.today) }.orEmpty(),
+            lines = exams.take(context.maxLines).map { exam ->
+                WidgetLine(
+                    text = exam.subject,
+                    secondary = Text.preview(exam.content, 40),
+                    trailing = shortDay(exam.dueDate, context.today),
+                    accent = SubjectPalette.colorFor(exam.subject, context.settings.subjectColors),
+                )
+            },
+            empty = exams.isEmpty(),
+        ).withEmptyText("Rien d'annoncé pour l'instant")
+    }
+
+    // ── Messagerie ───────────────────────────────────────────────────────────
+
+    private fun unread(kind: WidgetKind, context: Context): WidgetPayload {
+        val unread = Insights.unreadMessages(context.snapshot.inbox, context.settings)
+        return payloadOf(
+            kind, context,
             label = "MESSAGES",
             title = unread.size.toString(),
             subtitle = if (unread.isEmpty()) "tout est lu" else "non lus",
         )
     }
 
-    private fun countdown(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        now: LocalDateTime,
-    ): WidgetPayload {
-        val lesson = Insights.currentOrNextLesson(snapshot.lessons, now)
-            ?: return empty(kind, "PROCHAIN COURS", "—", "rien de prévu")
-        val minutes = Duration.between(now, lesson.start).toMinutes()
-        return WidgetPayload(
-            kind = kind,
-            label = "DANS",
+    private fun lastMessage(kind: WidgetKind, context: Context): WidgetPayload {
+        val message = context.snapshot.inbox.firstOrNull()
+            ?: return empty(kind, context, "DERNIER MESSAGE", "Aucun message", "boîte vide")
+        val unread = !context.settings.isMessageRead(message.id, message.read)
+        return payloadOf(
+            kind, context,
+            label = if (unread) "MESSAGE NON LU" else "DERNIER MESSAGE",
+            title = message.sender,
+            subtitle = message.subject,
+            trailing = message.date?.let { shortDay(it.toLocalDate(), context.today) }.orEmpty(),
+            accent = SubjectPalette.colorFor(message.sender, context.settings.subjectColors),
+        )
+    }
+
+    private fun messageList(kind: WidgetKind, context: Context): WidgetPayload {
+        val messages = context.snapshot.inbox
+        val unread = Insights.unreadMessages(messages, context.settings)
+        return payloadOf(
+            kind, context,
+            label = "MESSAGES",
+            title = when (unread.size) {
+                0 -> "Tout est lu"
+                1 -> "1 non lu"
+                else -> "${unread.size} non lus"
+            },
+            lines = messages.take(context.maxLines).map { message ->
+                WidgetLine(
+                    text = message.sender,
+                    secondary = message.subject,
+                    trailing = message.date?.let { shortDay(it.toLocalDate(), context.today) }.orEmpty(),
+                    accent = SubjectPalette.colorFor(message.sender, context.settings.subjectColors),
+                )
+            },
+            empty = messages.isEmpty(),
+        ).withEmptyText("Boîte vide")
+    }
+
+    // ── Vie scolaire ─────────────────────────────────────────────────────────
+
+    private fun recentSchoolLife(context: Context) =
+        context.snapshot.schoolLife.filter { it.date.isAfter(context.today.minusDays(30)) }
+
+    private fun absences(kind: WidgetKind, context: Context): WidgetPayload {
+        val unjustified = recentSchoolLife(context)
+            .count { it.kind == SchoolLifeKind.ABSENCE && !it.justified }
+        return payloadOf(
+            kind, context,
+            label = "À JUSTIFIER",
+            title = unjustified.toString(),
+            subtitle = when (unjustified) {
+                0 -> "rien en attente"
+                1 -> "absence ce mois"
+                else -> "absences ce mois"
+            },
+        )
+    }
+
+    private fun lastSchoolLife(kind: WidgetKind, context: Context): WidgetPayload {
+        val event = recentSchoolLife(context).firstOrNull()
+            ?: return empty(kind, context, "VIE SCOLAIRE", "Rien à signaler", "aucun événement ce mois")
+        return payloadOf(
+            kind, context,
+            label = "VIE SCOLAIRE",
+            title = event.kind.label,
+            subtitle = listOfNotNull(
+                event.reason.takeIf { it.isNotBlank() },
+                if (event.justified) "justifié" else "à justifier",
+            ).joinToString(" · "),
+            trailing = shortDay(event.date, context.today),
+        )
+    }
+
+    private fun schoolLifeList(kind: WidgetKind, context: Context): WidgetPayload {
+        val events = recentSchoolLife(context)
+        val unjustified = events.count { it.kind == SchoolLifeKind.ABSENCE && !it.justified }
+        return payloadOf(
+            kind, context,
+            label = "VIE SCOLAIRE",
+            title = if (unjustified == 0) "Rien à justifier" else "$unjustified à justifier",
+            subtitle = "${events.size} ce mois",
+            lines = events.take(context.maxLines).map { event ->
+                WidgetLine(
+                    text = event.kind.label,
+                    secondary = event.reason.ifBlank { if (event.justified) "justifié" else "à justifier" },
+                    trailing = shortDay(event.date, context.today),
+                )
+            },
+            empty = events.isEmpty(),
+        ).withEmptyText("Rien à signaler ce mois")
+    }
+
+    // ── Emploi du temps ──────────────────────────────────────────────────────
+
+    private fun countdown(kind: WidgetKind, context: Context): WidgetPayload {
+        val lesson = Insights.currentOrNextLesson(context.snapshot.lessons, context.now)
+            ?: return empty(kind, context, "PROCHAIN COURS", "—", "rien de prévu")
+        val minutes = Duration.between(context.now, lesson.start).toMinutes()
+        val started = minutes <= 0
+        return payloadOf(
+            kind, context,
+            label = if (lesson.date == context.today) "DANS" else dayLabel(lesson.date, context.today).uppercase(),
             title = when {
-                minutes <= 0 -> "en cours"
+                started -> "en cours"
                 minutes < 60 -> "$minutes min"
                 else -> Dates.duration(minutes)
             },
@@ -220,244 +539,106 @@ object WidgetContent {
                 lesson.subject,
                 lesson.room.takeIf { it.isNotBlank() },
             ).joinToString(" · "),
-            accent = SubjectPalette.colorFor(lesson.subject, settings.subjectColors),
+            accent = SubjectPalette.colorFor(lesson.subject, context.settings.subjectColors),
+            progress = if (started) Dates.progress(lesson.start, lesson.end, context.now) else null,
         )
     }
 
-    /**
-     * La prochaine évaluation annoncée.
-     *
-     * C'est la question que se pose un élève devant son écran d'accueil — bien plus que
-     * l'heure de la dernière synchronisation, que ce widget remplace.
-     */
-    private fun nextExam(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        today: java.time.LocalDate,
-    ): WidgetPayload {
-        val exam = Insights.upcomingExams(snapshot.homework, settings, today).firstOrNull()
-            ?: return empty(kind, "ÉVALUATION", "—", "rien d'annoncé")
-        val days = java.time.temporal.ChronoUnit.DAYS.between(today, exam.dueDate)
-        return WidgetPayload(
-            kind = kind,
-            label = "ÉVALUATION",
-            title = when {
-                days <= 0L -> "aujourd'hui"
-                days == 1L -> "demain"
-                days < 7L -> "dans $days j"
-                else -> Dates.dayAndMonth(exam.dueDate)
-            },
-            subtitle = exam.subject,
-            accent = SubjectPalette.colorFor(exam.subject, settings.subjectColors),
-        )
-    }
-
-    /**
-     * Les absences du mois restées sans justificatif.
-     *
-     * Un chiffre qui appelle une action — écrire un mot, signer — là où la salle du prochain
-     * cours, que ce widget remplace, répétait ce que le widget « prochain cours » disait déjà.
-     */
-    private fun absences(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        today: java.time.LocalDate,
-    ): WidgetPayload {
-        val month = snapshot.schoolLife.filter { it.date.isAfter(today.minusDays(30)) }
-        val unjustified = month.count { it.kind == SchoolLifeKind.ABSENCE && !it.justified }
-        return WidgetPayload(
-            kind = kind,
-            label = "À JUSTIFIER",
-            title = unjustified.toString(),
-            subtitle = when {
-                unjustified == 0 -> "rien en attente"
-                unjustified == 1 -> "absence ce mois"
-                else -> "absences ce mois"
-            },
-        )
-    }
-
-    // ── 2×1 ──────────────────────────────────────────────────────────────────
-
-    private fun nextLesson(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        now: LocalDateTime,
-    ): WidgetPayload {
-        val lesson = Insights.currentOrNextLesson(snapshot.lessons, now)
-            ?: return empty(kind, "PROCHAIN COURS", "Rien de prévu", "aucun cours à venir")
-        return WidgetPayload(
-            kind = kind,
-            label = "PROCHAIN COURS",
+    private fun nextLesson(kind: WidgetKind, context: Context): WidgetPayload {
+        val lesson = Insights.currentOrNextLesson(context.snapshot.lessons, context.now)
+            ?: return empty(kind, context, "PROCHAIN COURS", "Rien de prévu", "aucun cours à venir")
+        val started = !lesson.start.isAfter(context.now)
+        return payloadOf(
+            kind, context,
+            label = if (started) "COURS EN COURS" else "PROCHAIN COURS",
             title = lesson.subject,
             subtitle = listOfNotNull(
                 lesson.room.takeIf { it.isNotBlank() }?.let { "Salle $it" },
                 lesson.teacher.takeIf { it.isNotBlank() },
-                Dates.relativeToNow(lesson.start, lesson.end, now),
+                // Le jour d'abord quand ce n'est pas aujourd'hui : « dans 18 h » ne dit pas
+                // qu'il s'agit de demain matin.
+                if (lesson.date == context.today) {
+                    Dates.relativeToNow(lesson.start, lesson.end, context.now)
+                } else {
+                    dayLabel(lesson.date, context.today)
+                },
             ).joinToString(" · "),
             trailing = Dates.time(lesson.start),
-            accent = SubjectPalette.colorFor(lesson.subject, settings.subjectColors),
+            accent = SubjectPalette.colorFor(lesson.subject, context.settings.subjectColors),
+            progress = if (started) Dates.progress(lesson.start, lesson.end, context.now) else null,
         )
     }
 
-    private fun urgentHomework(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        today: java.time.LocalDate,
-    ): WidgetPayload {
-        val item = Insights.urgentHomework(snapshot.homework, settings, today)
-            ?: return empty(kind, "À NE PAS OUBLIER", "Rien à faire", "tout est coché")
-        return WidgetPayload(
-            kind = kind,
-            label = if (item.exam) "ÉVALUATION" else "À NE PAS OUBLIER",
-            title = item.subject,
-            subtitle = Text.preview(item.content, 60).ifBlank { Dates.dueLabel(item.dueDate, today) },
-            trailing = shortDay(item.dueDate, today),
-            accent = SubjectPalette.colorFor(item.subject, settings.subjectColors),
-        )
-    }
-
-    private fun lastGrade(kind: WidgetKind, snapshot: SchoolSnapshot, settings: AppSettings): WidgetPayload {
-        val grade = snapshot.grades.firstOrNull { it.value != null }
-            ?: return empty(kind, "DERNIÈRE NOTE", "Aucune note", "rien de publié")
-        return WidgetPayload(
-            kind = kind,
-            label = "DERNIÈRE NOTE",
-            title = grade.subject,
-            subtitle = grade.label,
-            trailing = "${number(grade.value ?: 0.0)}/${number(grade.scale)}",
-            accent = SubjectPalette.colorFor(grade.subject, settings.subjectColors),
-        )
-    }
-
-    private fun lastMessage(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        today: java.time.LocalDate,
-    ): WidgetPayload {
-        val message = snapshot.inbox.firstOrNull()
-            ?: return empty(kind, "DERNIER MESSAGE", "Aucun message", "boîte vide")
-        val unread = !settings.isMessageRead(message.id, message.read)
-        return WidgetPayload(
-            kind = kind,
-            label = if (unread) "MESSAGE NON LU" else "DERNIER MESSAGE",
-            title = message.sender,
-            subtitle = message.subject,
-            trailing = message.date?.let { shortDay(it.toLocalDate(), today) }.orEmpty(),
-            accent = SubjectPalette.colorFor(message.sender, settings.subjectColors),
-        )
-    }
-
-    // ── 2×2 ──────────────────────────────────────────────────────────────────
-
-    private fun todayList(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        now: LocalDateTime,
-    ): WidgetPayload {
-        val today = now.toLocalDate()
-        // Les cours terminés ne servent plus à rien sur un écran d'accueil : on montre la
-        // suite de la journée, et seulement elle.
-        val remaining = Insights.lessonsOn(snapshot.lessons, today).filter { it.end.isAfter(now) }
-        val summary = Insights.daySummary(snapshot.lessons, today)
-        return WidgetPayload(
-            kind = kind,
-            label = "AUJOURD'HUI",
-            title = Dates.compactDay(today).replaceFirstChar { it.uppercase() },
-            subtitle = if (summary.isEmpty) "aucun cours" else "${summary.lessons} cours · ${Dates.duration(summary.minutes)}",
-            lines = remaining.take(MAX_LINES).map { lesson ->
+    /**
+     * La suite de la journée — et, quand elle est finie, celle du prochain jour d'école.
+     *
+     * C'est la différence entre un widget qu'on regarde et un widget qu'on décroche : à
+     * 17 heures, « journée terminée » n'apprend rien, « demain, 4 cours à partir de 8 h » si.
+     */
+    private fun dayList(kind: WidgetKind, context: Context): WidgetPayload {
+        val remaining = Insights.lessonsOn(context.snapshot.lessons, context.today)
+            .filter { it.end.isAfter(context.now) }
+        val date = if (remaining.isNotEmpty()) {
+            context.today
+        } else {
+            Insights.nextLessonDay(context.snapshot.lessons, context.today)
+        }
+        val lessons = if (remaining.isNotEmpty()) {
+            remaining
+        } else {
+            date?.let { Insights.lessonsOn(context.snapshot.lessons, it) }.orEmpty()
+        }
+        val summary = date?.let { Insights.daySummary(context.snapshot.lessons, it) }
+        val current = lessons.firstOrNull { !it.start.isAfter(context.now) && it.end.isAfter(context.now) }
+        return payloadOf(
+            kind, context,
+            label = when {
+                date == null -> "EMPLOI DU TEMPS"
+                date == context.today -> "AUJOURD'HUI"
+                else -> dayLabel(date, context.today).uppercase()
+            },
+            title = date?.let { Dates.compactDay(it).replaceFirstChar { first -> first.uppercase() } } ?: "—",
+            subtitle = when {
+                summary == null || summary.isEmpty -> "aucun cours"
+                else -> "${summary.lessons} cours · ${Dates.duration(summary.minutes)}"
+            },
+            lines = lessons.take(context.maxLines).map { lesson ->
                 WidgetLine(
                     text = lesson.subject,
                     secondary = lesson.room,
                     trailing = Dates.time(lesson.start),
-                    accent = SubjectPalette.colorFor(lesson.subject, settings.subjectColors),
+                    accent = SubjectPalette.colorFor(lesson.subject, context.settings.subjectColors),
                 )
             },
-            empty = remaining.isEmpty(),
-        ).withEmptyText(if (summary.isEmpty) "Aucun cours aujourd'hui" else "Journée terminée")
+            progress = current?.let { Dates.progress(it.start, it.end, context.now) },
+            empty = lessons.isEmpty(),
+        ).withEmptyText("Aucun cours à venir")
     }
 
-    private fun homeworkList(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        today: java.time.LocalDate,
-    ): WidgetPayload {
-        val pending = Insights.pendingHomework(snapshot.homework, settings, today)
-        return WidgetPayload(
-            kind = kind,
-            label = "À FAIRE",
-            title = when (pending.size) {
-                0 -> "Rien à faire"
-                1 -> "1 devoir"
-                else -> "${pending.size} devoirs"
-            },
-            lines = pending.take(MAX_LINES).map { item ->
-                WidgetLine(
-                    text = item.subject,
-                    secondary = if (item.exam) "évaluation" else Text.preview(item.content, 40),
-                    trailing = shortDay(item.dueDate, today),
-                    accent = SubjectPalette.colorFor(item.subject, settings.subjectColors),
-                )
-            },
-            empty = pending.isEmpty(),
-        ).withEmptyText("Tout est coché")
+    /** Le résumé d'une journée en une ligne : ce que la semaine dit d'un seul jour. */
+    private fun daySummaryRow(kind: WidgetKind, context: Context): WidgetPayload {
+        val summary = Insights.daySummary(context.snapshot.lessons, context.today)
+        if (summary.isEmpty) return nextLesson(kind, context)
+        val remaining = Insights.lessonsOn(context.snapshot.lessons, context.today)
+            .count { it.end.isAfter(context.now) }
+        return payloadOf(
+            kind, context,
+            label = "AUJOURD'HUI",
+            title = "${summary.lessons} cours",
+            subtitle = listOfNotNull(
+                Dates.duration(summary.minutes),
+                summary.start?.let { "de ${Dates.time(it)}" },
+                summary.end?.let { "à ${Dates.time(it)}" },
+            ).joinToString(" "),
+            trailing = if (remaining > 0) "$remaining restants" else "terminé",
+        )
     }
 
-    private fun gradesList(kind: WidgetKind, snapshot: SchoolSnapshot, settings: AppSettings): WidgetPayload {
-        val grades = snapshot.grades.filter { it.value != null }
-        return WidgetPayload(
-            kind = kind,
-            label = "DERNIÈRES NOTES",
-            title = if (grades.isEmpty()) "Aucune note" else "${grades.size} notes",
-            lines = grades.take(MAX_LINES).map { grade ->
-                WidgetLine(
-                    text = grade.subject,
-                    secondary = grade.label,
-                    trailing = "${number(grade.value ?: 0.0)}/${number(grade.scale)}",
-                    accent = SubjectPalette.colorFor(grade.subject, settings.subjectColors),
-                )
-            },
-            empty = grades.isEmpty(),
-        ).withEmptyText("Aucune note publiée")
-    }
-
-    private fun subjectAverages(
-        kind: WidgetKind,
-        snapshot: SchoolSnapshot,
-        settings: AppSettings,
-        today: java.time.LocalDate,
-    ): WidgetPayload {
-        val averages = Insights.subjectAverages(snapshot, today)
-        val general = Insights.generalAverage(snapshot, today)
-        return WidgetPayload(
-            kind = kind,
-            label = "MOYENNES",
-            title = general?.let { number(it.value) } ?: "—",
-            subtitle = general?.periodName.orEmpty(),
-            lines = averages.take(MAX_LINES).map { (subject, value) ->
-                WidgetLine(
-                    text = subject,
-                    trailing = number(value),
-                    accent = SubjectPalette.colorFor(subject, settings.subjectColors),
-                )
-            },
-            empty = averages.isEmpty(),
-        ).withEmptyText("Aucune moyenne publiée")
-    }
-
-    // ── 4×2 ──────────────────────────────────────────────────────────────────
-
-    private fun week(kind: WidgetKind, snapshot: SchoolSnapshot, today: java.time.LocalDate): WidgetPayload {
-        val weekStart = Dates.startOfWeek(today)
-        val week = Insights.week(snapshot.lessons, weekStart)
-        return WidgetPayload(
-            kind = kind,
+    private fun week(kind: WidgetKind, context: Context): WidgetPayload {
+        val weekStart = Dates.startOfWeek(context.today)
+        val week = Insights.week(context.snapshot.lessons, weekStart)
+        return payloadOf(
+            kind, context,
             label = "SEMAINE",
             title = "Semaine du ${Dates.dayAndMonth(weekStart)}",
             subtitle = "${week.sumOf { it.lessons }} cours",
@@ -465,8 +646,28 @@ object WidgetContent {
                 WidgetDay(
                     name = Dates.dayName(day.date).take(1).uppercase(),
                     value = if (day.isEmpty) "—" else day.lessons.toString(),
-                    today = day.date == today,
+                    today = day.date == context.today,
                     empty = day.isEmpty,
+                )
+            },
+            empty = week.all { it.isEmpty },
+        ).withEmptyText("Emploi du temps non synchronisé")
+    }
+
+    /** La semaine quand la largeur manque : un jour par ligne plutôt que six colonnes serrées. */
+    private fun weekList(kind: WidgetKind, context: Context): WidgetPayload {
+        val weekStart = Dates.startOfWeek(context.today)
+        val week = Insights.week(context.snapshot.lessons, weekStart)
+        return payloadOf(
+            kind, context,
+            label = "SEMAINE",
+            title = "${week.sumOf { it.lessons }} cours",
+            subtitle = "depuis le ${Dates.dayAndMonth(weekStart)}",
+            lines = week.take(context.maxLines).map { day ->
+                WidgetLine(
+                    text = Dates.dayName(day.date).replaceFirstChar { it.uppercase() },
+                    secondary = if (day.isEmpty) "" else Dates.duration(day.minutes),
+                    trailing = if (day.isEmpty) "—" else "${day.lessons}",
                 )
             },
             empty = week.all { it.isEmpty },
@@ -475,19 +676,69 @@ object WidgetContent {
 
     // ── Aides ────────────────────────────────────────────────────────────────
 
-    private fun empty(kind: WidgetKind, label: String, title: String, subtitle: String) =
-        WidgetPayload(kind = kind, label = label, title = title, subtitle = subtitle, empty = true)
+    private fun payloadOf(
+        kind: WidgetKind,
+        context: Context,
+        label: String,
+        title: String,
+        subtitle: String = "",
+        trailing: String = "",
+        accent: Long? = null,
+        lines: List<WidgetLine> = emptyList(),
+        days: List<WidgetDay> = emptyList(),
+        progress: Float? = null,
+        empty: Boolean = false,
+    ) = WidgetPayload(
+        kind = kind,
+        shape = context.shape,
+        label = label,
+        title = title,
+        subtitle = subtitle,
+        trailing = trailing,
+        accent = accent,
+        lines = lines,
+        days = days,
+        progress = progress,
+        empty = empty,
+    )
+
+    private fun empty(
+        kind: WidgetKind,
+        context: Context,
+        label: String,
+        title: String,
+        subtitle: String,
+    ) = payloadOf(kind, context, label = label, title = title, subtitle = subtitle, empty = true)
 
     /** Le texte affiché à la place des lignes quand il n'y a rien : il remplace le sous-titre. */
     private fun WidgetPayload.withEmptyText(text: String): WidgetPayload =
         if (empty) copy(subtitle = text) else this
 
     /** « lun. 7 », « auj. », « dem. » : trois caractères valent mieux qu'une date complète. */
-    private fun shortDay(date: java.time.LocalDate, today: java.time.LocalDate): String = when {
+    private fun shortDay(date: LocalDate, today: LocalDate): String = when {
         date == today -> "auj."
         date == today.plusDays(1) -> "dem."
         date.isBefore(today) -> "retard"
         else -> Dates.compactDay(date)
+    }
+
+    /** « demain », « lundi », « dans 12 jours » : de quoi situer un jour sans calculer. */
+    private fun dayLabel(date: LocalDate, today: LocalDate): String = when {
+        date == today -> "aujourd'hui"
+        date == today.plusDays(1) -> "demain"
+        date.isBefore(today.plusDays(7)) -> Dates.dayName(date)
+        else -> Dates.dayAndMonth(date)
+    }
+
+    /** Le même repère, mais tourné vers l'échéance : « demain », « dans 3 j », une date. */
+    private fun countdownLabel(date: LocalDate, today: LocalDate): String {
+        val days = java.time.temporal.ChronoUnit.DAYS.between(today, date)
+        return when {
+            days <= 0L -> "aujourd'hui"
+            days == 1L -> "demain"
+            days < 7L -> "dans $days j"
+            else -> Dates.shortDate(date, today)
+        }
     }
 
     /** Une note ou une moyenne, à la française et sans décimale inutile. */

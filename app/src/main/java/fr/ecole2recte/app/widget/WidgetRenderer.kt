@@ -9,16 +9,20 @@ import fr.ecole2recte.app.MainActivity
 import fr.ecole2recte.app.R
 import fr.ecole2recte.app.core.widget.WidgetContent
 import fr.ecole2recte.app.core.widget.WidgetKind
+import fr.ecole2recte.app.core.widget.WidgetLayout
 import fr.ecole2recte.app.core.widget.WidgetOptions
 import fr.ecole2recte.app.core.widget.WidgetPayload
 import fr.ecole2recte.app.core.widget.WidgetShape
+import fr.ecole2recte.app.core.widget.WidgetSize
+import fr.ecole2recte.app.core.widget.WidgetSizing
 
 /**
  * Traduction d'un contenu de widget en `RemoteViews`.
  *
- * Quatre gabarits pour quinze widgets : le contenu est décidé dans `core`, ici on ne fait
- * que poser des chaînes, des couleurs et des visibilités. `RemoteViews` ne sait pas répéter
- * une vue, d'où les identifiants numérotés des lignes et des jours.
+ * Quatre gabarits, mais pas quatre tailles : c'est la place réellement donnée par le lanceur
+ * qui décide lequel est utilisé et combien de lignes il porte. Ici on ne fait que poser des
+ * chaînes, des couleurs et des visibilités — ce qui s'affiche est décidé dans `core`, où
+ * c'est testable sans appareil.
  */
 object WidgetRenderer {
 
@@ -27,9 +31,14 @@ object WidgetRenderer {
         Triple(R.id.widget_row_2, R.id.widget_dot_2, R.id.widget_text_2),
         Triple(R.id.widget_row_3, R.id.widget_dot_3, R.id.widget_text_3),
         Triple(R.id.widget_row_4, R.id.widget_dot_4, R.id.widget_text_4),
+        Triple(R.id.widget_row_5, R.id.widget_dot_5, R.id.widget_text_5),
+        Triple(R.id.widget_row_6, R.id.widget_dot_6, R.id.widget_text_6),
+        Triple(R.id.widget_row_7, R.id.widget_dot_7, R.id.widget_text_7),
+        Triple(R.id.widget_row_8, R.id.widget_dot_8, R.id.widget_text_8),
     )
     private val LINE_VALUE_IDS = listOf(
         R.id.widget_value_1, R.id.widget_value_2, R.id.widget_value_3, R.id.widget_value_4,
+        R.id.widget_value_5, R.id.widget_value_6, R.id.widget_value_7, R.id.widget_value_8,
     )
     private val DAY_IDS = listOf(
         R.id.widget_day_name_1 to R.id.widget_day_value_1,
@@ -45,15 +54,19 @@ object WidgetRenderer {
         kind: WidgetKind,
         data: WidgetData.Loaded,
         options: WidgetOptions = WidgetOptions(),
+        size: WidgetSize = WidgetSize.SMALL,
     ): RemoteViews {
+        val layout: WidgetLayout = WidgetSizing.layout(kind, size)
         val payload = WidgetContent.payload(
             kind = kind,
             snapshot = data.snapshot,
             settings = data.settings,
             now = data.now,
             options = options,
+            shape = layout.shape,
+            maxLines = layout.maxLines,
         )
-        val views = when (kind.shape) {
+        val views = when (layout.shape) {
             WidgetShape.TILE -> tile(context, payload)
             WidgetShape.ROW -> row(context, payload)
             WidgetShape.LIST -> list(context, payload)
@@ -69,6 +82,7 @@ object WidgetRenderer {
             setTextViewText(R.id.widget_value, payload.title)
             setTextViewText(R.id.widget_caption, payload.subtitle)
             setTextColor(R.id.widget_value, accent(payload) ?: ink(context))
+            progress(payload)
         }
 
     private fun row(context: Context, payload: WidgetPayload) =
@@ -80,6 +94,7 @@ object WidgetRenderer {
             // La barre est blanche dans le drawable : c'est le filtre qui lui donne la
             // couleur de la matière, sans un drawable par couleur.
             setInt(R.id.widget_accent, "setColorFilter", accent(payload) ?: defaultAccent(context))
+            progress(payload)
         }
 
     private fun list(context: Context, payload: WidgetPayload) =
@@ -103,6 +118,7 @@ object WidgetRenderer {
             }
             setViewVisibility(R.id.widget_empty, if (payload.lines.isEmpty()) View.VISIBLE else View.GONE)
             setTextViewText(R.id.widget_empty, payload.subtitle)
+            progress(payload)
         }
 
     private fun week(context: Context, payload: WidgetPayload) =
@@ -128,6 +144,17 @@ object WidgetRenderer {
             setViewVisibility(R.id.widget_empty, if (payload.empty) View.VISIBLE else View.GONE)
             setTextViewText(R.id.widget_empty, payload.subtitle)
         }
+
+    /** La barre d'avancement n'apparaît que pendant un cours ; sinon elle ne dirait rien. */
+    private fun RemoteViews.progress(payload: WidgetPayload) {
+        val progress = payload.progress
+        if (progress == null) {
+            setViewVisibility(R.id.widget_progress, View.GONE)
+            return
+        }
+        setViewVisibility(R.id.widget_progress, View.VISIBLE)
+        setProgressBar(R.id.widget_progress, 100, (progress * 100).toInt().coerceIn(0, 100), false)
+    }
 
     private fun accent(payload: WidgetPayload): Int? = payload.accent?.toInt()
 

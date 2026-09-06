@@ -46,6 +46,23 @@ class FileSnapshotStore(context: Context) : SnapshotStore {
         }
     }
 
+    /**
+     * Les profils dont un cache existe.
+     *
+     * Un widget posé sur l'écran d'accueil doit pouvoir suivre un enfant précis, et le seul
+     * endroit qui sache qui est suivi, application fermée, est le nom des fichiers de cache.
+     */
+    fun profiles(): List<String> = runCatching {
+        directory.listFiles()
+            .orEmpty()
+            .mapNotNull { file ->
+                val name = file.name
+                if (!name.startsWith("snapshot-") || !name.endsWith(".json")) return@mapNotNull null
+                name.removePrefix("snapshot-").removeSuffix(".json").takeIf { it.isNotBlank() }
+            }
+            .sorted()
+    }.getOrDefault(emptyList())
+
     override fun clear() {
         runCatching { directory.listFiles()?.forEach { it.delete() } }
     }

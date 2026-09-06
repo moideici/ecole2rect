@@ -27,6 +27,18 @@ object Insights {
             .sortedBy { it.start }
             .firstOrNull { !it.end.isBefore(now) }
 
+    /**
+     * Le prochain jour qui porte des cours, à partir du lendemain de [after].
+     *
+     * Un vendredi soir, « aucun cours » est une réponse inutile : ce qu'on veut savoir, c'est
+     * ce qui attend lundi. Les cours annulés ne font pas un jour d'école.
+     */
+    fun nextLessonDay(lessons: List<Lesson>, after: LocalDate): LocalDate? =
+        lessons.filterNot { it.canceled }
+            .map { it.date }
+            .filter { it.isAfter(after) }
+            .minOrNull()
+
     fun lessonsOn(lessons: List<Lesson>, date: LocalDate): List<Lesson> =
         lessons.filter { it.date == date }.sortedBy { it.start }
 

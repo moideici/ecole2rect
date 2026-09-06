@@ -13,6 +13,8 @@ import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.core.widget.WidgetContent
 import fr.ecole2recte.app.core.widget.WidgetKind
+import fr.ecole2recte.app.core.widget.WidgetSize
+import fr.ecole2recte.app.core.widget.WidgetSizing
 import fr.ecole2recte.app.core.widget.WidgetShape
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -81,12 +83,125 @@ class WidgetContentTest {
     }
 
     @Test
-    fun `les quinze widgets couvrent les quatre gabarits`() {
+    fun `les quinze widgets couvrent les quatre gabarits a l installation`() {
         assertEquals(15, WidgetKind.entries.size)
-        assertEquals(6, WidgetKind.entries.count { it.shape == WidgetShape.TILE })
-        assertEquals(4, WidgetKind.entries.count { it.shape == WidgetShape.ROW })
-        assertEquals(4, WidgetKind.entries.count { it.shape == WidgetShape.LIST })
-        assertEquals(1, WidgetKind.entries.count { it.shape == WidgetShape.WEEK })
+        assertEquals(6, WidgetKind.entries.count { it.natural == WidgetShape.TILE })
+        assertEquals(4, WidgetKind.entries.count { it.natural == WidgetShape.ROW })
+        assertEquals(4, WidgetKind.entries.count { it.natural == WidgetShape.LIST })
+        assertEquals(1, WidgetKind.entries.count { it.natural == WidgetShape.WEEK })
+    }
+
+    @Test
+    fun `chaque widget sait se dire dans les quatre formes`() {
+        WidgetKind.entries.forEach { kind ->
+            WidgetShape.entries.forEach { shape ->
+                val payload = WidgetContent.payload(
+                    kind = kind,
+                    snapshot = snapshot,
+                    settings = AppSettings(),
+                    now = morning,
+                    shape = shape,
+                    maxLines = 6,
+                )
+                assertEquals("${kind.name} en $shape", shape, payload.shape)
+                assertTrue("${kind.name} en $shape : titre vide", payload.title.isNotBlank())
+                assertTrue("${kind.name} en $shape : libellé vide", payload.label.isNotBlank())
+                // Agrandir doit ajouter du contenu, pas du vide : au-delà de la tuile et de
+                // la ligne, un widget doit avoir des lignes ou des jours à montrer.
+                if (shape == WidgetShape.LIST) {
+                    assertTrue("${kind.name} en liste : aucune ligne", payload.lines.isNotEmpty())
+                }
+            }
+        }
+    }
+
+
+    // ── Adaptation à la taille ───────────────────────────────────────────────
+
+    @Test
+    fun `la place disponible choisit le gabarit`() {
+        // Les tailles sont celles que le lanceur annonce en dp pour 1×1, 2×1, 2×2 et 4×2.
+        assertEquals(WidgetShape.TILE, WidgetSizing.shapeFor(WidgetKind.AVERAGE, WidgetSize(40, 40)))
+        assertEquals(WidgetShape.ROW, WidgetSizing.shapeFor(WidgetKind.AVERAGE, WidgetSize(140, 40)))
+        assertEquals(WidgetShape.LIST, WidgetSizing.shapeFor(WidgetKind.AVERAGE, WidgetSize(140, 140)))
+        // La semaine est le seul contenu qui exige de la largeur ; à l'étroit elle se replie.
+        assertEquals(WidgetShape.WEEK, WidgetSizing.shapeFor(WidgetKind.WEEK, WidgetSize(280, 140)))
+        assertEquals(WidgetShape.LIST, WidgetSizing.shapeFor(WidgetKind.WEEK, WidgetSize(140, 140)))
+        assertEquals(WidgetShape.LIST, WidgetSizing.shapeFor(WidgetKind.TODAY, WidgetSize(280, 140)))
+        // Une colonne étroite mais haute reste une tuile : aucune ligne de liste n'y tient.
+        assertEquals(WidgetShape.TILE, WidgetSizing.shapeFor(WidgetKind.TODAY, WidgetSize(40, 210)))
+    }
+
+    @Test
+    fun `plus le widget est haut, plus il montre de lignes`() {
+        assertEquals(1, WidgetSizing.maxLines(WidgetSize(140, 70)))
+        assertEquals(2, WidgetSizing.maxLines(WidgetSize(140, 140)))
+        assertEquals(5, WidgetSizing.maxLines(WidgetSize(140, 220)))
+        assertEquals(WidgetSizing.MAX_LINES, WidgetSizing.maxLines(WidgetSize(140, 600)))
+    }
+
+    @Test
+    fun `agrandir un widget ajoute du contenu, pas du vide`() {
+        // Avant le premier cours : la journée entière est encore devant.
+        val dawn = monday.atTime(7, 30)
+        val small = WidgetContent.payload(
+            WidgetKind.TODAY, snapshot, AppSettings(), dawn,
+            shape = WidgetShape.LIST, maxLines = 1,
+        )
+        val large = WidgetContent.payload(
+            WidgetKind.TODAY, snapshot, AppSettings(), dawn,
+            shape = WidgetShape.LIST, maxLines = 6,
+        )
+
+        assertEquals(1, small.lines.size)
+        assertTrue("la grande version doit montrer davantage", large.lines.size > small.lines.size)
+    }
+
+    // ── Jamais « rien » ──────────────────────────────────────────────────────
+
+    @Test
+    fun `la journee finie, le widget montre le prochain jour d ecole`() {
+        val evening = monday.atTime(19, 30)
+
+        val payload = WidgetContent.payload(
+            WidgetKind.TODAY, snapshot, AppSettings(), evening,
+            shape = WidgetShape.LIST, maxLines = 4,
+        )
+
+        assertEquals("DEMAIN", payload.label)
+        assertEquals("Anglais", payload.lines.single().text)
+        assertFalse("il y a bien quelque chose à montrer", payload.empty)
+    }
+
+    @Test
+    fun `le prochain cours annonce le jour quand ce n est pas aujourd hui`() {
+        val evening = monday.atTime(19, 30)
+
+        val row = WidgetContent.payload(
+            WidgetKind.NEXT_LESSON, snapshot, AppSettings(), evening,
+            shape = WidgetShape.ROW,
+        )
+        val tile = WidgetContent.payload(
+            WidgetKind.COUNTDOWN, snapshot, AppSettings(), evening,
+            shape = WidgetShape.TILE,
+        )
+
+        assertTrue("« dans 12 h » ne dit pas que c'est demain", row.subtitle.contains("demain"))
+        assertEquals("DEMAIN", tile.label)
+    }
+
+    @Test
+    fun `un cours en cours porte son avancement`() {
+        val during = monday.atTime(11, 0)
+
+        val payload = WidgetContent.payload(
+            WidgetKind.NEXT_LESSON, snapshot, AppSettings(), during,
+            shape = WidgetShape.ROW,
+        )
+
+        assertEquals("COURS EN COURS", payload.label)
+        assertNotNull(payload.progress)
+        assertTrue("l'avancement doit rester entre 0 et 1", payload.progress!! in 0f..1f)
     }
 
     @Test

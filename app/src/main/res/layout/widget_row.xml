@@ -52,6 +52,17 @@
             android:maxLines="1"
             android:textColor="@color/widget_muted"
             android:textSize="11sp" />
+
+        <!-- Avancement du cours en cours : on voit d'un regard s'il reste dix minutes. -->
+        <ProgressBar
+            android:id="@+id/widget_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="6dp"
+            android:max="100"
+            android:progressTint="@color/widget_accent"
+            android:visibility="gone" />
     </LinearLayout>
 
     <TextView

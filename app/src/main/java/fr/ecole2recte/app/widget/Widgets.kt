@@ -4,7 +4,13 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
+import android.os.Build
+import android.os.Bundle
+import android.util.SizeF
+import android.widget.RemoteViews
 import fr.ecole2recte.app.core.widget.WidgetKind
+import fr.ecole2recte.app.core.widget.WidgetOptions
+import fr.ecole2recte.app.core.widget.WidgetSize
 
 /**
  * Les quinze widgets d'écran d'accueil.
@@ -12,26 +18,120 @@ import fr.ecole2recte.app.core.widget.WidgetKind
  * Chacun n'est qu'un nom déclaré au système et un [WidgetKind] : tout le contenu vient de
  * `core`, tout le dessin de [WidgetRenderer]. Ajouter un widget, c'est donc ajouter une
  * valeur d'énumération, une classe d'une ligne, un fichier XML et un receveur au manifeste.
+ *
+ * Le seul travail sérieux de cette classe est la **taille**. Un widget Android est
+ * redimensionnable : l'utilisateur l'étire, et le lanceur annonce la place accordée dans un
+ * `Bundle`. Un widget qui ignore ce bundle affiche la même chose sur une case et sur un quart
+ * d'écran — c'est-à-dire du vide. On lit donc la place réelle, et le contenu s'y ajuste.
  */
 abstract class Ecole2recteWidget(private val kind: WidgetKind) : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        val data = WidgetData.load(context)
-        val options = WidgetOptionsStore(context)
+        val store = WidgetOptionsStore(context)
+        // Deux widgets peuvent suivre deux enfants différents : le cache est donc relu par
+        // profil, mais une seule fois pour tous les widgets qui partagent le même.
+        val caches = mutableMapOf<String?, WidgetData.Loaded>()
         appWidgetIds.forEach { id ->
             runCatching {
+                val options = store.read(id)
+                val data = caches.getOrPut(options.accountId) { WidgetData.load(context, options.accountId) }
                 appWidgetManager.updateAppWidget(
                     id,
-                    WidgetRenderer.render(context, kind, data, options.read(id)),
+                    views(context, data, options, appWidgetManager.getAppWidgetOptions(id)),
                 )
             }
         }
+    }
+
+    /**
+     * Le lanceur prévient quand le widget est redimensionné : c'est le moment de recalculer,
+     * sinon un widget agrandi garderait le contenu de sa petite taille jusqu'au prochain
+     * réveil, une demi-heure plus tard.
+     */
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        val stored = WidgetOptionsStore(context).read(appWidgetId)
+        val data = WidgetData.load(context, stored.accountId)
+        runCatching {
+            appWidgetManager.updateAppWidget(appWidgetId, views(context, data, stored, newOptions))
+        }
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
     }
 
     /** Un widget retiré emporte ses réglages : rien ne doit survivre à sa disparition. */
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         WidgetOptionsStore(context).forget(appWidgetIds)
         super.onDeleted(context, appWidgetIds)
+    }
+
+    private fun views(
+        context: Context,
+        data: WidgetData.Loaded,
+        options: WidgetOptions,
+        bundle: Bundle?,
+    ): RemoteViews = WidgetSizes.remoteViews(context, kind, data, options, bundle)
+}
+
+/**
+ * La place accordée à un widget, telle que le système la décrit.
+ *
+ * Android 12 a changé la règle : le lanceur ne donne plus une taille mais **la liste des
+ * tailles** auxquelles le widget peut apparaître (portrait, paysage, écran plié ou déplié),
+ * et attend un rendu pour chacune — il choisit ensuite sans réveiller l'application. Avant
+ * 12, il n'y a qu'un minimum en largeur et en hauteur, et un seul rendu à fournir.
+ */
+object WidgetSizes {
+
+    /** Au-delà, `RemoteViews` refuse la carte des tailles ; le système n'en propose jamais tant. */
+    private const val MAX_MAPPED_SIZES = 8
+
+    fun remoteViews(
+        context: Context,
+        kind: WidgetKind,
+        data: WidgetData.Loaded,
+        options: WidgetOptions,
+        bundle: Bundle?,
+    ): RemoteViews {
+        val sizes = sizes(bundle)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && sizes.size > 1) {
+            val mapping = sizes.take(MAX_MAPPED_SIZES).associate { size ->
+                SizeF(size.widthDp.toFloat(), size.heightDp.toFloat()) to
+                    WidgetRenderer.render(context, kind, data, options, size)
+            }
+            // La carte doit être non vide ; en cas de doute on retombe sur un rendu unique.
+            if (mapping.isNotEmpty()) return RemoteViews(mapping)
+        }
+        return WidgetRenderer.render(context, kind, data, options, sizes.firstOrNull() ?: WidgetSize.SMALL)
+    }
+
+    /** Les tailles annoncées par le lanceur, de la plus petite à la plus grande. */
+    fun sizes(bundle: Bundle?): List<WidgetSize> {
+        val options = bundle ?: return listOf(WidgetSize.SMALL)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val declared = runCatching {
+                @Suppress("DEPRECATION")
+                options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
+            }.getOrNull().orEmpty()
+            if (declared.isNotEmpty()) {
+                return declared.map { WidgetSize(it.width.toInt(), it.height.toInt()) }
+                    .sortedBy { it.widthDp * it.heightDp }
+            }
+        }
+        // Repli d'avant Android 12 : le minimum en portrait, et le minimum en paysage —
+        // les deux orientations dans lesquelles le widget devra tenir.
+        val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+        val maxWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 0)
+        val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+        val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
+        if (minWidth <= 0 || minHeight <= 0) return listOf(WidgetSize.SMALL)
+        return listOf(
+            WidgetSize(minWidth, maxHeight.coerceAtLeast(minHeight)),
+            WidgetSize(maxWidth.coerceAtLeast(minWidth), minHeight),
+        ).distinct().sortedBy { it.widthDp * it.heightDp }
     }
 }
 
@@ -87,19 +187,32 @@ object WidgetUpdater {
 
     fun updateAll(context: Context) {
         val manager = runCatching { AppWidgetManager.getInstance(context) }.getOrNull() ?: return
-        val data = WidgetData.load(context)
+        val store = WidgetOptionsStore(context)
+        val caches = mutableMapOf<String?, WidgetData.Loaded>()
         PROVIDERS.forEach { (kind, provider) ->
             val ids = runCatching {
                 manager.getAppWidgetIds(ComponentName(context, provider))
             }.getOrNull() ?: IntArray(0)
             if (ids.isEmpty()) return@forEach
-            val options = WidgetOptionsStore(context)
             ids.forEach { id ->
                 val views = runCatching {
-                    WidgetRenderer.render(context, kind, data, options.read(id))
+                    val options = store.read(id)
+                    WidgetSizes.remoteViews(
+                        context = context,
+                        kind = kind,
+                        data = caches.getOrPut(options.accountId) {
+                            WidgetData.load(context, options.accountId)
+                        },
+                        options = options,
+                        bundle = manager.getAppWidgetOptions(id),
+                    )
                 }.getOrNull()
                 if (views != null) runCatching { manager.updateAppWidget(id, views) }
             }
         }
     }
+
+    /** Le widget correspondant à une classe de receveur : l'écran de configuration en a besoin. */
+    fun kindOf(className: String?): WidgetKind? =
+        PROVIDERS.entries.firstOrNull { it.value.name == className }?.key
 }
