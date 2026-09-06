@@ -62,7 +62,12 @@ ensuite les modules absents, puis l'approfondissement, enfin la qualité et la d
 - [x] **Recherche globale** depuis l'accueil : matières, devoirs, notes, messages.
 - [x] **Export ICS** de l'emploi du temps vers le calendrier du téléphone.
 - [x] **Journal d'erreurs** consultable dans les réglages, sans secrets.
-- [x] **Widgets configurables** : choisir la matière ou la période affichée à la pose.
+- [x] **Widgets configurables** : choisir la matière à la pose — et, pour un compte parent,
+      l'enfant que le widget suit.
+- [x] **Widgets adaptatifs.** Redimensionnables dans les deux sens, avec un contenu qui suit
+      la place accordée (tuile, ligne, liste, semaine) et un rendu par taille annoncée sur
+      Android 12+. Aucun ne dit plus « rien » : la journée finie bascule sur le prochain jour
+      d'école, et un cours en cours porte son avancement.
 - [x] **Balayage horizontal** entre les jours de l'emploi du temps.
 - [x] **Tout ce que porte le bulletin** : compétences du socle évaluées avec la note, notes
       extrêmes de la classe, type de devoir, appréciation du conseil avec sa date et le

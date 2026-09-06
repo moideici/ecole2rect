@@ -99,33 +99,64 @@ passe. Elles se relisent, se corrigent et s'effacent dans **Réglages → Connex
 
 ## Widgets d'écran d'accueil
 
-Quinze widgets natifs, dans la même direction visuelle que l'application, en quatre tailles :
+Quinze widgets natifs, dans la même direction visuelle que l'application. Le tableau donne
+leur taille *à l'installation* — pas leur taille de vie : ils sont tous redimensionnables
+dans les deux sens, et leur contenu suit.
 
-| Taille | Widgets |
+| À l'installation | Widgets |
 | --- | --- |
-| 1×1 | moyenne générale · devoirs à faire · messages non lus · avant le prochain cours (matière et salle comprises) · prochaine évaluation · absences à justifier |
+| 1×1 | moyenne générale · devoirs à faire · messages non lus · avant le prochain cours · prochaine évaluation · absences à justifier |
 | 2×1 | prochain cours · devoir urgent · dernière note · dernier message |
 | 2×2 | journée · prochains devoirs · dernières notes · moyennes par matière |
 | 4×2 | semaine |
 
-Deux d'entre eux ont été remplacés en cours de route, et c'est la règle qui vaut d'être
-retenue : **un widget qui répète un autre widget ne mérite pas sa place**. « Salle du
-prochain cours » redisait ce que « prochain cours » affichait déjà, et « dernière
-synchronisation » renseignait sur l'application plutôt que sur l'école. La salle a rejoint
-le compte à rebours — qui se suffit maintenant à lui-même — et les deux tuiles libérées
-répondent à des questions qu'on se pose vraiment : quand tombe la prochaine évaluation, et
-combien d'absences attendent un justificatif.
+### Le contenu suit la taille
 
-Trois choix de conception :
+Un widget Android n'a pas de dimensions fixes : on l'étire, et deux lanceurs ne donnent pas
+la même place pour « 2×2 ». Un widget dessiné pour une seule taille est donc vide sur un
+grand écran et tronqué sur un petit. Ici, chaque widget sait se dire de quatre façons — une
+tuile, une ligne, une liste, une semaine — et c'est la place réellement accordée qui choisit :
 
-- **le contenu est calculé dans `core`**, pas dans le widget : les quinze payloads sont des
-  fonctions pures, testées, et un widget ne peut donc pas afficher autre chose que
-  l'application ;
+- « moyenne » montre un chiffre en une case, la moyenne avec sa tendance et la moyenne de
+  classe sur deux cases de large, le détail matière par matière dès qu'il a deux cases de
+  haut ;
+- « semaine » exige de la largeur ; rétrécie, elle se replie en un jour par ligne ;
+- une liste montre de une à huit lignes selon la hauteur, au lieu de quatre quoi qu'il arrive.
+
+Agrandir un widget ajoute donc de l'information, jamais du vide. Sur Android 12 et suivants,
+l'application fournit **un rendu par taille annoncée** : le lanceur passe de l'un à l'autre
+sans réveiller l'application, et le redimensionnement est immédiat.
+
+### Un widget ne dit jamais « rien »
+
+Vendredi soir, « journée terminée » n'apprend rien ; ce qu'on veut savoir, c'est ce qui
+attend lundi. La journée bascule donc sur le **prochain jour d'école**, avec son libellé
+(« DEMAIN », « LUNDI »). Le prochain cours annonce le jour quand ce n'est pas aujourd'hui —
+« dans 18 h » ne dit pas qu'il s'agit de demain matin. Un devoir urgent absent laisse la
+place à la prochaine évaluation. Et pendant un cours, une barre d'avancement dit d'un regard
+s'il reste dix minutes.
+
+### Un widget par enfant
+
+Quand plusieurs élèves sont en cache, la pose d'un widget demande lequel il doit suivre : un
+parent installe la journée de l'aîné à côté de celle de la cadette, et changer de profil dans
+l'application n'y touche pas. Quand il n'y a rien à demander — un seul élève, aucun réglage —
+l'écran de configuration ne s'affiche pas.
+
+### Trois choix de conception
+
+- **le contenu est calculé dans `core`**, pas dans le widget : les payloads sont des
+  fonctions pures, testées dans les quatre formes, et un widget ne peut donc pas afficher
+  autre chose que l'application ;
 - **aucun appel réseau depuis un widget** — ils relisent le cache sur disque, celui-là même
   qu'écrit la synchronisation, ce qui les rend instantanés et silencieux ;
 - **la mise à jour est poussée par l'application** dès qu'une donnée change (fin de
   synchronisation, devoir coché, couleur de matière modifiée), sans attendre le réveil
   système, qui n'a lieu qu'une fois par demi-heure au mieux.
+
+Un widget qui répète un autre widget ne mérite pas sa place : c'est ce qui a coûté leur
+place à « salle du prochain cours », que « prochain cours » disait déjà, et à « dernière
+synchronisation », qui renseignait sur l'application plutôt que sur l'école.
 
 Toucher un widget ouvre directement l'écran correspondant, pas seulement l'application. Les
 couleurs suivent le thème clair ou sombre du système, et chaque matière garde la sienne.
