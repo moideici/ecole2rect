@@ -40,8 +40,8 @@ class AverageWidget : Ecole2recteWidget(WidgetKind.AVERAGE)
 class HomeworkCountWidget : Ecole2recteWidget(WidgetKind.HOMEWORK_COUNT)
 class UnreadWidget : Ecole2recteWidget(WidgetKind.UNREAD)
 class CountdownWidget : Ecole2recteWidget(WidgetKind.COUNTDOWN)
-class RoomWidget : Ecole2recteWidget(WidgetKind.ROOM)
-class SyncWidget : Ecole2recteWidget(WidgetKind.SYNC)
+class NextExamWidget : Ecole2recteWidget(WidgetKind.NEXT_EXAM)
+class AbsencesWidget : Ecole2recteWidget(WidgetKind.ABSENCES)
 
 // ── 2×1 ──────────────────────────────────────────────────────────────────────
 class NextLessonWidget : Ecole2recteWidget(WidgetKind.NEXT_LESSON)
@@ -72,8 +72,8 @@ object WidgetUpdater {
         WidgetKind.HOMEWORK_COUNT to HomeworkCountWidget::class.java,
         WidgetKind.UNREAD to UnreadWidget::class.java,
         WidgetKind.COUNTDOWN to CountdownWidget::class.java,
-        WidgetKind.ROOM to RoomWidget::class.java,
-        WidgetKind.SYNC to SyncWidget::class.java,
+        WidgetKind.NEXT_EXAM to NextExamWidget::class.java,
+        WidgetKind.ABSENCES to AbsencesWidget::class.java,
         WidgetKind.NEXT_LESSON to NextLessonWidget::class.java,
         WidgetKind.URGENT_HOMEWORK to UrgentHomeworkWidget::class.java,
         WidgetKind.LAST_GRADE to LastGradeWidget::class.java,

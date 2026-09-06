@@ -13,10 +13,10 @@
     <string name="widget_unread_description">Le nombre de messages non lus.</string>
     <string name="widget_countdown_label">Avant le prochain cours</string>
     <string name="widget_countdown_description">Le temps restant avant le prochain cours.</string>
-    <string name="widget_room_label">Salle du prochain cours</string>
-    <string name="widget_room_description">Où aller, et à quelle heure.</string>
-    <string name="widget_sync_label">Dernière synchronisation</string>
-    <string name="widget_sync_description">Depuis quand les données affichées datent.</string>
+    <string name="widget_next_exam_label">Prochaine évaluation</string>
+    <string name="widget_next_exam_description">Le devoir surveillé qui arrive, et dans combien de temps.</string>
+    <string name="widget_absences_label">Absences à justifier</string>
+    <string name="widget_absences_description">Les absences du mois qui attendent un justificatif.</string>
     <string name="widget_next_lesson_label">Prochain cours</string>
     <string name="widget_next_lesson_description">Matière, salle, professeur et horaire.</string>
     <string name="widget_urgent_homework_label">Devoir urgent</string>

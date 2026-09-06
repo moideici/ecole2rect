@@ -6,6 +6,8 @@ import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.model.Period
+import fr.ecole2recte.app.core.model.SchoolLifeEvent
+import fr.ecole2recte.app.core.model.SchoolLifeKind
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.settings.AppSettings
@@ -51,6 +53,17 @@ class WidgetContentTest {
         messages = listOf(
             MessageItem("3001", "Réunion", "Mme Legrand", monday.atTime(9, 42)),
         ),
+        schoolLife = listOf(
+            SchoolLifeEvent("v1", SchoolLifeKind.ABSENCE, "Absence", monday.minusDays(3).atTime(8, 0)),
+            SchoolLifeEvent(
+                "v2",
+                SchoolLifeKind.ABSENCE,
+                "Absence",
+                monday.minusDays(10).atTime(10, 0),
+                justified = true,
+            ),
+            SchoolLifeEvent("v3", SchoolLifeKind.LATE, "Retard", monday.minusDays(1).atTime(8, 5)),
+        ),
         syncedAt = mapOf(DataSection.TIMETABLE to morning.minusMinutes(4).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()),
     )
 
@@ -90,7 +103,9 @@ class WidgetContentTest {
         val payload = WidgetContent.payload(WidgetKind.COUNTDOWN, snapshot, AppSettings(), morning)
 
         assertEquals("24 min", payload.title)
-        assertEquals("Mathématiques", payload.subtitle)
+        // La tuile doit se suffire à elle-même : sans la salle, « dans 24 min » oblige à
+        // ouvrir l'application pour savoir où aller.
+        assertEquals("Mathématiques · C011", payload.subtitle)
         assertNotNull("la couleur de la matière doit suivre", payload.accent)
     }
 
@@ -136,11 +151,26 @@ class WidgetContentTest {
     }
 
     @Test
-    fun `la tuile de synchronisation dit l age des donnees`() {
-        val payload = WidgetContent.payload(WidgetKind.SYNC, snapshot, AppSettings(), morning)
+    fun `la tuile d evaluation annonce la prochaine, pas toutes`() {
+        val payload = WidgetContent.payload(WidgetKind.NEXT_EXAM, snapshot, AppSettings(), morning)
 
-        assertEquals("4 min", payload.title)
-        assertEquals("—", WidgetContent.payload(WidgetKind.SYNC, SchoolSnapshot(), AppSettings(), morning).title)
+        assertEquals("demain", payload.title)
+        assertEquals("Mathématiques", payload.subtitle)
+        assertEquals(
+            "sans évaluation annoncée, la tuile le dit au lieu de rester vide",
+            "rien d'annoncé",
+            WidgetContent.payload(WidgetKind.NEXT_EXAM, SchoolSnapshot(), AppSettings(), morning).subtitle,
+        )
+    }
+
+    @Test
+    fun `la tuile d absences ne compte que celles qui attendent un justificatif`() {
+        val payload = WidgetContent.payload(WidgetKind.ABSENCES, snapshot, AppSettings(), morning)
+
+        // Une absence justifiée et un retard ne sont pas des absences à justifier.
+        assertEquals("1", payload.title)
+        assertEquals("absence ce mois", payload.subtitle)
+        assertEquals("0", WidgetContent.payload(WidgetKind.ABSENCES, SchoolSnapshot(), AppSettings(), morning).title)
     }
 
     @Test

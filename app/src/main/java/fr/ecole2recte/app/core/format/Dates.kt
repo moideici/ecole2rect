@@ -24,6 +24,12 @@ object Dates {
         "juillet", "août", "septembre", "octobre", "novembre", "décembre",
     )
 
+    /** Les mois abrégés comme on les écrit en français : « janv. », « sept. », mais « mai ». */
+    private val SHORT_MONTHS = listOf(
+        "janv.", "févr.", "mars", "avril", "mai", "juin",
+        "juil.", "août", "sept.", "oct.", "nov.", "déc.",
+    )
+
     val ISO_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
     fun isoDate(date: LocalDate): String = date.format(ISO_DATE)
@@ -93,6 +99,25 @@ object Dates {
         today.plusDays(1) -> "demain"
         today.minusDays(1) -> "hier"
         else -> dayAndMonth(date)
+    }
+
+    /** « 5 sept. », et l'année en plus dès qu'on sort de l'année en cours. */
+    fun shortDate(date: LocalDate, today: LocalDate = date): String {
+        val month = SHORT_MONTHS[date.monthValue - 1]
+        val year = if (date.year == today.year) "" else " ${date.year}"
+        return "${date.dayOfMonth} $month$year"
+    }
+
+    /**
+     * Horodatage d'une liste : l'heure aujourd'hui, « hier » la veille, la date ensuite.
+     *
+     * C'est la convention de toutes les messageries, et pour une bonne raison : « aujourd'hui »
+     * ne distingue pas un message de 8 h d'un message reçu il y a deux minutes.
+     */
+    fun listStamp(value: LocalDateTime, today: LocalDate): String = when (value.toLocalDate()) {
+        today -> time(value)
+        today.minusDays(1) -> "hier"
+        else -> shortDate(value.toLocalDate(), today)
     }
 
     /** Libellé d'échéance d'un devoir, avec le retard rendu explicite. */

@@ -117,14 +117,31 @@ fun HomeScreen(
         }
         item("sync") { SyncStatusRow(sync, snapshot.lastSyncedAt, now) }
 
-        settings.visibleWidgets.forEach { widget ->
+        val visible = settings.visibleWidgets
+        visible.forEach { widget ->
             item(widget.name) {
                 Box(Modifier.padding(horizontal = ScreenPadding, vertical = 7.dp)) {
                     when (widget) {
                         HomeWidget.NEXT_CLASS -> NextClassWidget(snapshot, settings, now, onNavigate)
                         HomeWidget.URGENT -> UrgentWidget(snapshot, settings, today, onOpenDetail)
-                        HomeWidget.TODAY -> TodayWidget(snapshot, settings, now, onNavigate)
-                        HomeWidget.HOMEWORK -> HomeworkWidget(snapshot, settings, today, onNavigate, onToggleHomework)
+                        // Deux blocs voisins ne doivent pas montrer la même chose : quand le
+                        // prochain cours a déjà sa carte, la journée commence après lui.
+                        HomeWidget.TODAY -> TodayWidget(
+                            snapshot = snapshot,
+                            settings = settings,
+                            now = now,
+                            skipNextLesson = HomeWidget.NEXT_CLASS in visible,
+                            onNavigate = onNavigate,
+                        )
+
+                        HomeWidget.HOMEWORK -> HomeworkWidget(
+                            snapshot = snapshot,
+                            settings = settings,
+                            today = today,
+                            skipUrgent = HomeWidget.URGENT in visible,
+                            onNavigate = onNavigate,
+                            onToggle = onToggleHomework,
+                        )
                         HomeWidget.EXAMS -> ExamsWidget(snapshot, settings, today, onOpenDetail)
                         HomeWidget.GRADES -> GradesWidget(snapshot, settings, onNavigate)
                         HomeWidget.SUBJECT_AVERAGES -> SubjectAveragesWidget(snapshot, settings, today, onNavigate)
@@ -387,12 +404,17 @@ private fun TodayWidget(
     snapshot: SchoolSnapshot,
     settings: AppSettings,
     now: LocalDateTime,
+    skipNextLesson: Boolean,
     onNavigate: (Destination) -> Unit,
 ) {
-    val lessons = Insights.lessonsOn(snapshot.lessons, now.toLocalDate())
+    val all = Insights.lessonsOn(snapshot.lessons, now.toLocalDate())
+    // Le cours en cours ou imminent a déjà sa carte juste au-dessus : le répéter ici ferait
+    // deux fois la même ligne à deux centimètres d'écart.
+    val alreadyShown = if (skipNextLesson) Insights.currentOrNextLesson(snapshot.lessons, now) else null
+    val lessons = all.filterNot { it.id == alreadyShown?.id }
     AppCard(onClick = { onNavigate(Destination.TIMETABLE) }) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            WidgetLabel("AUJOURD'HUI", Modifier.weight(1f))
+            WidgetLabel(if (alreadyShown != null) "LA SUITE" else "AUJOURD'HUI", Modifier.weight(1f))
             Text(
                 "Voir la semaine",
                 style = MaterialTheme.typography.labelLarge,
@@ -402,7 +424,11 @@ private fun TodayWidget(
         Spacer(Modifier.height(12.dp))
         if (lessons.isEmpty()) {
             Text(
-                "Aucun cours aujourd'hui.",
+                when {
+                    all.isEmpty() -> "Aucun cours aujourd'hui."
+                    alreadyShown != null -> "Plus rien après ce cours."
+                    else -> "Aucun cours aujourd'hui."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -468,11 +494,16 @@ private fun HomeworkWidget(
     snapshot: SchoolSnapshot,
     settings: AppSettings,
     today: LocalDate,
+    skipUrgent: Boolean,
     onNavigate: (Destination) -> Unit,
     onToggle: (HomeworkItem) -> Unit,
 ) {
     val pending = Insights.pendingHomework(snapshot.homework, settings, today)
     val late = pending.count { it.dueDate.isBefore(today) }
+    // Le devoir mis en avant par le bloc « à ne pas oublier » n'a pas à réapparaître trois
+    // lignes plus bas : le compte reste juste, seule la liste saute son premier élément.
+    val urgent = if (skipUrgent) Insights.urgentHomework(snapshot.homework, settings, today) else null
+    val listed = pending.filterNot { it.id == urgent?.id }
     AppCard(onClick = { onNavigate(Destination.HOMEWORK) }) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             WidgetLabel("À FAIRE", Modifier.weight(1f))
@@ -488,8 +519,15 @@ private fun HomeworkWidget(
             style = MaterialTheme.typography.titleLarge,
         )
         Spacer(Modifier.height(6.dp))
-        pending.take(3).forEach { item ->
+        listed.take(3).forEach { item ->
             HomeworkRow(item, settings, today, onToggle)
+        }
+        if (listed.isEmpty() && urgent != null) {
+            Text(
+                "Le seul devoir en attente est celui mis en avant ci-dessus.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

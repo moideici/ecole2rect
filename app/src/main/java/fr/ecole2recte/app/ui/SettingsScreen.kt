@@ -648,14 +648,30 @@ fun HomeEditorScreen(
     onToggle: (HomeWidget) -> Unit,
     onClose: () -> Unit,
 ) {
-    DetailScaffold("Composer l'accueil", "Ordre et visibilité des widgets", onClose) {
+    val shown = settings.visibleWidgets.size
+    DetailScaffold(
+        title = "Composer l'accueil",
+        subtitle = "$shown blocs affichés sur ${settings.orderedWidgets.size}",
+        onClose = onClose,
+    ) {
         val widgets = settings.orderedWidgets
         widgets.forEachIndexed { index, setting ->
             Box(Modifier.padding(horizontal = ScreenPadding, vertical = 5.dp)) {
                 AppCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(setting.widget.label, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                setting.widget.label,
+                                style = MaterialTheme.typography.titleMedium,
+                                // Un bloc masqué s'écrit en gris : la liste se lit alors d'un
+                                // coup d'œil, sans avoir à suivre l'état de chaque
+                                // interrupteur.
+                                color = if (setting.visible) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
                             Text(
                                 setting.widget.description,
                                 style = MaterialTheme.typography.bodySmall,
@@ -678,7 +694,7 @@ fun HomeEditorScreen(
                         ) { onMove(setting.widget, 1) }
                         Spacer(Modifier.weight(1f))
                         Text(
-                            "Position ${index + 1}",
+                            if (setting.visible) "Position ${index + 1}" else "Masqué",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

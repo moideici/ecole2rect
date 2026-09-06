@@ -2,13 +2,13 @@ package fr.ecole2recte.app.core.widget
 
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.format.Text
+import fr.ecole2recte.app.core.model.SchoolLifeKind
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.core.settings.SubjectPalette
 import java.time.Duration
 import java.time.LocalDateTime
-import java.time.ZoneId
 
 /**
  * Le contenu des widgets d'écran d'accueil Android, calculé sans rien connaître d'Android.
@@ -35,9 +35,9 @@ enum class WidgetKind(
     AVERAGE("Moyenne générale", "La moyenne de la période en cours.", WidgetShape.TILE, WidgetTarget.GRADES),
     HOMEWORK_COUNT("Devoirs à faire", "Combien de devoirs restent à faire.", WidgetShape.TILE, WidgetTarget.HOMEWORK),
     UNREAD("Messages non lus", "Le nombre de messages non lus.", WidgetShape.TILE, WidgetTarget.MESSAGES),
-    COUNTDOWN("Avant le prochain cours", "Le temps restant avant le prochain cours.", WidgetShape.TILE, WidgetTarget.TIMETABLE),
-    ROOM("Salle du prochain cours", "Où aller, et à quelle heure.", WidgetShape.TILE, WidgetTarget.TIMETABLE),
-    SYNC("Dernière synchronisation", "Quand les données ont été rafraîchies.", WidgetShape.TILE, WidgetTarget.HOME),
+    COUNTDOWN("Avant le prochain cours", "Le temps restant, la matière et la salle.", WidgetShape.TILE, WidgetTarget.TIMETABLE),
+    NEXT_EXAM("Prochaine évaluation", "Le devoir surveillé qui arrive, et dans combien de temps.", WidgetShape.TILE, WidgetTarget.HOMEWORK),
+    ABSENCES("Absences à justifier", "Les absences du mois qui attendent un justificatif.", WidgetShape.TILE, WidgetTarget.HOME),
 
     // 2×1
     NEXT_LESSON("Prochain cours", "Matière, salle et horaire du prochain cours.", WidgetShape.ROW, WidgetTarget.TIMETABLE),
@@ -108,7 +108,6 @@ object WidgetContent {
         snapshot: SchoolSnapshot,
         settings: AppSettings,
         now: LocalDateTime,
-        zone: ZoneId = ZoneId.systemDefault(),
         options: WidgetOptions = WidgetOptions(),
     ): WidgetPayload {
         val today = now.toLocalDate()
@@ -117,8 +116,8 @@ object WidgetContent {
             WidgetKind.HOMEWORK_COUNT -> homeworkCount(kind, snapshot, settings, today)
             WidgetKind.UNREAD -> unread(kind, snapshot, settings)
             WidgetKind.COUNTDOWN -> countdown(kind, snapshot, settings, now)
-            WidgetKind.ROOM -> room(kind, snapshot, settings, now)
-            WidgetKind.SYNC -> sync(kind, snapshot, now, zone)
+            WidgetKind.NEXT_EXAM -> nextExam(kind, snapshot, settings, today)
+            WidgetKind.ABSENCES -> absences(kind, snapshot, today)
             WidgetKind.NEXT_LESSON -> nextLesson(kind, snapshot, settings, now)
             WidgetKind.URGENT_HOMEWORK -> urgentHomework(kind, snapshot, settings, today)
             WidgetKind.LAST_GRADE -> lastGrade(kind, snapshot, settings)
@@ -215,48 +214,67 @@ object WidgetContent {
                 minutes < 60 -> "$minutes min"
                 else -> Dates.duration(minutes)
             },
-            subtitle = lesson.subject,
+            // La matière et la salle dans la même tuile : sans elles, « dans 24 min » oblige
+            // à ouvrir l'application pour savoir où aller.
+            subtitle = listOfNotNull(
+                lesson.subject,
+                lesson.room.takeIf { it.isNotBlank() },
+            ).joinToString(" · "),
             accent = SubjectPalette.colorFor(lesson.subject, settings.subjectColors),
         )
     }
 
-    private fun room(
+    /**
+     * La prochaine évaluation annoncée.
+     *
+     * C'est la question que se pose un élève devant son écran d'accueil — bien plus que
+     * l'heure de la dernière synchronisation, que ce widget remplace.
+     */
+    private fun nextExam(
         kind: WidgetKind,
         snapshot: SchoolSnapshot,
         settings: AppSettings,
-        now: LocalDateTime,
+        today: java.time.LocalDate,
     ): WidgetPayload {
-        val lesson = Insights.currentOrNextLesson(snapshot.lessons, now)
-            ?: return empty(kind, "SALLE", "—", "rien de prévu")
+        val exam = Insights.upcomingExams(snapshot.homework, settings, today).firstOrNull()
+            ?: return empty(kind, "ÉVALUATION", "—", "rien d'annoncé")
+        val days = java.time.temporal.ChronoUnit.DAYS.between(today, exam.dueDate)
         return WidgetPayload(
             kind = kind,
-            label = "SALLE",
-            title = lesson.room.ifBlank { "—" },
-            subtitle = "${Dates.time(lesson.start)} · ${lesson.subject}",
-            accent = SubjectPalette.colorFor(lesson.subject, settings.subjectColors),
+            label = "ÉVALUATION",
+            title = when {
+                days <= 0L -> "aujourd'hui"
+                days == 1L -> "demain"
+                days < 7L -> "dans $days j"
+                else -> Dates.dayAndMonth(exam.dueDate)
+            },
+            subtitle = exam.subject,
+            accent = SubjectPalette.colorFor(exam.subject, settings.subjectColors),
         )
     }
 
-    private fun sync(
+    /**
+     * Les absences du mois restées sans justificatif.
+     *
+     * Un chiffre qui appelle une action — écrire un mot, signer — là où la salle du prochain
+     * cours, que ce widget remplace, répétait ce que le widget « prochain cours » disait déjà.
+     */
+    private fun absences(
         kind: WidgetKind,
         snapshot: SchoolSnapshot,
-        now: LocalDateTime,
-        zone: ZoneId,
+        today: java.time.LocalDate,
     ): WidgetPayload {
-        val last = snapshot.lastSyncedAt
-        val nowMillis = now.atZone(zone).toInstant().toEpochMilli()
-        val minutes = last?.let { (nowMillis - it) / 60_000L }
+        val month = snapshot.schoolLife.filter { it.date.isAfter(today.minusDays(30)) }
+        val unjustified = month.count { it.kind == SchoolLifeKind.ABSENCE && !it.justified }
         return WidgetPayload(
             kind = kind,
-            label = "SYNCHRO",
-            title = when {
-                minutes == null -> "—"
-                minutes < 1 -> "à jour"
-                minutes < 60 -> "$minutes min"
-                else -> Dates.duration(minutes)
+            label = "À JUSTIFIER",
+            title = unjustified.toString(),
+            subtitle = when {
+                unjustified == 0 -> "rien en attente"
+                unjustified == 1 -> "absence ce mois"
+                else -> "absences ce mois"
             },
-            subtitle = if (last == null) "jamais synchronisé" else "depuis la dernière",
-            empty = last == null,
         )
     }
 

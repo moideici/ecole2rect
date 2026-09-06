@@ -448,6 +448,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     snapshot = snapshot,
                     attachmentState = attachment,
                     onOpenAttachment = viewModel::openAttachment,
+                    onRefresh = { viewModel.refresh(setOf(DataSection.NEWS)) },
                     onClose = { detail = null },
                 )
 
@@ -466,6 +467,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                             )
                         }
                     },
+                    onRefresh = { viewModel.refresh(setOf(DataSection.TEXTBOOKS)) },
                     onClose = { detail = null },
                 )
 
@@ -473,6 +475,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     snapshot = snapshot,
                     attachmentState = attachment,
                     onOpen = { file -> viewModel.openAttachment(file.asAttachment()) },
+                    onRefresh = { viewModel.refresh(setOf(DataSection.CLOUD)) },
                     onClose = { detail = null },
                 )
 

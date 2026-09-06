@@ -50,6 +50,7 @@ fun NewsScreen(
     snapshot: SchoolSnapshot,
     attachmentState: AttachmentState,
     onOpenAttachment: (Attachment) -> Unit,
+    onRefresh: () -> Unit,
     onClose: () -> Unit,
 ) {
     val news = snapshot.news
@@ -64,6 +65,10 @@ fun NewsScreen(
                 title = "Aucune actualité",
                 description = "L'établissement n'a rien publié, ou le module « vie de " +
                     "l'établissement » n'est pas ouvert pour ce compte.",
+                // Ces écrans ne se chargent qu'à leur ouverture : sans ce bouton, un échec
+                // réseau resterait un écran vide jusqu'à la synchronisation suivante.
+                actionLabel = "Réessayer",
+                onAction = onRefresh,
             )
             return@DetailScaffold
         }
@@ -114,6 +119,7 @@ fun TextbooksScreen(
     snapshot: SchoolSnapshot,
     settings: AppSettings,
     onOpen: (Textbook) -> Unit,
+    onRefresh: () -> Unit,
     onClose: () -> Unit,
 ) {
     val textbooks = snapshot.textbooks
@@ -128,6 +134,8 @@ fun TextbooksScreen(
                 title = "Aucun manuel",
                 description = "Aucun manuel numérique n'est associé à ce compte, ou le module " +
                     "n'est pas ouvert par l'établissement.",
+                actionLabel = "Réessayer",
+                onAction = onRefresh,
             )
             return@DetailScaffold
         }
@@ -176,6 +184,7 @@ fun CloudScreen(
     snapshot: SchoolSnapshot,
     attachmentState: AttachmentState,
     onOpen: (CloudFile) -> Unit,
+    onRefresh: () -> Unit,
     onClose: () -> Unit,
 ) {
     val files = snapshot.cloudFiles
@@ -190,6 +199,8 @@ fun CloudScreen(
                 title = "Espace vide",
                 description = "Aucun fichier partagé, ou l'espace de stockage n'est pas " +
                     "ouvert pour ce compte.",
+                actionLabel = "Réessayer",
+                onAction = onRefresh,
             )
             return@DetailScaffold
         }

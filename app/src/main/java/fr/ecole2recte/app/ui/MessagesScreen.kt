@@ -193,7 +193,10 @@ fun MessagesScreen(
                                 )
                                 message.date?.let { date ->
                                     Text(
-                                        Dates.relativeDay(date.toLocalDate(), now.toLocalDate()),
+                                        // L'heure pour aujourd'hui : « aujourd'hui » ne
+                                        // distingue pas un message de 8 h d'un message reçu
+                                        // il y a deux minutes.
+                                        Dates.listStamp(date, now.toLocalDate()),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

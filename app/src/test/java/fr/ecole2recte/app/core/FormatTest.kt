@@ -72,4 +72,15 @@ class FormatTest {
         assertEquals("ML", Text.initials("Martin Leroy"))
         assertEquals("Un texte un peu…", Text.preview("Un texte un peu long", maxLength = 17))
     }
+
+    @Test
+    fun `un horodatage de liste donne l heure aujourd hui et la date ensuite`() {
+        val today = LocalDate.of(2026, 9, 7)
+
+        assertEquals("10:42", Dates.listStamp(today.atTime(10, 42), today))
+        assertEquals("hier", Dates.listStamp(today.minusDays(1).atTime(18, 5), today))
+        assertEquals("3 sept.", Dates.listStamp(today.minusDays(4).atTime(8, 0), today))
+        // Une année différente doit être écrite, sinon « 3 sept. » ment d'un an.
+        assertEquals("3 sept. 2025", Dates.listStamp(LocalDate.of(2025, 9, 3).atTime(8, 0), today))
+    }
 }

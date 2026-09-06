@@ -104,27 +104,27 @@
         </receiver>
 
         <receiver
-            android:name=".widget.RoomWidget"
+            android:name=".widget.NextExamWidget"
             android:exported="false"
-            android:label="@string/widget_room_label">
+            android:label="@string/widget_next_exam_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_room" />
+                android:resource="@xml/widget_next_exam" />
         </receiver>
 
         <receiver
-            android:name=".widget.SyncWidget"
+            android:name=".widget.AbsencesWidget"
             android:exported="false"
-            android:label="@string/widget_sync_label">
+            android:label="@string/widget_absences_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_sync" />
+                android:resource="@xml/widget_absences" />
         </receiver>
 
         <receiver
