@@ -69,6 +69,8 @@ fun MessagesScreen(
     settings: AppSettings,
     sync: SyncState,
     now: LocalDateTime,
+    folder: MessageFolder,
+    onSelectFolder: (MessageFolder) -> Unit,
     onOpen: (MessageItem) -> Unit,
     onLoadMore: () -> Unit,
     canLoadMore: Boolean,
@@ -78,10 +80,12 @@ fun MessagesScreen(
     var query by remember { mutableStateOf("") }
     var unreadOnly by remember { mutableStateOf(false) }
 
-    val unread = Insights.unreadMessages(snapshot.messages, settings)
-    val visible = snapshot.messages
-        .filter { !unreadOnly || !settings.isMessageRead(it.id, it.read) }
-        .filter { Insights.matches(query, it.subject, it.sender, it.preview) }
+    val unread = Insights.unreadMessages(snapshot.inbox, settings)
+    val inFolder = snapshot.messages.filter { it.folder == folder }
+    val visible = inFolder
+        // Le non-lu ne veut rien dire dans les envoyés : le filtre disparaît avec l'onglet.
+        .filter { folder != MessageFolder.RECEIVED || !unreadOnly || !settings.isMessageRead(it.id, it.read) }
+        .filter { Insights.matches(query, it.subject, it.counterpart, it.preview) }
 
     LazyColumn(contentPadding = PaddingValues(bottom = 28.dp)) {
         item {

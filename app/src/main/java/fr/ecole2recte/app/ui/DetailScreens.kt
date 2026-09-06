@@ -45,6 +45,7 @@ import fr.ecole2recte.app.ui.components.StatePlaceholder
 import fr.ecole2recte.app.ui.components.SubjectBadge
 import fr.ecole2recte.app.ui.components.Tag
 import fr.ecole2recte.app.ui.components.subjectColor
+import fr.ecole2recte.app.ui.theme.AppTheme
 import java.time.Duration
 import java.time.LocalDate
 

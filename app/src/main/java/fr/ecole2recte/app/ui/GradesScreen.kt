@@ -180,7 +180,7 @@ fun GradesScreen(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(appreciation, style = MaterialTheme.typography.bodyMedium)
-                        period.councilDate?.let { date ->
+                        period?.councilDate?.let { date ->
                             Spacer(Modifier.height(6.dp))
                             Text(
                                 listOfNotNull(
