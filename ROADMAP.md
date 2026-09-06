@@ -29,6 +29,12 @@ ensuite les modules absents, puis l'approfondissement, enfin la qualité et la d
 - [x] **Vie scolaire** : absences, retards, sanctions et encouragements.
 - [x] **Contenu de séance** : ce qui a été fait en cours, indispensable pour rattraper.
 - [x] **Documents et manuels** de l'espace numérique.
+- [x] **Actualités de l'établissement** (`viedeletablissement.awp`), **manuels numériques**
+      (`manuelsnumeriques.awp`) et **espace de stockage** (`cloud.awp`). Trois modules qu'un
+      établissement peut ne pas ouvrir : ils se chargent à l'ouverture de leur écran, et un
+      refus affiche ce qu'il en est plutôt qu'une erreur répétée à chaque synchronisation.
+- [x] **Messagerie : les trois dossiers** (reçus, envoyés, archivés), destinataires des
+      messages envoyés et classeurs créés sur le site.
 - [ ] **Dépôt de copie en ligne** (`rendreEnLigne`). Volontairement laissé de côté : rendre
       un devoir est irréversible, et l'envoi de fichier ne peut pas être vérifié sans compte
       réel. À faire avec un compte de test, pas à l'aveugle.
@@ -58,6 +64,10 @@ ensuite les modules absents, puis l'approfondissement, enfin la qualité et la d
 - [x] **Journal d'erreurs** consultable dans les réglages, sans secrets.
 - [x] **Widgets configurables** : choisir la matière ou la période affichée à la pose.
 - [x] **Balayage horizontal** entre les jours de l'emploi du temps.
+- [x] **Tout ce que porte le bulletin** : compétences du socle évaluées avec la note, notes
+      extrêmes de la classe, type de devoir, appréciation du conseil avec sa date et le
+      professeur principal, appréciations multiples par matière, moyennes minimale et
+      maximale, groupe et type d'un cours, durée d'une absence, devoir à rendre en ligne.
 
 ## P3 — qualité, robustesse, distribution
 
@@ -89,5 +99,8 @@ Certaines choses ne peuvent pas être écrites honnêtement sans pouvoir les ess
   naissance : la réponse est alors demandée une fois puis mémorisée jusqu'à la rentrée, ce
   qui couvre la question de la classe, mais une question changeant en cours d'année serait
   reposée à chaque expiration de jeton ;
+- la forme des réponses des trois modules facultatifs — actualités, manuels numériques et
+  espace de stockage : les clés lues sont celles décrites par la communauté, avec plusieurs
+  variantes acceptées, mais aucune n'a pu être confrontée à un vrai compte ;
 - la forme exacte de `profile.eleves` sur un compte parent : elle est lue défensivement, la
   classe étant acceptée aussi bien comme objet que comme simple libellé.

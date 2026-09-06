@@ -21,19 +21,29 @@ fiable.
   et cliquables. Chaque cours ouvre une fiche complète.
 - **Devoirs** — regroupés par échéance, filtrables (à faire, évaluations, faits, tout),
   cherchables, cochables d'un geste ; l'état « fait » est local d'abord, poussé au serveur
-  ensuite, donc l'application répond même hors ligne. Le contenu détaillé et les pièces
+  ensuite, donc l'application répond même hors ligne. Un devoir à déposer en ligne est
+  signalé comme tel — cocher une case dans l'application ne rend pas une copie. Le contenu détaillé et les pièces
   jointes arrivent à l'ouverture de la fiche, et les pièces jointes s'ouvrent réellement.
-- **Notes** — sélection de période, moyenne générale de l'établissement quand elle existe
+- **Notes** — tout ce que porte le bulletin : appréciation du conseil de classe avec sa date
+  et le professeur principal, appréciations par matière (toutes, quand plusieurs professeurs
+  se la partagent), moyennes minimale et maximale de la classe, coefficients, type de chaque
+  devoir et **compétences du socle** évaluées avec la note. Plus : sélection de période,
+  moyenne générale de l'établissement quand elle existe
   (et moyenne calculée clairement annoncée comme telle sinon), moyennes par matière,
   détail dépliable de chaque note avec coefficient, moyenne de classe et appréciation,
   courbe d'évolution, et un **simulateur** : « si je prends 14 au prochain devoir, ça
   donne quoi ? », qui sait aussi dire quelle note viser — ou qu'un objectif est hors
   d'atteinte, plutôt que d'annoncer 27/20.
-- **Messages** — liste paginée (l'année entière, pas les cent derniers), recherche, filtre
-  « non lus », lecture du corps complet et ouverture des pièces jointes.
-- **Vie scolaire** — absences, retards, sanctions et encouragements, avec compteurs et
-  état de justification.
+- **Messages** — les trois dossiers du service (reçus, envoyés, archivés), liste paginée
+  (l'année entière, pas les cent derniers), recherche, filtre « non lus », destinataires des
+  messages envoyés, lecture du corps complet et ouverture des pièces jointes.
+- **Vie scolaire** — absences, retards, sanctions et encouragements, avec compteurs, durée
+  telle que l'établissement la compte, motif et état de justification.
 - **Documents** — bulletins et pièces administratives publiés par l'établissement.
+- **Actualités de l'établissement** — ce que l'école adresse à tout le monde, pièces jointes
+  comprises, avec un bloc sur l'accueil.
+- **Manuels numériques** — la liste des manuels associés au compte, ouverts chez leur éditeur.
+- **Espace de stockage** — les fichiers partagés, arborescence aplatie et téléchargeables.
 - **Recherche globale** — une seule question pour toutes les sections.
 - **Couleurs par matière** — une matière garde la même couleur partout ; sans choix
   explicite, elle est dérivée de son nom, donc stable d'un écran et d'un appareil à l'autre.
@@ -42,7 +52,11 @@ fiable.
 - **Quinze widgets d'écran d'accueil Android** (voir plus bas), dont un configurable à la pose.
 - **Notifications** — nouvelle note, nouveau devoir, nouveau message, rappel la veille d'une
   évaluation, chaque type activable séparément et jamais deux fois la même chose.
-- **Synchronisation en arrière-plan** toutes les heures, qui alimente aussi les widgets.
+- **Synchronisation en arrière-plan** toutes les heures, qui alimente aussi les widgets. Elle
+  s'en tient aux six sections toujours présentes ; les trois modules facultatifs
+  (actualités, manuels, stockage) se chargent à l'ouverture de leur écran ou lors d'une
+  synchronisation demandée à la main, pour ne pas réclamer chaque heure ce qu'un
+  établissement n'a pas ouvert.
 - **Verrouillage** par empreinte ou code de l'appareil, en option.
 - **Export iCalendar** de l'emploi du temps vers l'agenda du téléphone.
 - **Mode hors ligne** — la dernière synchronisation est relue au lancement, avant tout appel
