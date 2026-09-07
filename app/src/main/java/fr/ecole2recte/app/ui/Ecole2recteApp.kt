@@ -288,6 +288,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         },
                         onOpenHomework = openHomework,
                         onRefresh = { viewModel.refresh(setOf(DataSection.TIMETABLE)) },
+                        onSearch = { openDetail(Detail.Search) },
                     )
 
                     Destination.HOMEWORK -> HomeworkScreen(
@@ -298,6 +299,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         onOpen = openHomework,
                         onToggle = toggleHomework,
                         onRefresh = { viewModel.refresh(setOf(DataSection.HOMEWORK)) },
+                        onSearch = { openDetail(Detail.Search) },
                     )
 
                     Destination.GRADES -> GradesScreen(
@@ -306,6 +308,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         sync = sync,
                         now = now,
                         onRefresh = { viewModel.refresh(setOf(DataSection.GRADES)) },
+                        onSearch = { openDetail(Detail.Search) },
                     )
 
                     Destination.MESSAGES -> MessagesScreen(
@@ -324,6 +327,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                             snapshot.messages.any { it.folder == messageFolder },
                         loadingMore = loadingMore,
                         onRefresh = { viewModel.refresh(setOf(DataSection.MESSAGES)) },
+                        onSearch = { openDetail(Detail.Search) },
                     )
                     }
                     }

@@ -90,7 +90,12 @@ ensuite les modules absents, puis l'approfondissement, enfin la qualité et la d
 - [x] **Couleurs dynamiques Material You** et icône monochrome.
 - [x] **Raccourcis d'application** (appui long sur l'icône).
 - [x] **Tirer pour rafraîchir** sur les écrans de liste.
-- [x] **Audit d'accessibilité** : libellés, tailles de police, contrastes.
+- [x] **Audit d'accessibilité** : libellés, tailles de police, contrastes, titres annoncés,
+      région vivante sur l'état de synchronisation, courbe résumée en une phrase, widgets
+      résumés en une phrase, et un équivalent aux flèches pour chaque geste de balayage.
+- [x] **Rafraîchissement au déverrouillage** : les widgets se redessinent depuis le cache
+      quand on déverrouille le téléphone, et déclenchent une synchronisation si les données
+      ont vieilli.
 - [x] **Chasse aux redondances.** Deux widgets d'écran d'accueil répétaient un autre widget
       ou parlaient de l'application plutôt que de l'école ; ils ont laissé la place à la
       prochaine évaluation et aux absences à justifier. Sur l'accueil de l'application, la

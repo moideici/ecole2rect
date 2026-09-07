@@ -48,7 +48,13 @@ fiable.
 - **Couleurs par matière** — une matière garde la même couleur partout ; sans choix
   explicite, elle est dérivée de son nom, donc stable d'un écran et d'un appareil à l'autre.
 - **Thème clair, sombre ou système**, contrastes et libellés pensés pour les lecteurs
-  d'écran (états annoncés, pastilles décoratives ignorées, boutons décrits).
+  d'écran : titres annoncés comme des titres, état de synchronisation annoncé de lui-même
+  quand il change, courbe d'évolution résumée en une phrase, pastilles décoratives ignorées,
+  boutons décrits, cibles tactiles à la taille minimale recommandée. Chaque widget d'écran
+  d'accueil se résume aussi en une phrase, au lieu de laisser lire ses vues une par une.
+- **Recherche accessible depuis toutes les pages**, et navigation jour par jour de l'emploi
+  du temps aux flèches autant qu'au balayage — un geste horizontal n'a pas d'équivalent au
+  lecteur d'écran.
 - **Quinze widgets d'écran d'accueil Android** (voir plus bas), dont un configurable à la pose.
 - **Notifications** — nouvelle note, nouveau devoir, nouveau message, rappel la veille d'une
   évaluation, chaque type activable séparément et jamais deux fois la même chose.
@@ -151,8 +157,13 @@ l'écran de configuration ne s'affiche pas.
 - **aucun appel réseau depuis un widget** — ils relisent le cache sur disque, celui-là même
   qu'écrit la synchronisation, ce qui les rend instantanés et silencieux ;
 - **la mise à jour est poussée par l'application** dès qu'une donnée change (fin de
-  synchronisation, devoir coché, couleur de matière modifiée), sans attendre le réveil
-  système, qui n'a lieu qu'une fois par demi-heure au mieux.
+  synchronisation, devoir coché, couleur de matière modifiée) et **au déverrouillage du
+  téléphone**, sans attendre le réveil système, qui n'a lieu qu'une fois par demi-heure au
+  mieux. Le redessin au déverrouillage ne coûte rien : il relit le cache, sans réseau ; une
+  vraie synchronisation n'est demandée que si les données ont plus de vingt minutes.
+  `ACTION_USER_PRESENT` ne faisant pas partie des diffusions qu'un receveur déclaré au
+  manifeste peut recevoir depuis Android 8, l'écoute est enregistrée à l'exécution : elle
+  vaut tant que le processus vit, et la synchronisation horaire reste le filet en dessous.
 
 Un widget qui répète un autre widget ne mérite pas sa place : c'est ce qui a coûté leur
 place à « salle du prochain cours », que « prochain cours » disait déjà, et à « dernière

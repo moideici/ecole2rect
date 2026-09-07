@@ -204,6 +204,41 @@ class WidgetContentTest {
         assertTrue("l'avancement doit rester entre 0 et 1", payload.progress!! in 0f..1f)
     }
 
+
+    // ── Lecture à voix haute ─────────────────────────────────────────────────
+
+    @Test
+    fun `chaque widget se resume en une phrase pour un lecteur d ecran`() {
+        WidgetKind.entries.forEach { kind ->
+            WidgetShape.entries.forEach { shape ->
+                val spoken = WidgetContent.payload(
+                    kind = kind,
+                    snapshot = snapshot,
+                    settings = AppSettings(),
+                    now = morning,
+                    shape = shape,
+                    maxLines = 4,
+                ).spoken
+                assertTrue("${kind.name} en $shape : rien à annoncer", spoken.length > 3)
+                assertFalse("${kind.name} en $shape : ponctuation vide", spoken.contains(". ."))
+            }
+        }
+    }
+
+    @Test
+    fun `la phrase annoncee dit le contenu, pas la mise en page`() {
+        val spoken = WidgetContent.payload(
+            WidgetKind.NEXT_LESSON, snapshot, AppSettings(), morning,
+            shape = WidgetShape.ROW,
+        ).spoken
+
+        // Une phrase, pas quatre fragments lus l'un après l'autre.
+        assertEquals(
+            "Prochain cours. Mathématiques. Salle C011 · M. Petit · dans 24 min. 10:15",
+            spoken,
+        )
+    }
+
     @Test
     fun `la tuile de moyenne affiche celle de l etablissement`() {
         val payload = WidgetContent.payload(WidgetKind.AVERAGE, snapshot, AppSettings(), morning)

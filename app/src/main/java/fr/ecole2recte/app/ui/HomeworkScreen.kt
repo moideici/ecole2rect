@@ -68,6 +68,7 @@ fun HomeworkScreen(
     onOpen: (HomeworkItem) -> Unit,
     onToggle: (HomeworkItem) -> Unit,
     onRefresh: () -> Unit,
+    onSearch: () -> Unit = {},
 ) {
     val today = now.toLocalDate()
     var filter by remember { mutableStateOf(HomeworkFilter.PENDING) }
@@ -99,7 +100,10 @@ fun HomeworkScreen(
                     1 -> "1 devoir à faire"
                     else -> "$pendingCount devoirs à faire"
                 },
-                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
+                actions = {
+                    RoundIconButton(Icons.Outlined.Search, "Rechercher", onClick = onSearch)
+                    RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh)
+                },
             )
         }
 

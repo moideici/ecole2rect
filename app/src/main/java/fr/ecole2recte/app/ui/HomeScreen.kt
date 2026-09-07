@@ -30,7 +30,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
@@ -245,7 +247,14 @@ fun SyncStatusRow(sync: SyncState, lastSyncedAt: Long?, now: LocalDateTime) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = ScreenPadding + 4.dp, vertical = 2.dp),
+            .padding(horizontal = ScreenPadding + 4.dp, vertical = 2.dp)
+            // La pastille de couleur ne dit rien à qui ne la voit pas, et le passage « hors
+            // ligne » doit s'entendre sans avoir à explorer l'écran : la ligne s'annonce donc
+            // d'elle-même, en une seule phrase.
+            .semantics(mergeDescendants = true) {
+                liveRegion = LiveRegionMode.Polite
+                contentDescription = label
+            },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(7.dp).background(color, CircleShape))

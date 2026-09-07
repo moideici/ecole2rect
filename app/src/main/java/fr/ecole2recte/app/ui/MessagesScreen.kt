@@ -76,6 +76,7 @@ fun MessagesScreen(
     canLoadMore: Boolean,
     loadingMore: Boolean,
     onRefresh: () -> Unit,
+    onSearch: () -> Unit = {},
 ) {
     var query by remember { mutableStateOf("") }
     var unreadOnly by remember { mutableStateOf(false) }
@@ -98,7 +99,10 @@ fun MessagesScreen(
                     unread.size == 1 -> "1 message non lu"
                     else -> "${unread.size} messages non lus"
                 },
-                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
+                actions = {
+                    RoundIconButton(Icons.Outlined.Search, "Rechercher", onClick = onSearch)
+                    RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh)
+                },
             )
         }
 

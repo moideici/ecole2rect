@@ -80,6 +80,9 @@ object WidgetRenderer {
             WidgetShape.WEEK -> week(context, payload, palette)
         }
         views.setOnClickPendingIntent(R.id.widget_root, openApp(context, kind))
+        // Une seule description pour toute la carte : sans elle, un lecteur d'écran lit les
+        // vues une par une et l'information se perd dans le défilé.
+        views.setContentDescription(R.id.widget_root, payload.spoken)
         return views
     }
 
@@ -102,6 +105,7 @@ object WidgetRenderer {
             setTextColor(R.id.widget_caption, palette.muted)
             setViewVisibility(R.id.widget_progress, View.GONE)
             setOnClickPendingIntent(R.id.widget_root, openApp(context, kind))
+            setContentDescription(R.id.widget_root, "${kind.label}. Ouvre l'application.")
         }
     }
 

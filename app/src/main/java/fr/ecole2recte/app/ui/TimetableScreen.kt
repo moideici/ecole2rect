@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -86,6 +87,7 @@ fun TimetableScreen(
     onOpenLesson: (Lesson) -> Unit,
     onOpenHomework: (HomeworkItem) -> Unit,
     onRefresh: () -> Unit,
+    onSearch: () -> Unit = {},
 ) {
     val today = now.toLocalDate()
     var mode by remember { mutableStateOf(TimetableMode.DAY) }
@@ -132,7 +134,10 @@ fun TimetableScreen(
                     TimetableMode.WEEK ->
                         "${week.sumOf { it.lessons }} cours · ${Dates.duration(week.sumOf { it.minutes })}"
                 },
-                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
+                actions = {
+                    RoundIconButton(Icons.Outlined.Search, "Rechercher", onClick = onSearch)
+                    RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh)
+                },
             )
         }
 
@@ -148,17 +153,39 @@ fun TimetableScreen(
                     FilterPill(entry.label, selected = mode == entry) { mode = entry }
                 }
                 Spacer(Modifier.weight(1f))
-                RoundIconButton(Icons.Outlined.ChevronLeft, "Semaine précédente") {
-                    weekStart = weekStart.minusWeeks(1)
-                    selectedDay = weekStart
+                // Les flèches suivent le mode affiché : en « Jour » elles avancent d'un
+                // jour d'école, comme le balayage horizontal — dont c'est le seul équivalent
+                // pour qui navigue au lecteur d'écran.
+                val byDay = mode == TimetableMode.DAY
+                RoundIconButton(
+                    Icons.Outlined.ChevronLeft,
+                    if (byDay) "Jour précédent" else "Semaine précédente",
+                ) {
+                    if (byDay) {
+                        val target = previousSchoolDay(selectedDay)
+                        selectedDay = target
+                        weekStart = Dates.startOfWeek(target)
+                    } else {
+                        weekStart = weekStart.minusWeeks(1)
+                        selectedDay = weekStart
+                    }
                 }
                 RoundIconButton(Icons.Outlined.CalendarMonth, "Revenir à aujourd'hui") {
                     weekStart = Dates.startOfWeek(today)
                     selectedDay = today
                 }
-                RoundIconButton(Icons.Outlined.ChevronRight, "Semaine suivante") {
-                    weekStart = weekStart.plusWeeks(1)
-                    selectedDay = weekStart
+                RoundIconButton(
+                    Icons.Outlined.ChevronRight,
+                    if (byDay) "Jour suivant" else "Semaine suivante",
+                ) {
+                    if (byDay) {
+                        val target = nextSchoolDay(selectedDay)
+                        selectedDay = target
+                        weekStart = Dates.startOfWeek(target)
+                    } else {
+                        weekStart = weekStart.plusWeeks(1)
+                        selectedDay = weekStart
+                    }
                 }
             }
         }

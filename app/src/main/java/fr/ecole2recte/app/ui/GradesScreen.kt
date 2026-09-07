@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.input.KeyboardType
@@ -73,6 +76,7 @@ fun GradesScreen(
     sync: SyncState,
     now: LocalDateTime,
     onRefresh: () -> Unit,
+    onSearch: () -> Unit = {},
 ) {
     val periods = snapshot.periods
     var selectedCode by remember(periods) {
@@ -94,7 +98,10 @@ fun GradesScreen(
                 eyebrow = "Bulletin",
                 title = "Notes",
                 subtitle = period?.name ?: "Toutes périodes",
-                actions = { RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh) },
+                actions = {
+                    RoundIconButton(Icons.Outlined.Search, "Rechercher", onClick = onSearch)
+                    RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh)
+                },
             )
         }
 
@@ -258,10 +265,15 @@ private fun HistoryCard(history: List<Pair<java.time.LocalDate, Double>>) {
                 )
             }
             Spacer(Modifier.height(14.dp))
+            // Une courbe ne se lit pas à voix haute : on dit en une phrase ce qu'elle
+            // montre, plutôt que de laisser un blanc dans le parcours du lecteur d'écran.
+            val spoken = "Évolution de la moyenne sur ${values.size} notes : " +
+                "de ${formatGrade(values.first())} à ${formatGrade(values.last())} sur 20."
             Canvas(
                 Modifier
                     .fillMaxWidth()
-                    .height(96.dp),
+                    .height(96.dp)
+                    .semantics { contentDescription = spoken },
             ) {
                 val stepX = if (values.size > 1) size.width / (values.size - 1) else size.width
                 fun y(value: Double) = (size.height * (1 - (value - minimum) / span)).toFloat()

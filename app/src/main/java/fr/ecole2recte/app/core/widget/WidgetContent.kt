@@ -101,7 +101,35 @@ data class WidgetPayload(
     val progress: Float? = null,
     /** Vrai quand il n'y a rien à montrer : le gabarit affiche alors [title] seul. */
     val empty: Boolean = false,
-)
+) {
+
+    /**
+     * Ce qu'un lecteur d'écran doit dire du widget, en une phrase.
+     *
+     * Sans cela, TalkBack lit les vues une par une, dans l'ordre où elles sont posées :
+     * « PROCHAIN COURS », « Mathématiques », « Salle C011 · M. Petit · dans 24 min »,
+     * « 10:15 » — quatre arrêts pour une seule information. Une description unique sur la
+     * carte remplace ce défilé par une phrase, et c'est aussi elle qu'annonce le lanceur
+     * quand on parcourt l'écran d'accueil au doigt.
+     */
+    val spoken: String
+        get() = buildList {
+            add(label.lowercase().replaceFirstChar { it.uppercase() })
+            add(title)
+            if (subtitle.isNotBlank()) add(subtitle)
+            if (trailing.isNotBlank()) add(trailing)
+            lines.forEach { line ->
+                add(
+                    listOf(line.text, line.secondary, line.trailing)
+                        .filter { it.isNotBlank() }
+                        .joinToString(", "),
+                )
+            }
+            days.filterNot { it.empty }.forEach { day ->
+                add("${day.name} ${day.value}")
+            }
+        }.filter { it.isNotBlank() }.joinToString(". ")
+}
 
 /**
  * Réglages posés à l'installation d'un widget.

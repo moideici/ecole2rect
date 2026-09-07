@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -103,7 +105,13 @@ fun ScreenHeader(
                 )
                 Spacer(Modifier.height(6.dp))
             }
-            Text(title, style = MaterialTheme.typography.headlineMedium)
+            Text(
+                title,
+                // Un lecteur d'écran saute de titre en titre : sans cette marque, il faut
+                // parcourir tout l'écran pour savoir où l'on est.
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+            )
             if (subtitle != null) {
                 Spacer(Modifier.height(3.dp))
                 Text(
@@ -130,7 +138,11 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(
+            title,
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.titleMedium,
+        )
         if (action != null && onAction != null) {
             Text(
                 action,
