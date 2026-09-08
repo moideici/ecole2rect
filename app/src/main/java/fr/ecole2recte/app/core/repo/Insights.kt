@@ -150,6 +150,40 @@ object Insights {
      * Trous entre deux cours consécutifs, à partir d'un quart d'heure : c'est ce qui
      * distingue une journée de six heures d'une journée de six heures avec deux trous.
      */
+    /** Un temps libre entre deux cours : ce que l'emploi du temps ne dit pas en toutes lettres. */
+    data class Interval(val start: LocalDateTime, val end: LocalDateTime) {
+        val minutes: Long get() = Duration.between(start, end).toMinutes()
+    }
+
+    /**
+     * La pause méridienne.
+     *
+     * Elle n'est écrite nulle part dans la réponse d'ÉcoleDirecte : c'est un trou comme un
+     * autre, qu'il faut reconnaître. La règle retenue est celle qu'on appliquerait à l'œil :
+     * le **plus long** trou d'au moins une demi-heure qui chevauche le milieu de journée.
+     * Un interclasse de dix minutes n'est pas une pause, et un trou de deux heures en fin
+     * d'après-midi n'est pas le déjeuner.
+     *
+     * Rien n'est inventé quand il n'y a pas de trou : une journée continue n'a pas de pause,
+     * et l'afficher à midi pile serait une supposition.
+     */
+    fun middayBreak(
+        lessons: List<Lesson>,
+        date: LocalDate,
+        minimumMinutes: Long = 30,
+    ): Interval? {
+        val opensAt = date.atTime(11, 0)
+        val closesAt = date.atTime(15, 0)
+        return lessonsOn(lessons, date)
+            .filterNot { it.canceled }
+            .sortedBy { it.start }
+            .zipWithNext()
+            .map { (previous, next) -> Interval(previous.end, next.start) }
+            .filter { it.minutes >= minimumMinutes }
+            .filter { it.start.isBefore(closesAt) && it.end.isAfter(opensAt) }
+            .maxByOrNull { it.minutes }
+    }
+
     fun gaps(lessons: List<Lesson>, minimumMinutes: Long = 15): List<Pair<Lesson, Long>> {
         val ordered = lessons.filterNot { it.canceled }.sortedBy { it.start }
         return ordered.zipWithNext()

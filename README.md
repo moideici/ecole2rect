@@ -14,11 +14,18 @@ fiable.
 - **Accueil composable** — dix blocs (prochain cours, à ne pas oublier, journée, devoirs,
   évaluations, notes, moyennes par matière, messages, semaine, demain) que l'on réordonne et
   masque depuis un éditeur dédié ; l'ordre est conservé sur l'appareil.
-- **Emploi du temps** — deux lectures : la journée heure par heure, avec son résumé
-  (nombre de cours, durée, première et dernière heure, avancement), ses trous de plus de
-  trente minutes, les cours annulés barrés, le cours en cours mis en avant et **les devoirs
-  à rendre affichés dans la case du cours concerné** ; et la semaine, six journées résumées
-  et cliquables. Chaque cours ouvre une fiche complète.
+- **Emploi du temps** — une **grille à l'échelle du temps**, comme sur un emploi du temps
+  papier : un cours de trois heures y est trois fois plus haut qu'un cours d'une heure, un
+  trou est un vide qu'on voit sans le lire, et la pause méridienne saute aux yeux sans qu'on
+  ait à la nommer. Les cours dédoublés sont côte à côte plutôt qu'empilés, une ligne rouge
+  marque l'heure courante, les cours annulés restent visibles et barrés, et **un devoir à
+  rendre se signale dans la case de son cours**. Deux lectures : la journée, et la semaine —
+  six colonnes sur une même règle d'heures, ce qui permet de comparer deux journées d'un
+  regard. Chaque cours ouvre une fiche complète.
+
+  Les bornes de la grille viennent des cours eux-mêmes : commencer à 8 h et finir à 18 h
+  laisserait un vide en haut pour qui commence à 10 h, et couperait le bas pour qui finit à
+  19 h.
 - **Devoirs** — regroupés par échéance, filtrables (à faire, évaluations, faits, tout),
   cherchables, cochables d'un geste ; l'état « fait » est local d'abord, poussé au serveur
   ensuite, donc l'application répond même hors ligne. Un devoir à déposer en ligne est
@@ -55,7 +62,7 @@ fiable.
 - **Recherche accessible depuis toutes les pages**, et navigation jour par jour de l'emploi
   du temps aux flèches autant qu'au balayage — un geste horizontal n'a pas d'équivalent au
   lecteur d'écran.
-- **Quinze widgets d'écran d'accueil Android** (voir plus bas), dont un configurable à la pose.
+- **Seize widgets d'écran d'accueil Android** (voir plus bas), dont un configurable à la pose.
 - **Notifications** — nouvelle note, nouveau devoir, nouveau message, rappel la veille d'une
   évaluation, chaque type activable séparément et jamais deux fois la même chose.
 - **Synchronisation en arrière-plan** toutes les heures, qui alimente aussi les widgets. Elle
@@ -105,14 +112,14 @@ passe. Elles se relisent, se corrigent et s'effacent dans **Réglages → Connex
 
 ## Widgets d'écran d'accueil
 
-Quinze widgets natifs, dans la même direction visuelle que l'application. Le tableau donne
+Seize widgets natifs, dans la même direction visuelle que l'application. Le tableau donne
 leur taille *à l'installation* — pas leur taille de vie : ils sont tous redimensionnables
 dans les deux sens, et leur contenu suit.
 
 | À l'installation | Widgets |
 | --- | --- |
 | 1×1 | moyenne générale · devoirs à faire · messages non lus · avant le prochain cours · prochaine évaluation · absences à justifier |
-| 2×1 | prochain cours · devoir urgent · dernière note · dernier message |
+| 2×1 | **horaires du jour** · prochain cours · devoir urgent · dernière note · dernier message |
 | 2×2 | journée · prochains devoirs · dernières notes · moyennes par matière |
 | 4×2 | semaine |
 
@@ -120,14 +127,24 @@ dans les deux sens, et leur contenu suit.
 
 Un widget Android n'a pas de dimensions fixes : on l'étire, et deux lanceurs ne donnent pas
 la même place pour « 2×2 ». Un widget dessiné pour une seule taille est donc vide sur un
-grand écran et tronqué sur un petit. Ici, chaque widget sait se dire de quatre façons — une
-tuile, une ligne, une liste, une semaine — et c'est la place réellement accordée qui choisit :
+grand écran et tronqué sur un petit. Ici, chaque widget sait se dire de cinq façons — une
+tuile, une ligne, trois repères, une liste, une semaine — et c'est la place réellement
+accordée qui choisit :
 
 - « moyenne » montre un chiffre en une case, la moyenne avec sa tendance et la moyenne de
   classe sur deux cases de large, le détail matière par matière dès qu'il a deux cases de
   haut ;
 - « semaine » exige de la largeur ; rétrécie, elle se replie en un jour par ligne ;
-- une liste montre de une à huit lignes selon la hauteur, au lieu de quatre quoi qu'il arrive.
+- une liste montre de une à huit lignes selon la hauteur, au lieu de quatre quoi qu'il arrive ;
+- « horaires du jour » aligne trois chiffres — début, pause méridienne, fin — dans un 2×1 ;
+  agrandi il devient la journée détaillée, réduit à une case le compte à rebours du prochain
+  cours.
+
+**La pause méridienne n'est écrite nulle part** dans la réponse d'ÉcoleDirecte : c'est un
+trou parmi d'autres. Elle est donc reconnue — le plus long trou d'au moins une demi-heure qui
+chevauche le milieu de journée — et jamais supposée : une journée continue affiche un tiret
+plutôt qu'un midi inventé. Un interclasse de dix minutes n'est pas une pause, et deux heures
+libres à 16 h ne sont pas le déjeuner.
 
 Agrandir un widget ajoute donc de l'information, jamais du vide. Sur Android 12 et suivants,
 l'application fournit **un rendu par taille annoncée** : le lanceur passe de l'un à l'autre
@@ -190,7 +207,7 @@ app/src/main/java/fr/ecole2recte/app/
 │   ├── format/                dates et textes en français, HTML → texte
 │   └── auth/                  réponse automatique à la question de sécurité, et ses limites
 ├── data/                      implémentations Android des contrats de `core`
-├── widget/                    les quinze widgets d'écran d'accueil (RemoteViews)
+├── widget/                    les seize widgets d'écran d'accueil (RemoteViews)
 ├── sync/                      synchronisation de fond et notifications
 ├── ui/                        écrans Compose, composants et thème
 ├── MainViewModel.kt           état d'interface et actions
@@ -235,7 +252,7 @@ Une centaine de tests couvrent ce qui casse en silence :
 - les règles d'accueil (prochain cours, devoir urgent, moyennes pondérées, résumé d'une
   journée, trous, croisement devoirs ↔ cours) et la personnalisation (ordre des blocs,
   couleurs, état local des devoirs) ;
-- le contenu des quinze widgets d'écran d'accueil, y compris sans aucune donnée : un widget
+- le contenu des seize widgets d'écran d'accueil, y compris sans aucune donnée : un widget
   qui plante reste vide jusqu'au redémarrage du lanceur, c'est le pire des échecs silencieux.
 
 Aucun test n'a besoin d'un compte réel ni d'un accès réseau : c'est la condition pour qu'ils

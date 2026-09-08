@@ -53,7 +53,7 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Quinze widgets d'écran d'accueil : six tuiles 1×1, quatre lignes 2×1,
+        <!-- Seize widgets d'écran d'accueil : six tuiles 1×1, cinq bandeaux 2×1,
              quatre listes 2×2 et une semaine 4×2. Chacun lit le cache local, sans réseau. -->
         <receiver
             android:name=".widget.AverageWidget"
@@ -161,6 +161,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_last_grade" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.DayHoursWidget"
+            android:exported="false"
+            android:label="@string/widget_day_hours_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_day_hours" />
         </receiver>
 
         <receiver

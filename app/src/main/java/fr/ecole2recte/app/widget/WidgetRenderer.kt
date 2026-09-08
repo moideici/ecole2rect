@@ -46,6 +46,11 @@ object WidgetRenderer {
         R.id.widget_value_1, R.id.widget_value_2, R.id.widget_value_3, R.id.widget_value_4,
         R.id.widget_value_5, R.id.widget_value_6, R.id.widget_value_7, R.id.widget_value_8,
     )
+    private val SLOT_IDS = listOf(
+        R.id.widget_slot_name_1 to R.id.widget_slot_value_1,
+        R.id.widget_slot_name_2 to R.id.widget_slot_value_2,
+        R.id.widget_slot_name_3 to R.id.widget_slot_value_3,
+    )
     private val DAY_IDS = listOf(
         R.id.widget_day_name_1 to R.id.widget_day_value_1,
         R.id.widget_day_name_2 to R.id.widget_day_value_2,
@@ -76,6 +81,7 @@ object WidgetRenderer {
         val views = when (layout.shape) {
             WidgetShape.TILE -> tile(context, payload, palette)
             WidgetShape.ROW -> row(context, payload, palette)
+            WidgetShape.HOURS -> hours(context, payload, palette)
             WidgetShape.LIST -> list(context, payload, palette)
             WidgetShape.WEEK -> week(context, payload, palette)
         }
@@ -136,6 +142,29 @@ object WidgetRenderer {
             // couleur de la matière, sans un drawable par couleur.
             setInt(R.id.widget_accent, "setColorFilter", accent(payload) ?: palette.accent)
             progress(payload)
+        }
+
+    /**
+     * Les trois repères de la journée.
+     *
+     * Le gabarit ne connaît que trois emplacements : les lignes du contenu y sont posées
+     * dans l'ordre, et une ligne manquante laisse un tiret plutôt qu'un blanc — un
+     * emplacement vide se lit comme une panne.
+     */
+    private fun hours(context: Context, payload: WidgetPayload, palette: WidgetPalette) =
+        RemoteViews(context.packageName, R.layout.widget_hours).apply {
+            dress(palette)
+            setTextViewText(R.id.widget_label, payload.label)
+            setTextViewText(R.id.widget_subtitle, payload.subtitle)
+            setTextColor(R.id.widget_label, palette.muted)
+            setTextColor(R.id.widget_subtitle, palette.muted)
+            SLOT_IDS.forEachIndexed { index, (nameId, valueId) ->
+                val line = payload.lines.getOrNull(index)
+                setTextViewText(nameId, line?.text.orEmpty())
+                setTextViewText(valueId, line?.trailing?.ifBlank { "—" } ?: "—")
+                setTextColor(nameId, palette.muted)
+                setTextColor(valueId, palette.ink)
+            }
         }
 
     private fun list(context: Context, payload: WidgetPayload, palette: WidgetPalette) =

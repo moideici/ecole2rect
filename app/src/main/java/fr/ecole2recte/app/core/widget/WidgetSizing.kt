@@ -54,6 +54,9 @@ object WidgetSizing {
         return when {
             columns >= 3 && rows >= 2 && kind.natural == WidgetShape.WEEK -> WidgetShape.WEEK
             rows >= 2 && columns >= 2 -> WidgetShape.LIST
+            // Trois chiffres alignés demandent de la largeur, pas de la hauteur : c'est
+            // exactement la place d'un 2×1, et rien de plus.
+            columns >= 2 && kind.natural == WidgetShape.HOURS -> WidgetShape.HOURS
             columns >= 2 -> WidgetShape.ROW
             // Une seule colonne, si haute soit-elle : une ligne « Mathématiques · C011 ·
             // 10:15 » n'y tiendrait pas. La tuile, elle, sait s'étirer.

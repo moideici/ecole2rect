@@ -13,7 +13,7 @@ import fr.ecole2recte.app.core.widget.WidgetOptions
 import fr.ecole2recte.app.core.widget.WidgetSize
 
 /**
- * Les quinze widgets d'écran d'accueil.
+ * Les seize widgets d'écran d'accueil.
  *
  * Chacun n'est qu'un nom déclaré au système et un [WidgetKind] : tout le contenu vient de
  * `core`, tout le dessin de [WidgetRenderer]. Ajouter un widget, c'est donc ajouter une
@@ -140,6 +140,7 @@ class NextLessonWidget : Ecole2recteWidget(WidgetKind.NEXT_LESSON)
 class UrgentHomeworkWidget : Ecole2recteWidget(WidgetKind.URGENT_HOMEWORK)
 class LastGradeWidget : Ecole2recteWidget(WidgetKind.LAST_GRADE)
 class LastMessageWidget : Ecole2recteWidget(WidgetKind.LAST_MESSAGE)
+class DayHoursWidget : Ecole2recteWidget(WidgetKind.DAY_HOURS)
 
 // ── 2×2 ──────────────────────────────────────────────────────────────────────
 class TodayWidget : Ecole2recteWidget(WidgetKind.TODAY)
@@ -170,6 +171,7 @@ object WidgetUpdater {
         WidgetKind.URGENT_HOMEWORK to UrgentHomeworkWidget::class.java,
         WidgetKind.LAST_GRADE to LastGradeWidget::class.java,
         WidgetKind.LAST_MESSAGE to LastMessageWidget::class.java,
+        WidgetKind.DAY_HOURS to DayHoursWidget::class.java,
         WidgetKind.TODAY to TodayWidget::class.java,
         WidgetKind.HOMEWORK_LIST to HomeworkListWidget::class.java,
         WidgetKind.GRADES_LIST to GradesListWidget::class.java,

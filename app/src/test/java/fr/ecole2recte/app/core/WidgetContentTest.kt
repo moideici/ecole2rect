@@ -25,7 +25,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
- * Les quinze widgets d'écran d'accueil.
+ * Les seize widgets d'écran d'accueil.
  *
  * Un widget qui plante n'affiche rien du tout, parfois définitivement jusqu'au redémarrage
  * du lanceur : ces tests vérifient surtout qu'aucun ne dépend d'une donnée présente.
@@ -83,16 +83,19 @@ class WidgetContentTest {
     }
 
     @Test
-    fun `les quinze widgets couvrent les quatre gabarits a l installation`() {
-        assertEquals(15, WidgetKind.entries.size)
+    fun `les seize widgets couvrent les cinq gabarits a l installation`() {
+        assertEquals(16, WidgetKind.entries.size)
         assertEquals(6, WidgetKind.entries.count { it.natural == WidgetShape.TILE })
         assertEquals(4, WidgetKind.entries.count { it.natural == WidgetShape.ROW })
+        assertEquals(1, WidgetKind.entries.count { it.natural == WidgetShape.HOURS })
         assertEquals(4, WidgetKind.entries.count { it.natural == WidgetShape.LIST })
         assertEquals(1, WidgetKind.entries.count { it.natural == WidgetShape.WEEK })
+        // Aucun gabarit ne doit rester sans widget : un gabarit orphelin est du code mort.
+        assertEquals(WidgetShape.entries.size, WidgetKind.entries.map { it.natural }.distinct().size)
     }
 
     @Test
-    fun `chaque widget sait se dire dans les quatre formes`() {
+    fun `chaque widget sait se dire dans les cinq formes`() {
         WidgetKind.entries.forEach { kind ->
             WidgetShape.entries.forEach { shape ->
                 val payload = WidgetContent.payload(
@@ -275,7 +278,9 @@ class WidgetContentTest {
 
         assertEquals(1, payload.lines.size)
         assertEquals("Mathématiques", payload.lines.single().text)
-        assertEquals("10:15", payload.lines.single().trailing)
+        // La plage entière, et pas seulement l'heure de début : « 10:15 » ne dit pas si le
+        // cours dure une heure ou trois.
+        assertEquals("10:15–12:00", payload.lines.single().trailing)
     }
 
     @Test

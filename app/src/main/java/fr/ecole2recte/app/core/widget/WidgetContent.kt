@@ -26,8 +26,14 @@ import java.time.LocalDateTime
  * donc une suite : le jour d'école suivant, la prochaine évaluation, le dernier message.
  */
 
-/** Gabarit d'affichage — quatre formes suffisent à tout dire. */
-enum class WidgetShape { TILE, ROW, LIST, WEEK }
+/**
+ * Gabarit d'affichage.
+ *
+ * [HOURS] est le seul qui ne montre pas une liste mais **trois repères** : le début, la pause
+ * méridienne et la fin. C'est ce qu'on regarde le matin sans vouloir lire tout l'emploi du
+ * temps, et une ligne de texte ne le dit pas aussi vite que trois chiffres alignés.
+ */
+enum class WidgetShape { TILE, ROW, HOURS, LIST, WEEK }
 
 /** Écran ouvert quand on touche le widget. */
 enum class WidgetTarget { HOME, TIMETABLE, HOMEWORK, GRADES, MESSAGES }
@@ -57,6 +63,13 @@ enum class WidgetKind(
     URGENT_HOMEWORK("Devoir urgent", "Le devoir à ne pas oublier, puis la liste.", WidgetShape.ROW, WidgetTarget.HOMEWORK),
     LAST_GRADE("Dernière note", "La note la plus récente, puis les précédentes.", WidgetShape.ROW, WidgetTarget.GRADES),
     LAST_MESSAGE("Dernier message", "Le message reçu le plus récent, puis les précédents.", WidgetShape.ROW, WidgetTarget.MESSAGES),
+
+    DAY_HOURS(
+        "Horaires du jour",
+        "Début, pause méridienne et fin — de la journée en cours, ou de la prochaine.",
+        WidgetShape.HOURS,
+        WidgetTarget.TIMETABLE,
+    ),
 
     // 2×2 à l'installation
     TODAY("Journée", "La suite de la journée, ou le prochain jour d'école.", WidgetShape.LIST, WidgetTarget.TIMETABLE),
@@ -195,6 +208,17 @@ object WidgetContent {
             WidgetKind.COUNTDOWN, WidgetKind.NEXT_LESSON, WidgetKind.TODAY -> when (shape) {
                 WidgetShape.TILE -> countdown(kind, context)
                 WidgetShape.ROW -> nextLesson(kind, context)
+                WidgetShape.HOURS -> dayHours(kind, context)
+                WidgetShape.LIST -> dayList(kind, context)
+                WidgetShape.WEEK -> week(kind, context)
+            }
+
+            WidgetKind.DAY_HOURS -> when (shape) {
+                WidgetShape.TILE -> countdown(kind, context)
+                // Rétréci à une ligne, il perd la pause : mieux vaut deux repères justes
+                // que trois chiffres serrés au point d'être illisibles.
+                WidgetShape.ROW -> daySummaryRow(kind, context)
+                WidgetShape.HOURS -> dayHours(kind, context)
                 WidgetShape.LIST -> dayList(kind, context)
                 WidgetShape.WEEK -> week(kind, context)
             }
@@ -214,6 +238,7 @@ object WidgetContent {
             WidgetKind.WEEK -> when (shape) {
                 WidgetShape.TILE -> countdown(kind, context)
                 WidgetShape.ROW -> daySummaryRow(kind, context)
+                WidgetShape.HOURS -> dayHours(kind, context)
                 WidgetShape.LIST -> weekList(kind, context)
                 WidgetShape.WEEK -> week(kind, context)
             }
@@ -630,17 +655,96 @@ object WidgetContent {
                 summary == null || summary.isEmpty -> "aucun cours"
                 else -> "${summary.lessons} cours · ${Dates.duration(summary.minutes)}"
             },
-            lines = lessons.take(context.maxLines).map { lesson ->
-                WidgetLine(
-                    text = lesson.subject,
-                    secondary = lesson.room,
-                    trailing = Dates.time(lesson.start),
-                    accent = SubjectPalette.colorFor(lesson.subject, context.settings.subjectColors),
-                )
-            },
+            lines = dayLines(lessons, date, context),
             progress = current?.let { Dates.progress(it.start, it.end, context.now) },
             empty = lessons.isEmpty(),
         ).withEmptyText("Aucun cours à venir")
+    }
+
+    /**
+     * Les trois heures qui structurent une journée : début, pause méridienne, fin.
+     *
+     * C'est ce qu'on veut savoir le matin sans lire l'emploi du temps : à quelle heure il
+     * faut être là, quand on mange, quand on sort. Le soir venu — ou le week-end — ce sont
+     * les mêmes trois repères, mais de la **prochaine journée d'école** : « fin : 17:00 »
+     * n'apprend rien à 18 h.
+     *
+     * La pause est reconnue, jamais supposée : une journée continue affiche un tiret plutôt
+     * qu'un midi inventé.
+     */
+    private fun dayHours(kind: WidgetKind, context: Context): WidgetPayload {
+        val remaining = Insights.lessonsOn(context.snapshot.lessons, context.today)
+            .filter { it.end.isAfter(context.now) }
+        val date = if (remaining.isNotEmpty()) {
+            context.today
+        } else {
+            Insights.nextLessonDay(context.snapshot.lessons, context.today)
+        } ?: return empty(kind, context, "HORAIRES", "Aucun cours", "rien de programmé")
+
+        val summary = Insights.daySummary(context.snapshot.lessons, date)
+        val start = summary.start
+        val end = summary.end
+        if (summary.isEmpty || start == null || end == null) {
+            return empty(kind, context, "HORAIRES", "Aucun cours", "journée libre")
+        }
+        val pause = Insights.middayBreak(context.snapshot.lessons, date)
+        return payloadOf(
+            kind, context,
+            label = when (date) {
+                context.today -> "AUJOURD'HUI"
+                else -> dayLabel(date, context.today).uppercase()
+            },
+            title = "${Dates.time(start)} – ${Dates.time(end)}",
+            subtitle = "${summary.lessons} cours · ${Dates.duration(summary.minutes)}",
+            lines = listOf(
+                WidgetLine(text = "début", trailing = Dates.time(start)),
+                WidgetLine(
+                    text = "pause",
+                    secondary = pause?.let { Dates.duration(it.minutes) }.orEmpty(),
+                    trailing = pause?.let { Dates.time(it.start) } ?: "—",
+                ),
+                WidgetLine(text = "fin", trailing = Dates.time(end)),
+            ),
+        )
+    }
+
+    /**
+     * Les lignes d'une journée, lues comme un emploi du temps et non comme une liste.
+     *
+     * Chaque cours porte sa **plage horaire** et pas seulement son heure de début : « 8:00 »
+     * ne dit pas si le cours dure une heure ou trois. Et la pause méridienne apparaît en
+     * toutes lettres, à sa place dans la journée, au lieu de se deviner à un trou entre deux
+     * lignes — c'est ce qui manque le plus à une liste pour ressembler à un emploi du temps.
+     */
+    private fun dayLines(
+        lessons: List<fr.ecole2recte.app.core.model.Lesson>,
+        date: LocalDate?,
+        context: Context,
+    ): List<WidgetLine> {
+        val pause = date?.let { Insights.middayBreak(context.snapshot.lessons, it) }
+        val lines = mutableListOf<WidgetLine>()
+        lessons.forEach { lesson ->
+            if (pause != null && lines.isNotEmpty() && !lesson.start.isBefore(pause.end)) {
+                val already = lines.any { it.text == "Pause méridienne" }
+                if (!already) {
+                    lines += WidgetLine(
+                        text = "Pause méridienne",
+                        secondary = Dates.duration(pause.minutes),
+                        trailing = Dates.time(pause.start),
+                    )
+                }
+            }
+            lines += WidgetLine(
+                text = lesson.subject,
+                secondary = listOfNotNull(
+                    lesson.room.takeIf { it.isNotBlank() },
+                    "annulé".takeIf { lesson.canceled },
+                ).joinToString(" · "),
+                trailing = "${Dates.time(lesson.start)}–${Dates.time(lesson.end)}",
+                accent = SubjectPalette.colorFor(lesson.subject, context.settings.subjectColors),
+            )
+        }
+        return lines.take(context.maxLines)
     }
 
     /** Le résumé d'une journée en une ligne : ce que la semaine dit d'un seul jour. */

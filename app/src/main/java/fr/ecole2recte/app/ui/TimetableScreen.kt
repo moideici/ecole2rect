@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -35,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
@@ -58,7 +56,6 @@ import fr.ecole2recte.app.ui.components.SubjectDot
 import fr.ecole2recte.app.ui.components.Tag
 import fr.ecole2recte.app.ui.components.subjectColor
 import java.time.DayOfWeek
-import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -260,7 +257,13 @@ private fun LazyListScope.dayContent(
     }
 
     if (!summary.isEmpty) {
-        item("summary") { DaySummaryCard(summary, now) }
+        item("summary") {
+            DaySummaryCard(
+                summary = summary,
+                pause = Insights.middayBreak(snapshot.lessons, selectedDay),
+                now = now,
+            )
+        }
     }
 
     if (lessons.isEmpty()) {
@@ -278,17 +281,18 @@ private fun LazyListScope.dayContent(
             )
         }
     } else {
-        itemsIndexed(lessons, key = { _, lesson -> lesson.id }) { index, lesson ->
-            Column {
-                GapBetween(lessons.getOrNull(index - 1), lesson)
-                LessonCard(
-                    lesson = lesson,
-                    settings = settings,
-                    now = now,
-                    homework = Insights.homeworkForLesson(snapshot.homework, lesson),
-                    onClick = { onOpenLesson(lesson) },
-                )
-            }
+        // La grille remplace la liste : un cours de trois heures y est trois fois plus haut
+        // qu'un cours d'une heure, et les trous se voient sans qu'on ait à les annoncer.
+        item("grille") {
+            DayGrid(
+                lessons = lessons,
+                settings = settings,
+                date = selectedDay,
+                now = now,
+                onOpenLesson = onOpenLesson,
+                modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp),
+                homeworkFor = { lesson -> Insights.homeworkForLesson(snapshot.homework, lesson).size },
+            )
         }
     }
 
@@ -353,86 +357,28 @@ private fun LazyListScope.weekContent(
         }
         return
     }
-    items(week, key = { "week-${it.date}" }) { day ->
-        val lessons = Insights.lessonsOn(snapshot.lessons, day.date)
-        Box(Modifier.padding(horizontal = ScreenPadding, vertical = 5.dp)) {
-            AppCard(
-                containerColor = if (day.date == today) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surface
-                },
-                onClick = { onSelectDay(day.date) },
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            Dates.dayName(day.date).replaceFirstChar { it.uppercase() } +
-                                " ${day.date.dayOfMonth}",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            if (day.isEmpty) {
-                                "Pas de cours"
-                            } else {
-                                "${day.lessons} cours · ${Dates.time(day.start!!)} — ${Dates.time(day.end!!)}"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (day.exams > 0) Tag("${day.exams} éval.", MaterialTheme.colorScheme.error)
-                    if (day.canceled > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Tag("${day.canceled} annulé", MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                if (lessons.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    lessons.forEach { lesson ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                Dates.time(lesson.start),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.width(42.dp),
-                            )
-                            SubjectDot(
-                                subjectColor(lesson.subject, settings)
-                                    .copy(alpha = if (lesson.canceled) 0.35f else 1f),
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                lesson.subject,
-                                style = MaterialTheme.typography.bodyMedium,
-                                textDecoration = if (lesson.canceled) TextDecoration.LineThrough else null,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (lesson.room.isNotBlank()) {
-                                Text(
-                                    lesson.room,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    // Six colonnes sur une même règle d'heures : c'est ce qui permet de comparer deux
+    // journées d'un regard — voir que le mardi finit plus tôt, que le mercredi est vide.
+    // Une liste de six résumés ne le montre pas.
+    item("grille-semaine") {
+        WeekGrid(
+            days = week.map { it.date },
+            lessonsOf = { day -> Insights.lessonsOn(snapshot.lessons, day) },
+            settings = settings,
+            today = today,
+            onSelectDay = onSelectDay,
+            modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp),
+        )
     }
 }
 
-/** Le résumé d'une journée : ce qu'on veut savoir avant de dérouler la liste. */
+/** Le résumé d'une journée : ce qu'on veut savoir avant même de lire la grille. */
 @Composable
-private fun DaySummaryCard(summary: Insights.DaySummary, now: LocalDateTime) {
+private fun DaySummaryCard(
+    summary: Insights.DaySummary,
+    pause: Insights.Interval?,
+    now: LocalDateTime,
+) {
     val start = summary.start
     val end = summary.end
     Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
@@ -445,7 +391,13 @@ private fun DaySummaryCard(summary: Insights.DaySummary, now: LocalDateTime) {
                     )
                     if (start != null && end != null) {
                         Text(
-                            "${Dates.time(start)} — ${Dates.time(end)}",
+                            // Les trois repères de la journée, dans l'ordre où on les vit.
+                            // La pause n'est écrite nulle part côté serveur : elle est
+                            // reconnue, et tue quand la journée est continue.
+                            listOfNotNull(
+                                "${Dates.time(start)} — ${Dates.time(end)}",
+                                pause?.let { "pause ${Dates.time(it.start)}–${Dates.time(it.end)}" },
+                            ).joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -496,147 +448,5 @@ private fun DayChip(
             style = MaterialTheme.typography.labelSmall,
             color = content.copy(alpha = 0.75f),
         )
-    }
-}
-
-/** Un trou d'au moins trente minutes mérite d'être montré, pas masqué. */
-@Composable
-private fun GapBetween(previous: Lesson?, lesson: Lesson) {
-    if (previous == null) return
-    val minutes = Duration.between(previous.end, lesson.start).toMinutes()
-    if (minutes < 30) return
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = ScreenPadding + 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .width(2.dp)
-                .height(18.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant),
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            "${Dates.duration(minutes)} de libre",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun LessonCard(
-    lesson: Lesson,
-    settings: AppSettings,
-    now: LocalDateTime,
-    homework: List<HomeworkItem>,
-    onClick: () -> Unit,
-) {
-    val accent = subjectColor(lesson.subject, settings)
-    val past = lesson.end.isBefore(now)
-    val current = !past && !lesson.start.isAfter(now)
-    Box(Modifier.padding(horizontal = ScreenPadding, vertical = 5.dp)) {
-        AppCard(
-            containerColor = if (current) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surface
-            },
-            onClick = onClick,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.width(52.dp)) {
-                    Text(
-                        Dates.time(lesson.start),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = if (past) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                    )
-                    Text(
-                        Dates.time(lesson.end),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Box(
-                    Modifier
-                        .width(4.dp)
-                        .height(46.dp)
-                        .background(
-                            accent.copy(alpha = if (past) 0.35f else 1f),
-                            RoundedCornerShape(4.dp),
-                        ),
-                )
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        lesson.subject,
-                        style = MaterialTheme.typography.titleMedium,
-                        textDecoration = if (lesson.canceled) TextDecoration.LineThrough else null,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val details = listOfNotNull(
-                        lesson.room.takeIf { it.isNotBlank() }?.let { "Salle $it" },
-                        lesson.teacher.takeIf { it.isNotBlank() },
-                    ).joinToString(" · ")
-                    if (details.isNotEmpty()) {
-                        Text(
-                            details,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    if (lesson.canceled) Tag("Annulé", MaterialTheme.colorScheme.error)
-                    if (lesson.exam) Tag("Devoir", accent)
-                    if (current) Tag("En cours", MaterialTheme.colorScheme.primary)
-                }
-            }
-            // Le croisement qui manque partout ailleurs : ce qu'il faut rendre à ce cours-là.
-            if (homework.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                homework.forEach { item ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SubjectDot(accent, 6.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (item.exam) "Évaluation" else "À rendre",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = accent,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            item.content.ifBlank { "voir le cahier de textes" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-            if (lesson.note.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    lesson.note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
     }
 }

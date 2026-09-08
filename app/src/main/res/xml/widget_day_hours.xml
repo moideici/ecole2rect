@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Les horaires de la journée : un 2×1 à l'installation. Étiré en hauteur il devient la
+     liste des cours ; réduit à une case, le compte à rebours du prochain cours. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="fr.ecole2recte.app.widget.WidgetConfigActivity"
+    android:description="@string/widget_day_hours_description"
+    android:initialLayout="@layout/widget_hours"
+    android:minHeight="40dp"
+    android:minResizeHeight="40dp"
+    android:minResizeWidth="110dp"
+    android:minWidth="110dp"
+    android:maxResizeHeight="450dp"
+    android:maxResizeWidth="450dp"
+    android:previewLayout="@layout/widget_hours"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="1"
+    android:targetCellWidth="2"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

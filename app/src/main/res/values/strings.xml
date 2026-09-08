@@ -17,6 +17,8 @@
     <string name="widget_next_exam_description">L’évaluation qui arrive ; agrandi, toutes celles annoncées.</string>
     <string name="widget_absences_label">Absences à justifier</string>
     <string name="widget_absences_description">Les absences à justifier ; agrandi, le détail du mois.</string>
+    <string name="widget_day_hours_label">Horaires du jour</string>
+    <string name="widget_day_hours_description">Début, pause méridienne et fin ; le soir, ceux de la prochaine journée.</string>
     <string name="widget_next_lesson_label">Prochain cours</string>
     <string name="widget_next_lesson_description">Matière, salle, horaire et avancement ; agrandi, la journée.</string>
     <string name="widget_urgent_homework_label">Devoir urgent</string>
