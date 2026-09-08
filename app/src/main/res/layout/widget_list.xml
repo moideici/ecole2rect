@@ -3,14 +3,20 @@
      lignes. Huit, parce qu'un widget étiré en 4×4 a la place de les montrer et qu'il vaut
      mieux des vues masquées qu'un widget qui plafonne à quatre. RemoteViews ne sait pas
      répéter une vue : les lignes sont donc écrites une par une, avec des identifiants
-     distincts, et masquées à l'exécution. -->
+     distincts, et masquées à l'exécution.
+
+     Chaque ligne commence par une **colonne d'heure**, comme un emploi du temps papier :
+     l'heure d'abord, la matière ensuite, la salle à droite. Mettre l'heure à droite obligeait
+     à lui laisser de la place au milieu de la ligne, et c'est la matière qui se faisait
+     couper — « Mathémati… » n'apprend rien à personne. La colonne disparaît pour les widgets
+     qui n'ont pas d'heure à donner : la ligne redevient alors une simple puce. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background_light"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/widget_label"
@@ -25,8 +31,8 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:layout_marginBottom="4dp"
+        android:layout_marginTop="1dp"
+        android:layout_marginBottom="3dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -59,7 +65,7 @@
         style="@android:style/Widget.ProgressBar.Horizontal"
         android:layout_width="match_parent"
         android:layout_height="3dp"
-        android:layout_marginBottom="6dp"
+        android:layout_marginBottom="4dp"
         android:max="100"
         android:progressTint="@color/widget_accent"
         android:visibility="gone" />
@@ -70,8 +76,18 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_time_1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/widget_dot_1"
@@ -84,7 +100,7 @@
             android:id="@+id/widget_text_1"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="9dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
@@ -95,11 +111,10 @@
             android:id="@+id/widget_value_1"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -108,8 +123,18 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_time_2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/widget_dot_2"
@@ -122,7 +147,7 @@
             android:id="@+id/widget_text_2"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="9dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
@@ -133,11 +158,10 @@
             android:id="@+id/widget_value_2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -146,8 +170,18 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_time_3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/widget_dot_3"
@@ -160,7 +194,7 @@
             android:id="@+id/widget_text_3"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="9dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
@@ -171,11 +205,10 @@
             android:id="@+id/widget_value_3"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -184,8 +217,18 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_time_4"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/widget_dot_4"
@@ -198,7 +241,7 @@
             android:id="@+id/widget_text_4"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="9dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
@@ -209,11 +252,10 @@
             android:id="@+id/widget_value_4"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -222,8 +264,18 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_time_5"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/widget_dot_5"
@@ -236,7 +288,7 @@
             android:id="@+id/widget_text_5"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="9dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
@@ -247,11 +299,10 @@
             android:id="@+id/widget_value_5"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -260,8 +311,18 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_time_6"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/widget_dot_6"
@@ -274,7 +335,7 @@
             android:id="@+id/widget_text_6"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="9dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
@@ -285,11 +346,10 @@
             android:id="@+id/widget_value_6"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -298,8 +358,18 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_time_7"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/widget_dot_7"
@@ -312,7 +382,7 @@
             android:id="@+id/widget_text_7"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="9dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
@@ -323,11 +393,10 @@
             android:id="@+id/widget_value_7"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -336,8 +405,18 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_time_8"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/widget_dot_8"
@@ -350,7 +429,7 @@
             android:id="@+id/widget_text_8"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="9dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
@@ -361,11 +440,10 @@
             android:id="@+id/widget_value_8"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <TextView

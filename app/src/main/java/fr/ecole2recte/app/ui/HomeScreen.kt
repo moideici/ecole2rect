@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -41,7 +40,6 @@ import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.format.Voice
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.HomeworkItem
-import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.SchoolLifeKind
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
@@ -126,13 +124,10 @@ fun HomeScreen(
                     when (widget) {
                         HomeWidget.NEXT_CLASS -> NextClassWidget(snapshot, settings, now, onNavigate)
                         HomeWidget.URGENT -> UrgentWidget(snapshot, settings, today, onOpenDetail)
-                        // Deux blocs voisins ne doivent pas montrer la même chose : quand le
-                        // prochain cours a déjà sa carte, la journée commence après lui.
                         HomeWidget.TODAY -> TodayWidget(
                             snapshot = snapshot,
                             settings = settings,
                             now = now,
-                            skipNextLesson = HomeWidget.NEXT_CLASS in visible,
                             onNavigate = onNavigate,
                         )
 
@@ -414,88 +409,57 @@ private fun TodayWidget(
     snapshot: SchoolSnapshot,
     settings: AppSettings,
     now: LocalDateTime,
-    skipNextLesson: Boolean,
     onNavigate: (Destination) -> Unit,
 ) {
-    val all = Insights.lessonsOn(snapshot.lessons, now.toLocalDate())
-    // Le cours en cours ou imminent a déjà sa carte juste au-dessus : le répéter ici ferait
-    // deux fois la même ligne à deux centimètres d'écart.
-    val alreadyShown = if (skipNextLesson) Insights.currentOrNextLesson(snapshot.lessons, now) else null
-    val lessons = all.filterNot { it.id == alreadyShown?.id }
+    val today = now.toLocalDate()
+    val all = Insights.lessonsOn(snapshot.lessons, today)
+    val summary = Insights.daySummary(snapshot.lessons, today)
+    val pause = Insights.middayBreak(snapshot.lessons, today)
+    // La journée entière, et non plus « la suite ». Le prochain cours a sa carte au-dessus,
+    // mais une grille n'est pas une ligne répétée : c'est la forme de la journée, et la même
+    // heure y est un repère plutôt qu'un doublon.
     AppCard(onClick = { onNavigate(Destination.TIMETABLE) }) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            WidgetLabel(if (alreadyShown != null) "LA SUITE" else "AUJOURD'HUI", Modifier.weight(1f))
+            WidgetLabel("AUJOURD'HUI", Modifier.weight(1f))
             Text(
                 "Voir la semaine",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
         }
-        Spacer(Modifier.height(12.dp))
-        if (lessons.isEmpty()) {
+        if (all.isEmpty()) {
+            Spacer(Modifier.height(12.dp))
             Text(
-                when {
-                    all.isEmpty() -> "Aucun cours aujourd'hui."
-                    alreadyShown != null -> "Plus rien après ce cours."
-                    else -> "Aucun cours aujourd'hui."
-                },
+                "Aucun cours aujourd'hui.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             return@AppCard
         }
-        lessons.take(4).forEach { lesson ->
-            LessonRow(lesson, settings, now)
-        }
-        if (lessons.size > 4) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "+ ${lessons.size - 4} autres cours",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun LessonRow(lesson: Lesson, settings: AppSettings, now: LocalDateTime) {
-    val past = lesson.end.isBefore(now)
-    val current = !past && !lesson.start.isAfter(now)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+        Spacer(Modifier.height(2.dp))
         Text(
-            Dates.time(lesson.start),
+            // Les trois repères de la journée, avant la grille qui les montre.
+            listOfNotNull(
+                summary.start?.let { start -> summary.end?.let { "${Dates.time(start)} — ${Dates.time(it)}" } },
+                pause?.let { "pause ${Dates.time(it.start)}" },
+                "${summary.lessons} cours",
+            ).joinToString(" · "),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(44.dp),
         )
-        SubjectDot(
-            subjectColor(lesson.subject, settings).copy(alpha = if (past) 0.35f else 1f),
-            if (current) 11.dp else 9.dp,
+        Spacer(Modifier.height(10.dp))
+        DayGrid(
+            lessons = all,
+            settings = settings,
+            date = today,
+            now = now,
+            onOpenLesson = { onNavigate(Destination.TIMETABLE) },
+            homeworkFor = { lesson -> Insights.homeworkForLesson(snapshot.homework, lesson).size },
+            // Vue de plus loin : la journée entière tient dans une carte d'accueil sans
+            // perdre ses proportions.
+            scale = 0.42.dp,
+            showDetails = false,
         )
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                lesson.subject,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (past) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (lesson.room.isNotBlank()) {
-                Text(
-                    "Salle ${lesson.room}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        if (lesson.canceled) Tag("Annulé", MaterialTheme.colorScheme.error)
     }
 }
 

@@ -107,7 +107,19 @@ object WidgetSizes {
         WidgetRenderer.fallback(context, kind)
     }
 
-    /** La taille à retenir : la plus petite annoncée, celle dans laquelle tout doit tenir. */
+    /**
+     * La taille à retenir : **la largeur la plus étroite, la hauteur la plus grande**.
+     *
+     * Le lanceur annonce une taille par orientation. Prendre la plus petite des deux, comme
+     * on le faisait, revenait à dessiner pour le paysage — beaucoup plus bas — et laissait
+     * la moitié du widget vide en portrait, c'est-à-dire dans l'orientation où il est
+     * regardé. Prendre la plus grande partout ferait déborder le texte quand l'écran tourne.
+     *
+     * La combinaison des deux est celle qui tient dans les deux cas : la largeur du plus
+     * étroit garantit qu'aucune ligne n'est coupée, la hauteur du plus haut remplit l'espace
+     * réellement disponible en portrait. Une ligne de trop, si l'écran tourne, est simplement
+     * rognée par le bord — un moindre mal devant la moitié d'un widget laissée blanche.
+     */
     fun size(bundle: Bundle?): WidgetSize {
         val options = bundle ?: return WidgetSize.SMALL
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -115,15 +127,18 @@ object WidgetSizes {
                 @Suppress("DEPRECATION")
                 options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
             }.getOrNull().orEmpty()
-            val smallest = declared.minByOrNull { it.width * it.height }
-            if (smallest != null) return WidgetSize(smallest.width.toInt(), smallest.height.toInt())
+            val width = declared.minOfOrNull { it.width }
+            val height = declared.maxOfOrNull { it.height }
+            if (width != null && height != null) return WidgetSize(width.toInt(), height.toInt())
         }
-        // Repli d'avant Android 12 : le minimum des deux orientations est la seule taille
-        // dans laquelle le widget est certain de tenir.
+        // Repli d'avant Android 12 : `MIN_WIDTH` est la largeur en portrait, `MAX_HEIGHT`
+        // la hauteur en portrait. Ce sont les deux que l'on veut.
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+        val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
         val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
-        if (minWidth <= 0 || minHeight <= 0) return WidgetSize.SMALL
-        return WidgetSize(minWidth, minHeight)
+        val height = if (maxHeight > 0) maxHeight else minHeight
+        if (minWidth <= 0 || height <= 0) return WidgetSize.SMALL
+        return WidgetSize(minWidth, height)
     }
 }
 

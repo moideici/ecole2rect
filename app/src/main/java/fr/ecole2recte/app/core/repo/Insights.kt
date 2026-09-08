@@ -153,16 +153,40 @@ object Insights {
     /** Un temps libre entre deux cours : ce que l'emploi du temps ne dit pas en toutes lettres. */
     data class Interval(val start: LocalDateTime, val end: LocalDateTime) {
         val minutes: Long get() = Duration.between(start, end).toMinutes()
+        val middle: LocalDateTime get() = start.plusMinutes(minutes / 2)
     }
+
+    /** Minutes communes à deux intervalles ; zéro s'ils ne se touchent pas. */
+    private fun overlapMinutes(left: Interval, right: Interval): Long {
+        val start = maxOf(left.start, right.start)
+        val end = minOf(left.end, right.end)
+        return if (end.isAfter(start)) Duration.between(start, end).toMinutes() else 0
+    }
+
+    /** Tous les temps libres d'une journée, cours annulés exclus. */
+    private fun freeIntervals(lessons: List<Lesson>, date: LocalDate): List<Interval> =
+        lessonsOn(lessons, date)
+            .filterNot { it.canceled }
+            .sortedBy { it.start }
+            .zipWithNext()
+            .map { (previous, next) -> Interval(previous.end, next.start) }
+            .filter { it.minutes > 0 }
 
     /**
      * La pause méridienne.
      *
      * Elle n'est écrite nulle part dans la réponse d'ÉcoleDirecte : c'est un trou comme un
-     * autre, qu'il faut reconnaître. La règle retenue est celle qu'on appliquerait à l'œil :
-     * le **plus long** trou d'au moins une demi-heure qui chevauche le milieu de journée.
-     * Un interclasse de dix minutes n'est pas une pause, et un trou de deux heures en fin
-     * d'après-midi n'est pas le déjeuner.
+     * autre, qu'il faut reconnaître parmi les autres trous.
+     *
+     * **Le plus long trou n'est pas le bon critère**, et c'est l'erreur qui saute aux yeux
+     * un jour de permanence : deux heures libres de 10 h à 12 h sont plus longues que le
+     * déjeuner, et l'emportaient sur lui. Ce qui distingue le repas, ce n'est pas sa durée,
+     * c'est **l'endroit de la journée qu'il occupe**. On garde donc le trou qui recouvre le
+     * mieux le créneau où l'on mange, et non le plus large ; à recouvrement égal, celui dont
+     * le milieu tombe le plus près de la mi-journée.
+     *
+     * Un trou qui n'entame ce créneau que de quelques minutes n'est pas un déjeuner : une
+     * permanence qui finit à 11 h 40 reste une permanence.
      *
      * Rien n'est inventé quand il n'y a pas de trou : une journée continue n'a pas de pause,
      * et l'afficher à midi pile serait une supposition.
@@ -172,17 +196,22 @@ object Insights {
         date: LocalDate,
         minimumMinutes: Long = 30,
     ): Interval? {
-        val opensAt = date.atTime(11, 0)
-        val closesAt = date.atTime(15, 0)
-        return lessonsOn(lessons, date)
-            .filterNot { it.canceled }
-            .sortedBy { it.start }
-            .zipWithNext()
-            .map { (previous, next) -> Interval(previous.end, next.start) }
-            .filter { it.minutes >= minimumMinutes }
-            .filter { it.start.isBefore(closesAt) && it.end.isAfter(opensAt) }
-            .maxByOrNull { it.minutes }
+        val meal = Interval(date.atTime(11, 30), date.atTime(14, 0))
+        // Le milieu géométrique du créneau tomberait à 12 h 45 ; un déjeuner réel penche
+        // plus tôt. 12 h 30 départage donc mieux deux trous également plausibles.
+        val noon = date.atTime(12, 30)
+        return freeIntervals(lessons, date)
+            .filter { it.minutes >= minimumMinutes && overlapMinutes(it, meal) >= MEAL_OVERLAP_MINUTES }
+            .minWithOrNull(
+                compareBy(
+                    { -overlapMinutes(it, meal) },
+                    { kotlin.math.abs(Duration.between(noon, it.middle).toMinutes()) },
+                ),
+            )
     }
+
+    /** En deçà, le trou effleure l'heure du repas sans en être un. */
+    private const val MEAL_OVERLAP_MINUTES = 25L
 
     fun gaps(lessons: List<Lesson>, minimumMinutes: Long = 15): List<Pair<Lesson, Long>> {
         val ordered = lessons.filterNot { it.canceled }.sortedBy { it.start }

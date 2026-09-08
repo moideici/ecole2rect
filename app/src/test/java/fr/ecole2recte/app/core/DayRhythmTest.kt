@@ -64,6 +64,18 @@ class DayRhythmTest {
     }
 
     @Test
+    fun `deux trous de meme recouvrement - le plus proche de la mi-journee gagne`() {
+        val day = listOf(
+            lesson("1", "Philosophie", 8 to 0, 11 to 30),
+            lesson("2", "Mathématiques", 12 to 15, 13 to 15),
+            lesson("3", "Anglais", 14 to 0, 16 to 0),
+        )
+        // Les deux trous durent 45 minutes et sont entièrement dans le créneau du repas :
+        // c'est celui dont le milieu tombe le plus près de la mi-journée qui l'emporte.
+        assertEquals(monday.atTime(11, 30), Insights.middayBreak(day, monday)?.start)
+    }
+
+    @Test
     fun `ignore un trou de fin d'apres-midi`() {
         val day = listOf(
             lesson("1", "Philosophie", 8 to 0, 12 to 0),
@@ -84,13 +96,66 @@ class DayRhythmTest {
     }
 
     @Test
-    fun `garde le plus long quand deux trous chevauchent le midi`() {
+    fun `garde celui qui couvre le mieux l'heure du repas`() {
         val day = listOf(
             lesson("1", "Philosophie", 8 to 0, 11 to 0),
             lesson("2", "Mathématiques", 11 to 40, 12 to 0),
             lesson("3", "Anglais", 13 to 30, 15 to 0),
         )
+        // Deux trous : 11:00–11:40 effleure l'heure du repas, 12:00–13:30 la recouvre.
+        assertEquals(monday.atTime(12, 0), Insights.middayBreak(day, monday)?.start)
         assertEquals(90L, Insights.middayBreak(day, monday)?.minutes)
+    }
+
+    /**
+     * Le cas qui a fait tomber la première version : un jour de permanence.
+     *
+     * Deux heures libres en fin de matinée sont plus longues que le déjeuner. Prendre le
+     * trou le plus long annonçait donc « pause 10:00 » à quelqu'un qui mange à 12 h 50.
+     */
+    @Test
+    fun `une permanence en matinee n'est pas le dejeuner`() {
+        val day = listOf(
+            lesson("1", "Philosophie", 8 to 0, 10 to 0),
+            // Permanence : deux heures libres, mais avant le repas.
+            lesson("2", "Mathématiques", 12 to 0, 12 to 50),
+            lesson("3", "Anglais", 13 to 45, 15 to 0),
+        )
+        val pause = Insights.middayBreak(day, monday)
+        assertEquals(monday.atTime(12, 50), pause?.start)
+        assertEquals(55L, pause?.minutes)
+    }
+
+    @Test
+    fun `une permanence collee au dejeuner ne fait qu'une seule pause`() {
+        val day = listOf(
+            lesson("1", "Philosophie", 8 to 0, 11 to 0),
+            // Permanence de 11 h à midi puis repas : l'élève est libre d'un bloc.
+            lesson("2", "Anglais", 13 to 0, 15 to 0),
+        )
+        val pause = Insights.middayBreak(day, monday)
+        assertEquals(monday.atTime(11, 0), pause?.start)
+        assertEquals(120L, pause?.minutes)
+    }
+
+    @Test
+    fun `un trou qui s'arrete avant le repas n'en est pas un`() {
+        val day = listOf(
+            lesson("1", "Philosophie", 8 to 0, 10 to 30),
+            // Une heure libre, mais terminée à 11 h 30 : ce n'est pas le déjeuner.
+            lesson("2", "Mathématiques", 11 to 30, 16 to 0),
+        )
+        assertNull(Insights.middayBreak(day, monday))
+    }
+
+    @Test
+    fun `un trou qui effleure l'heure du repas n'en est pas un`() {
+        val day = listOf(
+            lesson("1", "Philosophie", 8 to 0, 11 to 15),
+            // Vingt minutes dans le créneau du repas : trop peu pour être le déjeuner.
+            lesson("2", "Mathématiques", 11 to 50, 16 to 0),
+        )
+        assertNull(Insights.middayBreak(day, monday))
     }
 
     @Test
@@ -160,13 +225,13 @@ class DayRhythmTest {
             maxLines = 8,
         )
         assertEquals(
-            listOf("Philosophie", "Mathématiques", "Pause méridienne", "Anglais", "Histoire"),
+            listOf("Philosophie", "Mathématiques", "Pause", "Anglais", "Histoire"),
             payload.lines.map { it.text },
         )
-        // Une heure de début seule ne dit pas si le cours dure une heure ou trois.
-        assertEquals("08:00–09:00", payload.lines.first().trailing)
-        assertEquals("11:55", payload.lines[2].trailing)
-        assertEquals("1 h 35", payload.lines[2].secondary)
+        // L'heure à gauche, la salle à droite : la matière n'est plus coupée par l'horaire.
+        assertEquals(listOf("08:00", "09:10", "11:55", "13:30", "15:30"), payload.lines.map { it.leading })
+        assertEquals("C011", payload.lines.first().trailing)
+        assertEquals("1 h 35", payload.lines[2].trailing)
     }
 
     @Test
@@ -179,7 +244,7 @@ class DayRhythmTest {
             shape = WidgetShape.LIST,
             maxLines = 8,
         )
-        assertEquals(1, payload.lines.count { it.text == "Pause méridienne" })
+        assertEquals(1, payload.lines.count { it.text == "Pause" })
     }
 
     // ── La forme suit la place ───────────────────────────────────────────────

@@ -73,7 +73,6 @@ private val MinimumBlockHeight = 26.dp
 /** Bornes d'affichage d'une journée, arrondies à l'heure. */
 private data class GridBounds(val firstHour: Int, val lastHour: Int) {
     val hours: Int get() = (lastHour - firstHour).coerceAtLeast(1)
-    val height: Dp get() = MinuteHeight * (hours * 60)
     fun heightAt(scale: Dp): Dp = scale * (hours * 60)
 
     /** Décalage d'un instant depuis le haut de la grille. */
@@ -152,19 +151,29 @@ fun DayGrid(
     modifier: Modifier = Modifier,
     /** Combien de devoirs sont à rendre pour ce cours : le bloc le signale d'un point. */
     homeworkFor: (Lesson) -> Int = { 0 },
+    /**
+     * Hauteur d'une minute. Réduite, la même grille tient dans une carte d'accueil : la
+     * journée garde ses proportions, elle est seulement vue de plus loin.
+     */
+    scale: Dp = MinuteHeight,
+    /** À petite échelle, la salle et le professeur ne tiennent plus : seule la matière reste. */
+    showDetails: Boolean = true,
 ) {
     val bounds = boundsOf(lessons)
     val placed = place(lessons)
     val outline = MaterialTheme.colorScheme.outlineVariant
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    // Serrées, les lignes d'heures deviennent une trame illisible : on les espace.
+    val hourStep = if (scale < 0.7.dp) 2 else 1
+    val minimumBlock = if (showDetails) MinimumBlockHeight else 16.dp
 
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val lane = (maxWidth - GutterWidth - 4.dp).coerceAtLeast(1.dp)
 
-        Box(Modifier.fillMaxWidth().height(bounds.height)) {
+        Box(Modifier.fillMaxWidth().height(bounds.heightAt(scale))) {
             // Les heures d'abord : elles sont le fond sur lequel les cours se posent.
-            for (hour in bounds.firstHour..bounds.lastHour) {
-                val y = MinuteHeight * ((hour - bounds.firstHour) * 60)
+            for (hour in bounds.firstHour..bounds.lastHour step hourStep) {
+                val y = scale * ((hour - bounds.firstHour) * 60)
                 Row(
                     Modifier.fillMaxWidth().offset(y = y),
                     verticalAlignment = Alignment.CenterVertically,
@@ -192,13 +201,14 @@ fun DayGrid(
                     now = now,
                     today = date == now.toLocalDate(),
                     homework = homeworkFor(lesson),
+                    showDetails = showDetails,
                     modifier = Modifier
                         .offset(
                             x = GutterWidth + 4.dp + (lane / entry.columns) * entry.column,
-                            y = bounds.offsetOf(lesson.start, MinuteHeight),
+                            y = bounds.offsetOf(lesson.start, scale),
                         )
                         .width(width)
-                        .height((MinuteHeight * minutes.toInt()).coerceAtLeast(MinimumBlockHeight)),
+                        .height((scale * minutes.toInt()).coerceAtLeast(minimumBlock)),
                     onClick = { onOpenLesson(lesson) },
                 )
             }
@@ -210,7 +220,7 @@ fun DayGrid(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .offset(y = bounds.offsetOf(now, MinuteHeight))
+                            .offset(y = bounds.offsetOf(now, scale))
                             .padding(start = GutterWidth)
                             .height(2.dp)
                             .background(MaterialTheme.colorScheme.error),
@@ -228,6 +238,7 @@ private fun LessonBlock(
     now: LocalDateTime,
     today: Boolean,
     homework: Int,
+    showDetails: Boolean,
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
@@ -277,17 +288,19 @@ private fun LessonBlock(
                 overflow = TextOverflow.Ellipsis,
                 textDecoration = if (lesson.canceled) TextDecoration.LineThrough else null,
             )
-            Text(
-                listOfNotNull(
-                    lesson.room.takeIf { it.isNotBlank() },
-                    lesson.group.takeIf { it.isNotBlank() },
-                ).joinToString(" · ").ifBlank { Dates.time(lesson.start) },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (lesson.canceled) {
+            if (showDetails) {
+                Text(
+                    listOfNotNull(
+                        lesson.room.takeIf { it.isNotBlank() },
+                        lesson.group.takeIf { it.isNotBlank() },
+                    ).joinToString(" · ").ifBlank { Dates.time(lesson.start) },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (showDetails && lesson.canceled) {
                 Text(
                     "Annulé",
                     style = MaterialTheme.typography.labelSmall,

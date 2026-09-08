@@ -42,6 +42,10 @@ object WidgetRenderer {
         Triple(R.id.widget_row_7, R.id.widget_dot_7, R.id.widget_text_7),
         Triple(R.id.widget_row_8, R.id.widget_dot_8, R.id.widget_text_8),
     )
+    private val LINE_TIME_IDS = listOf(
+        R.id.widget_time_1, R.id.widget_time_2, R.id.widget_time_3, R.id.widget_time_4,
+        R.id.widget_time_5, R.id.widget_time_6, R.id.widget_time_7, R.id.widget_time_8,
+    )
     private val LINE_VALUE_IDS = listOf(
         R.id.widget_value_1, R.id.widget_value_2, R.id.widget_value_3, R.id.widget_value_4,
         R.id.widget_value_5, R.id.widget_value_6, R.id.widget_value_7, R.id.widget_value_8,
@@ -184,6 +188,16 @@ object WidgetRenderer {
                     return@forEachIndexed
                 }
                 setViewVisibility(rowId, View.VISIBLE)
+                // La colonne d'heure n'existe que si la ligne en a une : sans cela, les
+                // listes de notes ou de devoirs perdraient une colonne de large pour rien.
+                val timeId = LINE_TIME_IDS[index]
+                if (line.leading.isBlank()) {
+                    setViewVisibility(timeId, View.GONE)
+                } else {
+                    setViewVisibility(timeId, View.VISIBLE)
+                    setTextViewText(timeId, line.leading)
+                    setTextColor(timeId, palette.muted)
+                }
                 setTextViewText(textId, line.text)
                 setTextViewText(
                     LINE_VALUE_IDS[index],

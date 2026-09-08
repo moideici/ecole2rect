@@ -81,12 +81,19 @@ enum class WidgetKind(
     WEEK("Semaine", "La charge de chaque jour ; rétréci, il devient une liste.", WidgetShape.WEEK, WidgetTarget.TIMETABLE),
 }
 
-/** Une ligne de liste : un texte, un complément, une valeur à droite, une couleur. */
+/**
+ * Une ligne de liste.
+ *
+ * [leading] est la colonne de gauche — une heure, dans un emploi du temps. Elle est vide pour
+ * les widgets qui n'ont rien à y mettre, et la colonne disparaît alors. C'est ce qui permet à
+ * la matière d'occuper toute la ligne au lieu d'être coupée par une valeur posée au milieu.
+ */
 data class WidgetLine(
     val text: String,
     val secondary: String = "",
     val trailing: String = "",
     val accent: Long? = null,
+    val leading: String = "",
 )
 
 data class WidgetDay(
@@ -133,7 +140,7 @@ data class WidgetPayload(
             if (trailing.isNotBlank()) add(trailing)
             lines.forEach { line ->
                 add(
-                    listOf(line.text, line.secondary, line.trailing)
+                    listOf(line.leading, line.text, line.secondary, line.trailing)
                         .filter { it.isNotBlank() }
                         .joinToString(", "),
                 )
@@ -723,24 +730,25 @@ object WidgetContent {
     ): List<WidgetLine> {
         val pause = date?.let { Insights.middayBreak(context.snapshot.lessons, it) }
         val lines = mutableListOf<WidgetLine>()
+        // Un drapeau plutôt qu'une recherche sur le libellé : chercher le texte de la ligne
+        // pour savoir si on l'a déjà posée casse le jour où on renomme ce texte — ce qui est
+        // arrivé, et a fait apparaître la pause deux fois.
+        var pauseInserted = false
         lessons.forEach { lesson ->
-            if (pause != null && lines.isNotEmpty() && !lesson.start.isBefore(pause.end)) {
-                val already = lines.any { it.text == "Pause méridienne" }
-                if (!already) {
-                    lines += WidgetLine(
-                        text = "Pause méridienne",
-                        secondary = Dates.duration(pause.minutes),
-                        trailing = Dates.time(pause.start),
-                    )
-                }
+            if (pause != null && !pauseInserted && lines.isNotEmpty() && !lesson.start.isBefore(pause.end)) {
+                pauseInserted = true
+                lines += WidgetLine(
+                    leading = Dates.time(pause.start),
+                    text = "Pause",
+                    trailing = Dates.duration(pause.minutes),
+                )
             }
             lines += WidgetLine(
+                // L'heure à gauche, comme sur un emploi du temps papier : c'est elle qu'on
+                // parcourt du regard, et la matière garde toute la largeur restante.
+                leading = Dates.time(lesson.start),
                 text = lesson.subject,
-                secondary = listOfNotNull(
-                    lesson.room.takeIf { it.isNotBlank() },
-                    "annulé".takeIf { lesson.canceled },
-                ).joinToString(" · "),
-                trailing = "${Dates.time(lesson.start)}–${Dates.time(lesson.end)}",
+                trailing = if (lesson.canceled) "annulé" else lesson.room,
                 accent = SubjectPalette.colorFor(lesson.subject, context.settings.subjectColors),
             )
         }

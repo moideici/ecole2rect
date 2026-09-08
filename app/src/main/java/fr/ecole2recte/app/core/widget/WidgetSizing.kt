@@ -64,12 +64,22 @@ object WidgetSizing {
         }
     }
 
+    /** Ce que prennent la marge du gabarit et son en-tête, avant la première ligne. */
+    private const val HEADER_DP = 58
+
+    /** Hauteur d'une ligne : huit de marge et un texte de douze points. */
+    private const val LINE_DP = 23
+
     /**
      * Combien de lignes tiennent dans la hauteur donnée.
      *
-     * L'en-tête prend une soixantaine de dp, chaque ligne une trentaine. Mieux vaut une ligne
-     * de moins qu'une ligne coupée en deux par le bord du widget.
+     * Les deux constantes sont mesurées sur le gabarit, pas devinées : une ligne trop haute
+     * dans le calcul, et le widget s'arrête à quatre cours en laissant un tiers de sa
+     * surface blanche — ce qui est exactement ce qu'on lui reproche.
+     *
+     * Mieux vaut tout de même une ligne de moins qu'une ligne coupée en deux par le bord :
+     * la division entière arrondit vers le bas, et c'est voulu.
      */
     fun maxLines(size: WidgetSize): Int =
-        ((size.heightDp - 62) / 30).coerceIn(1, MAX_LINES)
+        ((size.heightDp - HEADER_DP) / LINE_DP).coerceIn(1, MAX_LINES)
 }

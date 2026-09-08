@@ -137,9 +137,12 @@ class WidgetContentTest {
 
     @Test
     fun `plus le widget est haut, plus il montre de lignes`() {
+        // Les constantes sont mesurées sur le gabarit — en-tête et marges d'un côté, hauteur
+        // d'une ligne de l'autre. Les surestimer faisait s'arrêter un widget haut à quatre
+        // cours en laissant un tiers de sa surface blanche.
         assertEquals(1, WidgetSizing.maxLines(WidgetSize(140, 70)))
-        assertEquals(2, WidgetSizing.maxLines(WidgetSize(140, 140)))
-        assertEquals(5, WidgetSizing.maxLines(WidgetSize(140, 220)))
+        assertEquals(3, WidgetSizing.maxLines(WidgetSize(140, 140)))
+        assertEquals(7, WidgetSizing.maxLines(WidgetSize(140, 220)))
         assertEquals(WidgetSizing.MAX_LINES, WidgetSizing.maxLines(WidgetSize(140, 600)))
     }
 
@@ -277,10 +280,11 @@ class WidgetContentTest {
         val payload = WidgetContent.payload(WidgetKind.TODAY, snapshot, AppSettings(), morning)
 
         assertEquals(1, payload.lines.size)
+        // L'heure à gauche, la matière au milieu, la salle à droite : la lecture d'un
+        // emploi du temps, et la matière garde toute la largeur restante.
+        assertEquals("10:15", payload.lines.single().leading)
         assertEquals("Mathématiques", payload.lines.single().text)
-        // La plage entière, et pas seulement l'heure de début : « 10:15 » ne dit pas si le
-        // cours dure une heure ou trois.
-        assertEquals("10:15–12:00", payload.lines.single().trailing)
+        assertEquals("C011", payload.lines.single().trailing)
     }
 
     @Test

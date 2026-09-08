@@ -11,7 +11,8 @@ fiable.
 
 ## Ce que fait l'application
 
-- **Accueil composable** — dix blocs (prochain cours, à ne pas oublier, journée, devoirs,
+- **Accueil composable** — dix blocs (prochain cours, à ne pas oublier, journée **en grille
+  à l'échelle du temps**, devoirs,
   évaluations, notes, moyennes par matière, messages, semaine, demain) que l'on réordonne et
   masque depuis un éditeur dédié ; l'ordre est conservé sur l'appareil.
 - **Emploi du temps** — une **grille à l'échelle du temps**, comme sur un emploi du temps
@@ -140,11 +141,24 @@ accordée qui choisit :
   agrandi il devient la journée détaillée, réduit à une case le compte à rebours du prochain
   cours.
 
+**Chaque ligne d'une liste commence par son heure**, comme un emploi du temps papier :
+l'heure d'abord, la matière ensuite, la salle à droite. Mettre l'horaire à droite obligeait à
+lui réserver de la place au milieu de la ligne, et c'est la matière qui se faisait couper —
+« Mathémati… » n'apprend rien à personne.
+
+**Un widget occupe la hauteur qu'on lui donne.** Le lanceur annonce une taille par
+orientation ; retenir la plus petite revenait à dessiner pour le paysage et laissait la
+moitié du widget vide en portrait, c'est-à-dire dans l'orientation où on le regarde. On
+retient donc la largeur du plus étroit — aucune ligne coupée — et la hauteur du plus haut.
+
 **La pause méridienne n'est écrite nulle part** dans la réponse d'ÉcoleDirecte : c'est un
-trou parmi d'autres. Elle est donc reconnue — le plus long trou d'au moins une demi-heure qui
-chevauche le milieu de journée — et jamais supposée : une journée continue affiche un tiret
-plutôt qu'un midi inventé. Un interclasse de dix minutes n'est pas une pause, et deux heures
-libres à 16 h ne sont pas le déjeuner.
+trou parmi d'autres, qu'il faut reconnaître parmi les autres trous. Le plus long n'est pas le
+bon critère, et c'est l'erreur qui saute aux yeux un jour de permanence : deux heures libres
+de 10 h à 12 h sont plus longues que le déjeuner. Ce qui distingue le repas, ce n'est pas sa
+durée, c'est **l'endroit de la journée qu'il occupe** — on garde donc le trou qui recouvre le
+mieux le créneau du repas, et à recouvrement égal celui dont le milieu tombe le plus près de
+la mi-journée. Une journée continue affiche un tiret plutôt qu'un midi inventé, et un trou
+qui n'effleure ce créneau que de quelques minutes reste une permanence.
 
 Agrandir un widget ajoute donc de l'information, jamais du vide. Sur Android 12 et suivants,
 l'application fournit **un rendu par taille annoncée** : le lanceur passe de l'un à l'autre
