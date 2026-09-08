@@ -227,6 +227,14 @@ fun SettingsScreen(
                 description = "Une couleur par matière, identique partout dans l'application.",
                 onClick = { onOpenDetail(Detail.SubjectColors) },
             )
+            SettingsRow(
+                title = "Couleurs des widgets",
+                description = when {
+                    settings.widgetColors.custom -> "Fond et texte choisis à la main."
+                    else -> settings.widgetColors.theme.label + " — un widget vit devant ton fond d'écran."
+                },
+                onClick = { onOpenDetail(Detail.WidgetColors) },
+            )
             Spacer(Modifier.height(10.dp))
             Text(
                 "Thème",

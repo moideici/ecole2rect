@@ -17,6 +17,7 @@ import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.core.settings.HomeWidget
 import fr.ecole2recte.app.core.settings.NotificationSettings
 import fr.ecole2recte.app.core.settings.ThemeChoice
+import fr.ecole2recte.app.core.settings.WidgetColorSettings
 import fr.ecole2recte.app.data.AttachmentOpener
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -235,6 +236,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setTheme(choice: ThemeChoice) = updateSettings { it.copy(theme = choice) }
 
     fun setSubjectColor(subject: String, color: Long?) = updateSettings { it.withSubjectColor(subject, color) }
+
+    fun setWidgetColors(transform: (WidgetColorSettings) -> WidgetColorSettings) =
+        updateSettings { it.copy(widgetColors = transform(it.widgetColors)) }
 
     fun moveWidget(widget: HomeWidget, offset: Int) = updateSettings { it.move(widget, offset) }
 

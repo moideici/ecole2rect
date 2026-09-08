@@ -3,10 +3,13 @@ package fr.ecole2recte.app.widget
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
 import fr.ecole2recte.app.MainActivity
 import fr.ecole2recte.app.R
+import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.core.widget.WidgetContent
 import fr.ecole2recte.app.core.widget.WidgetKind
 import fr.ecole2recte.app.core.widget.WidgetLayout
@@ -81,7 +84,7 @@ object WidgetRenderer {
             shape = layout.shape,
             maxLines = layout.maxLines,
         )
-        val palette = WidgetPalette.of(context)
+        val palette = WidgetPalette.of(context, data.settings)
         val views = when (layout.shape) {
             WidgetShape.TILE -> tile(context, payload, palette)
             WidgetShape.ROW -> row(context, payload, palette)
@@ -103,8 +106,8 @@ object WidgetRenderer {
      * inattendue. Un widget blanc laisse croire que l'application est cassée ; celui-ci dit
      * quoi faire.
      */
-    fun fallback(context: Context, kind: WidgetKind): RemoteViews {
-        val palette = WidgetPalette.of(context)
+    fun fallback(context: Context, kind: WidgetKind, settings: AppSettings = AppSettings()): RemoteViews {
+        val palette = WidgetPalette.of(context, settings)
         return RemoteViews(context.packageName, R.layout.widget_tile).apply {
             dress(palette)
             setTextViewText(R.id.widget_label, kind.label.uppercase())
@@ -260,6 +263,16 @@ object WidgetRenderer {
      */
     private fun RemoteViews.dress(palette: WidgetPalette) {
         setInt(R.id.widget_root, "setBackgroundResource", palette.background)
+        // La teinte est posée — ou retirée — à chaque rendu : sans le cas `null`, un widget
+        // repassé du sur-mesure au thème garderait l'ancienne couleur jusqu'à sa disparition.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val tint = palette.backgroundTint
+            setColorStateList(
+                R.id.widget_root,
+                "setBackgroundTintList",
+                if (tint == null) null else ColorStateList.valueOf(tint),
+            )
+        }
     }
 
     private fun accent(payload: WidgetPayload): Int? = payload.accent?.toInt()

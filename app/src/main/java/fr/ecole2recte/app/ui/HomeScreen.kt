@@ -455,10 +455,7 @@ private fun TodayWidget(
             now = now,
             onOpenLesson = { onNavigate(Destination.TIMETABLE) },
             homeworkFor = { lesson -> Insights.homeworkForLesson(snapshot.homework, lesson).size },
-            // Vue de plus loin : la journée entière tient dans une carte d'accueil sans
-            // perdre ses proportions.
-            scale = 0.42.dp,
-            showDetails = false,
+            compact = true,
         )
     }
 }

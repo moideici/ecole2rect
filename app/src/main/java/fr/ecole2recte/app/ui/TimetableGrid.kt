@@ -70,6 +70,31 @@ private val GutterWidth = 42.dp
 /** En deçà, un bloc ne peut pas porter son texte : on lui laisse ce minimum. */
 private val MinimumBlockHeight = 26.dp
 
+/** Hauteur qu'un bloc doit atteindre pour porter une ligne de texte sans la couper. */
+private val CompactBlockHeight = 27.dp
+
+/** Ce qu'une grille compacte s'autorise à prendre dans une carte d'accueil. */
+private val CompactMaxHeight = 320.dp
+
+/**
+ * L'échelle d'une grille compacte, déduite de la journée elle-même.
+ *
+ * Une échelle fixe ne peut pas convenir : à 0,42 dp la minute, un cours de cinquante minutes
+ * fait vingt-et-un points de haut et son nom est coupé en deux — ce qui est pire que de
+ * perdre un peu de proportion. On part donc du **cours le plus court**, qui doit rester
+ * lisible, et on redescend seulement si la journée entière déborde de la carte.
+ */
+private fun compactScale(lessons: List<Lesson>): Dp {
+    val shortest = lessons.filterNot { it.canceled }
+        .minOfOrNull { Duration.between(it.start, it.end).toMinutes() }
+        ?.coerceAtLeast(1L)
+        ?: 60L
+    val readable = CompactBlockHeight / shortest.toFloat()
+    val minutes = boundsOf(lessons).hours * 60
+    val ceiling = CompactMaxHeight / minutes.toFloat()
+    return minOf(readable, ceiling).coerceIn(0.3.dp, 0.9.dp)
+}
+
 /** Bornes d'affichage d'une journée, arrondies à l'heure. */
 private data class GridBounds(val firstHour: Int, val lastHour: Int) {
     val hours: Int get() = (lastHour - firstHour).coerceAtLeast(1)
@@ -152,20 +177,23 @@ fun DayGrid(
     /** Combien de devoirs sont à rendre pour ce cours : le bloc le signale d'un point. */
     homeworkFor: (Lesson) -> Int = { 0 },
     /**
-     * Hauteur d'une minute. Réduite, la même grille tient dans une carte d'accueil : la
-     * journée garde ses proportions, elle est seulement vue de plus loin.
+     * Vue de plus loin : la journée entière tient dans une carte d'accueil, avec ses
+     * proportions, et seule la matière reste écrite. L'échelle est déduite de la journée
+     * pour qu'aucun nom ne se retrouve coupé.
      */
-    scale: Dp = MinuteHeight,
-    /** À petite échelle, la salle et le professeur ne tiennent plus : seule la matière reste. */
-    showDetails: Boolean = true,
+    compact: Boolean = false,
 ) {
+    val showDetails = !compact
+    val scale = if (compact) compactScale(lessons) else MinuteHeight
     val bounds = boundsOf(lessons)
     val placed = place(lessons)
     val outline = MaterialTheme.colorScheme.outlineVariant
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     // Serrées, les lignes d'heures deviennent une trame illisible : on les espace.
     val hourStep = if (scale < 0.7.dp) 2 else 1
-    val minimumBlock = if (showDetails) MinimumBlockHeight else 16.dp
+    // Le plancher compact vaut la hauteur d'une ligne : en dessous, le nom serait rogné,
+    // et un bloc légèrement trop haut ment moins qu'un mot coupé en deux.
+    val minimumBlock = if (showDetails) MinimumBlockHeight else CompactBlockHeight
 
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val lane = (maxWidth - GutterWidth - 4.dp).coerceAtLeast(1.dp)
@@ -279,10 +307,20 @@ private fun LessonBlock(
                 .fillMaxHeight()
                 .background(if (lesson.canceled) color.copy(alpha = 0.4f) else color),
         )
-        Column(Modifier.padding(start = 9.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)) {
+        Column(
+            Modifier
+                .align(if (showDetails) Alignment.TopStart else Alignment.CenterStart)
+                .padding(start = 9.dp, end = 6.dp, top = 3.dp, bottom = 3.dp),
+        ) {
             Text(
                 lesson.subject.ifBlank { "Cours" },
-                style = MaterialTheme.typography.labelLarge,
+                style = if (showDetails) {
+                    MaterialTheme.typography.labelLarge
+                } else {
+                    // Une ligne plus courte tient dans un bloc plus petit : c'est ce qui
+                    // permet à un cours de cinquante minutes de garder son nom entier.
+                    MaterialTheme.typography.labelSmall
+                },
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

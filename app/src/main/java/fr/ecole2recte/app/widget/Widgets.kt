@@ -104,7 +104,7 @@ object WidgetSizes {
     }.getOrElse {
         // Un widget ne doit jamais rester blanc : si le rendu échoue, on pose une vue
         // minimale qui ouvre l'application plutôt qu'une carte vide et muette.
-        WidgetRenderer.fallback(context, kind)
+        WidgetRenderer.fallback(context, kind, data.settings)
     }
 
     /**

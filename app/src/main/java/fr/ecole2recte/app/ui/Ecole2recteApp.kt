@@ -69,6 +69,7 @@ sealed interface Detail {
     data object Settings : Detail
     data object HomeEditor : Detail
     data object SubjectColors : Detail
+    data object WidgetColors : Detail
     data object SchoolLife : Detail
     data object Documents : Detail
     data object News : Detail
@@ -480,6 +481,12 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     attachmentState = attachment,
                     onOpen = { file -> viewModel.openAttachment(file.asAttachment()) },
                     onRefresh = { viewModel.refresh(setOf(DataSection.CLOUD)) },
+                    onClose = { detail = null },
+                )
+
+                Detail.WidgetColors -> WidgetColorsScreen(
+                    settings = settings,
+                    onChange = viewModel::setWidgetColors,
                     onClose = { detail = null },
                 )
 

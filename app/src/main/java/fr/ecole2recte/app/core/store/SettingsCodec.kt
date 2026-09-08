@@ -5,6 +5,8 @@ import fr.ecole2recte.app.core.settings.HomeWidget
 import fr.ecole2recte.app.core.settings.HomeWidgetSetting
 import fr.ecole2recte.app.core.settings.NotificationSettings
 import fr.ecole2recte.app.core.settings.ThemeChoice
+import fr.ecole2recte.app.core.settings.WidgetColorSettings
+import fr.ecole2recte.app.core.settings.WidgetTheme
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -47,6 +49,17 @@ object SettingsCodec {
         put("parentAccount", settings.parentAccount)
         put("notified", JSONArray(settings.notified))
         put(
+            "widgetColors",
+            JSONObject()
+                .put("theme", settings.widgetColors.theme.name)
+                // `JSONObject.put` refuse null : une couleur absente est une clé absente,
+                // ce que la relecture traduit par « celle du thème ».
+                .apply {
+                    settings.widgetColors.background?.let { put("background", it) }
+                    settings.widgetColors.ink?.let { put("ink", it) }
+                },
+        )
+        put(
             "notifications",
             JSONObject()
                 .put("enabled", settings.notifications.enabled)
@@ -85,6 +98,13 @@ object SettingsCodec {
             dynamicColor = root.optBoolean("dynamicColor", false),
             parentAccount = root.optBoolean("parentAccount", false),
             notified = root.optJSONArray("notified").stringSet().toList(),
+            widgetColors = root.optJSONObject("widgetColors")?.let { entry ->
+                WidgetColorSettings(
+                    theme = enumOrNull<WidgetTheme>(entry.optString("theme")) ?: WidgetTheme.SYSTEM,
+                    background = entry.optLong("background").takeIf { it != 0L },
+                    ink = entry.optLong("ink").takeIf { it != 0L },
+                )
+            } ?: WidgetColorSettings(),
             notifications = root.optJSONObject("notifications")?.let { entry ->
                 NotificationSettings(
                     enabled = entry.optBoolean("enabled", true),

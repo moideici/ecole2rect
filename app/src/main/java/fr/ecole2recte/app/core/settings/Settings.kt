@@ -9,6 +9,117 @@ enum class ThemeChoice(val label: String) {
     DARK("Sombre"),
 }
 
+/** Ce qui décide des couleurs d'un widget d'écran d'accueil. */
+enum class WidgetTheme(val label: String) {
+    SYSTEM("Comme le système"),
+    LIGHT("Toujours clair"),
+    DARK("Toujours sombre"),
+    CUSTOM("Personnalisées"),
+}
+
+/**
+ * Les couleurs des widgets.
+ *
+ * Un widget ne vit pas dans l'application mais sur l'écran d'accueil, devant un fond d'écran
+ * choisi par quelqu'un d'autre. Suivre le thème du téléphone est un bon défaut, ce n'est pas
+ * toujours le bon choix : un fond d'écran clair rend un widget sombre illisible, et
+ * inversement. D'où les deux réglages forcés, et la possibilité de poser ses propres
+ * couleurs.
+ *
+ * Seuls le fond et le texte sont réglables. Le texte secondaire en est dérivé, et les
+ * couleurs de matière restent celles de l'application : elles ont leur propre réglage, et
+ * les voir changer d'un écran à l'autre serait pire que tout.
+ */
+data class WidgetColorSettings(
+    val theme: WidgetTheme = WidgetTheme.SYSTEM,
+    /** Fond, en ARGB. `null` : celui du thème retenu. */
+    val background: Long? = null,
+    /** Texte principal, en ARGB. `null` : celui du thème retenu. */
+    val ink: Long? = null,
+) {
+    val custom: Boolean get() = theme == WidgetTheme.CUSTOM
+
+    /**
+     * Le widget doit-il se dessiner en sombre ?
+     *
+     * En couleurs libres, c'est la **clarté du fond choisi** qui décide, et non le thème du
+     * téléphone : c'est elle qui dit si un texte clair ou sombre sera lisible dessus. Sans
+     * cela, un fond noir choisi à la main hériterait des accents du thème clair.
+     */
+    fun isDark(systemDark: Boolean): Boolean = when (theme) {
+        WidgetTheme.SYSTEM -> systemDark
+        WidgetTheme.LIGHT -> false
+        WidgetTheme.DARK -> true
+        WidgetTheme.CUSTOM -> background?.let { Contrast.luminance(it) < 0.5 } ?: systemDark
+    }
+
+    /** Le texte lisible sur le fond choisi, quand la personne n'en a pas désigné un. */
+    fun inkOrDefault(): Long? = ink ?: background?.let { Contrast.readableInk(it) }
+}
+
+/**
+ * De quoi ne jamais proposer une combinaison illisible.
+ *
+ * Une palette libre laisse écrire du gris sur du gris. Ces deux fonctions donnent la clarté
+ * d'une couleur et le texte qui se lit dessus — c'est ce qui permet à l'écran de réglages de
+ * prévenir plutôt que de laisser faire.
+ */
+object Contrast {
+
+    /** Clarté perçue, de 0 (noir) à 1 (blanc). Pondérée comme l'œil, pas comme la machine. */
+    fun luminance(argb: Long): Double {
+        val red = ((argb shr 16) and 0xFF) / 255.0
+        val green = ((argb shr 8) and 0xFF) / 255.0
+        val blue = (argb and 0xFF) / 255.0
+        return 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+    }
+
+    private fun channel(value: Double): Double =
+        if (value <= 0.03928) value / 12.92 else Math.pow((value + 0.055) / 1.055, 2.4)
+
+    /** Le rapport de contraste entre deux couleurs, tel que le définit le WCAG. */
+    fun ratio(first: Long, second: Long): Double {
+        val a = luminance(first)
+        val b = luminance(second)
+        val lighter = maxOf(a, b)
+        val darker = minOf(a, b)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    /** Noir ou blanc, celui des deux qui se lit sur ce fond. */
+    fun readableInk(background: Long): Long =
+        if (ratio(background, 0xFF000000L) >= ratio(background, 0xFFFFFFFFL)) 0xFF000000L else 0xFFFFFFFFL
+
+    /** En deçà, le texte est pénible à lire. C'est le seuil « AA » pour un texte courant. */
+    const val MINIMUM_RATIO = 4.5
+}
+
+/** Les couleurs proposées pour les widgets : assez pour choisir, pas assez pour se perdre. */
+object WidgetPaletteChoices {
+
+    val BACKGROUNDS: List<Long> = listOf(
+        0xFFFFFFFF, // blanc
+        0xFFF3F4F8, // gris très clair
+        0xFFE8EAF6, // bleuté clair
+        0xFFFDF3E3, // crème
+        0xFF1B2430, // ardoise
+        0xFF11131A, // presque noir
+        0xFF000000, // noir
+        0xFF1E2A24, // vert profond
+        0xFF2A1F33, // prune
+        0xFF23304A, // bleu nuit
+    )
+
+    val INKS: List<Long> = listOf(
+        0xFF000000, // noir
+        0xFF18202B, // encre
+        0xFF3F4B5B, // ardoise
+        0xFFFFFFFF, // blanc
+        0xFFEDF1F7, // blanc cassé
+        0xFFC7D0DC, // gris clair
+    )
+}
+
 /**
  * Les briques de l'accueil.
  *
@@ -92,6 +203,8 @@ data class AppSettings(
      * l'enfant, pas sur celle du parent, et l'écran doit le dire avant qu'on la saisisse.
      */
     val parentAccount: Boolean = false,
+    /** Couleurs des widgets d'écran d'accueil, indépendantes du thème de l'application. */
+    val widgetColors: WidgetColorSettings = WidgetColorSettings(),
 ) {
 
     /** Widgets visibles, dans l'ordre choisi ; les nouveaux widgets arrivent à la fin. */

@@ -49,6 +49,9 @@ class Ecole2recteApplication : Application() {
                     settings.doneHomework.size,
                     settings.readMessages.size,
                     settings.subjectColors.hashCode(),
+                    // Sans cette clé, changer les couleurs des widgets ne les redessinerait
+                    // qu'au prochain réveil du système — une demi-heure plus tard.
+                    settings.widgetColors.hashCode(),
                 )
             }
                 .distinctUntilChanged()

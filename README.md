@@ -26,7 +26,9 @@ fiable.
 
   Les bornes de la grille viennent des cours eux-mêmes : commencer à 8 h et finir à 18 h
   laisserait un vide en haut pour qui commence à 10 h, et couperait le bas pour qui finit à
-  19 h.
+  19 h. Sur l'accueil, la même grille est vue de plus loin, et son échelle est déduite du
+  **cours le plus court** : à échelle fixe, un cours de cinquante minutes voyait son nom
+  coupé en deux — ce qui est pire que de perdre un peu de proportion.
 - **Devoirs** — regroupés par échéance, filtrables (à faire, évaluations, faits, tout),
   cherchables, cochables d'un geste ; l'état « fait » est local d'abord, poussé au serveur
   ensuite, donc l'application répond même hors ligne. Un devoir à déposer en ligne est
@@ -145,6 +147,16 @@ accordée qui choisit :
 l'heure d'abord, la matière ensuite, la salle à droite. Mettre l'horaire à droite obligeait à
 lui réserver de la place au milieu de la ligne, et c'est la matière qui se faisait couper —
 « Mathémati… » n'apprend rien à personne.
+
+**Les couleurs sont réglables** (Réglages → Couleurs des widgets). Un widget ne vit pas dans
+l'application : il se pose devant un fond d'écran que personne ici n'a choisi. Suivre le thème
+du téléphone est un bon défaut, pas une vérité — un fond d'écran très clair rend un widget
+sombre illisible. Quatre modes donc : comme le système, toujours clair, toujours sombre, ou
+fond et texte choisis à la main. Sans texte choisi, c'est le noir ou le blanc qui se lit le
+mieux sur le fond ; et quand le couple descend sous le seuil de lisibilité, l'écran le dit —
+il ne l'interdit pas, mais il ne laisse pas écrire du gris sur du gris sans prévenir. Un
+aperçu montre le résultat avant de sortir de l'écran. *La couleur exacte d'un fond demande
+Android 12 ; en dessous, le widget garde le fond clair ou sombre le plus proche.*
 
 **Un widget occupe la hauteur qu'on lui donne.** Le lanceur annonce une taille par
 orientation ; retenir la plus petite revenait à dessiner pour le paysage et laissait la
