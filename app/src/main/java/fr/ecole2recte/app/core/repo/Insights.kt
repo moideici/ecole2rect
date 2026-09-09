@@ -5,6 +5,8 @@ import fr.ecole2recte.app.core.format.Text
 import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
+import fr.ecole2recte.app.core.model.MessageFolder
+import fr.ecole2recte.app.core.model.SchoolLifeKind
 import fr.ecole2recte.app.core.model.MessageItem
 import fr.ecole2recte.app.core.model.Period
 import fr.ecole2recte.app.core.model.SchoolSnapshot
@@ -512,6 +514,62 @@ object Insights {
             .filter { Text.normalizeKey(it.teacher) == key }
             .filter { !it.date.isBefore(weekStart) && it.date.isBefore(weekStart.plusWeeks(1)) }
             .sortedBy { it.start }
+    }
+
+    /**
+     * L'année en chiffres.
+     *
+     * Un bilan que le service ne donne nulle part et qu'on ne peut pas faire de tête. Chaque
+     * chiffre porte sa portée réelle, et c'est le point délicat : l'emploi du temps ne se
+     * charge plus qu'une semaine à la fois, donc « des heures de cours depuis septembre »
+     * serait un mensonge. Ce qui relève de la semaine est nommé comme tel ; le reste — notes,
+     * devoirs, vie scolaire, messagerie — couvre bien l'année, parce que le service le donne
+     * en entier.
+     */
+    data class YearStats(
+        val gradeCount: Int,
+        val bestSubject: Pair<String, Double>?,
+        val weakestSubject: Pair<String, Double>?,
+        val average: Double?,
+        val trend: Double?,
+        val homeworkDone: Int,
+        val homeworkTotal: Int,
+        val examCount: Int,
+        val absences: Int,
+        val unjustifiedAbsences: Int,
+        val late: Int,
+        val messagesReceived: Int,
+        val messagesSent: Int,
+        /** Cours et minutes de la semaine en cours : la seule qu'on soit sûr d'avoir. */
+        val lessonsThisWeek: Int,
+        val minutesThisWeek: Long,
+        val busiestDay: Pair<LocalDate, Long>?,
+    )
+
+    fun yearStats(snapshot: SchoolSnapshot, settings: AppSettings, today: LocalDate): YearStats {
+        val graded = snapshot.grades.filter { it.value != null }
+        val subjects = averagesBySubject(graded).toList()
+        val week = week(snapshot.lessons, Dates.startOfWeek(today))
+        return YearStats(
+            gradeCount = graded.size,
+            bestSubject = subjects.maxByOrNull { it.second },
+            weakestSubject = subjects.minByOrNull { it.second },
+            average = weightedAverage(graded),
+            trend = trend(graded),
+            homeworkDone = snapshot.homework.count { settings.isHomeworkDone(it.id, it.done) },
+            homeworkTotal = snapshot.homework.size,
+            examCount = snapshot.homework.count { it.exam },
+            absences = snapshot.schoolLife.count { it.kind == SchoolLifeKind.ABSENCE },
+            unjustifiedAbsences = snapshot.schoolLife
+                .count { it.kind == SchoolLifeKind.ABSENCE && !it.justified },
+            late = snapshot.schoolLife.count { it.kind == SchoolLifeKind.LATE },
+            messagesReceived = snapshot.messages.count { it.folder == MessageFolder.RECEIVED },
+            messagesSent = snapshot.messages.count { it.folder == MessageFolder.SENT },
+            lessonsThisWeek = week.sumOf { it.lessons },
+            minutesThisWeek = week.sumOf { it.minutes },
+            busiestDay = week.filterNot { it.isEmpty }.maxByOrNull { it.minutes }
+                ?.let { it.date to it.minutes },
+        )
     }
 
     /** Matières connues, tous écrans confondus : sert à l'éditeur de couleurs. */

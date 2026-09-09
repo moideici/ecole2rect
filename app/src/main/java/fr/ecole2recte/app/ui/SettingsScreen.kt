@@ -186,6 +186,11 @@ fun SettingsScreen(
                 onClick = { onOpenDetail(Detail.SchoolLife) },
             )
             SettingsRow(
+                title = "En chiffres",
+                description = "Le bilan de l'année : notes, devoirs, absences, messagerie.",
+                onClick = { onOpenDetail(Detail.Stats) },
+            )
+            SettingsRow(
                 title = "Professeurs",
                 description = "Qui fait quoi, ses cours de la semaine et son appréciation.",
                 onClick = { onOpenDetail(Detail.Teachers) },

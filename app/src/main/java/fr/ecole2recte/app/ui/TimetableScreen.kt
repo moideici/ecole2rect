@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.ui
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
@@ -48,6 +51,8 @@ import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.repo.SyncState
 import fr.ecole2recte.app.core.settings.AppSettings
+import fr.ecole2recte.app.core.widget.WidgetContent
+import fr.ecole2recte.app.data.WeekImage
 import fr.ecole2recte.app.ui.components.AppCard
 import fr.ecole2recte.app.ui.components.FilterPill
 import fr.ecole2recte.app.ui.components.LoadingRow
@@ -146,6 +151,7 @@ fun TimetableScreen(
     onRefreshWeek: (LocalDate) -> Unit,
     onSearch: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     val today = now.toLocalDate()
     val mode = state.mode
     val weekStart = state.weekStart
@@ -196,6 +202,22 @@ fun TimetableScreen(
                         "${week.sumOf { it.lessons }} cours · ${Dates.duration(week.sumOf { it.minutes })}"
                 },
                 actions = {
+                    // Le partage n'a de sens que sur la semaine : c'est elle qu'on envoie à
+                    // quelqu'un, pas une journée isolée.
+                    if (mode == TimetableMode.WEEK) {
+                        RoundIconButton(Icons.Outlined.Share, "Partager la semaine") {
+                            val columns = WidgetContent.weekColumns(snapshot, settings, weekStart, today)
+                            val intent = WeekImage(context).share(
+                                columns = columns,
+                                title = "Semaine du ${Dates.dayLabel(weekStart)} ${Dates.monthName(weekStart)}",
+                                subtitle = "${week.sumOf { it.lessons }} cours · " +
+                                    Dates.duration(week.sumOf { it.minutes }),
+                            )
+                            if (intent != null) {
+                                runCatching { context.startActivity(Intent.createChooser(intent, "Partager vers")) }
+                            }
+                        }
+                    }
                     RoundIconButton(Icons.Outlined.Search, "Rechercher", onClick = onSearch)
                     RoundIconButton(Icons.Outlined.Refresh, "Synchroniser", onClick = onRefresh)
                 },

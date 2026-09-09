@@ -73,6 +73,7 @@ sealed interface Detail {
     data object WidgetColors : Detail
     data object SchoolLife : Detail
     data object Teachers : Detail
+    data object Stats : Detail
     data class Teacher(val name: String) : Detail
     data object Documents : Detail
     data object News : Detail
@@ -386,6 +387,13 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     message = snapshot.messages.firstOrNull { it.id == current.id },
                     attachmentState = attachment,
                     onOpenAttachment = viewModel::openAttachment,
+                    onClose = { detail = null },
+                )
+
+                Detail.Stats -> StatsScreen(
+                    snapshot = snapshot,
+                    settings = settings,
+                    today = now.toLocalDate(),
                     onClose = { detail = null },
                 )
 

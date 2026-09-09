@@ -1003,35 +1003,13 @@ object WidgetContent {
      */
     private fun weekGrid(kind: WidgetKind, context: Context): WidgetPayload {
         val weekStart = Dates.startOfWeek(context.today)
-        val days = (0..5).map { weekStart.plusDays(it.toLong()) }
-        val byDay = days.associateWith { Insights.lessonsOn(context.snapshot.lessons, it) }
-        val visible = if (byDay[days.last()].isNullOrEmpty()) days.dropLast(1) else days
-
-        val starts = byDay.values.flatten().minOfOrNull { it.start.toLocalTime() }
-        val ends = byDay.values.flatten().maxOfOrNull { it.end.toLocalTime() }
-        if (starts == null || ends == null) {
-            return empty(kind, context, "SEMAINE", "Semaine vide", "aucun cours publié")
-        }
-
-        val columns = visible.map { day ->
-            val lessons = byDay[day].orEmpty()
-            val blocks = mutableListOf<WidgetBlock>()
-            val dayStart = day.atTime(starts)
-            val dayEnd = day.atTime(ends)
-            val content = dayBlocks(lessons, day, context)
-            val head = lessons.minOfOrNull { it.start } ?: dayEnd
-            val tail = lessons.maxOfOrNull { it.end } ?: dayEnd
-            val lead = Duration.between(dayStart, head).toMinutes()
-            if (lead > 0) blocks += WidgetBlock(text = "", minutes = lead, blank = true)
-            blocks += content
-            val trail = Duration.between(tail, dayEnd).toMinutes()
-            if (trail > 0) blocks += WidgetBlock(text = "", minutes = trail, blank = true)
-            WidgetColumn(
-                name = Dates.dayName(day).take(3).replaceFirstChar { it.uppercase() },
-                today = day == context.today,
-                blocks = blocks,
-            )
-        }
+        val columns = weekColumns(
+            snapshot = context.snapshot,
+            settings = context.settings,
+            weekStart = weekStart,
+            today = context.today,
+        )
+        if (columns.isEmpty()) return empty(kind, context, "SEMAINE", "Semaine vide", "aucun cours publié")
 
         val week = Insights.week(context.snapshot.lessons, weekStart)
         return payloadOf(
@@ -1043,6 +1021,61 @@ object WidgetContent {
             columns = columns,
             empty = false,
         )
+    }
+
+    /**
+     * Les colonnes d'une semaine, **toutes sur la même échelle horaire**.
+     *
+     * Chaque colonne est complétée en haut et en bas pour que toutes commencent et finissent
+     * à la même heure : sans ce remplissage, les journées glisseraient les unes par rapport
+     * aux autres et la comparaison — mercredi court, vendredi fini tôt — ne se lirait plus.
+     *
+     * Le samedi n'apparaît que s'il porte des cours : une colonne vide chaque semaine vole un
+     * sixième de la largeur aux cinq autres.
+     *
+     * Publique parce que l'image de semaine partageable s'en sert aussi : la mise en page
+     * d'une semaine se décide à un seul endroit, et le widget comme l'image en héritent.
+     */
+    fun weekColumns(
+        snapshot: SchoolSnapshot,
+        settings: AppSettings,
+        weekStart: LocalDate,
+        today: LocalDate,
+    ): List<WidgetColumn> {
+        val days = (0..5).map { weekStart.plusDays(it.toLong()) }
+        val byDay = days.associateWith { Insights.lessonsOn(snapshot.lessons, it) }
+        val visible = if (byDay[days.last()].isNullOrEmpty()) days.dropLast(1) else days
+
+        val starts = byDay.values.flatten().minOfOrNull { it.start.toLocalTime() } ?: return emptyList()
+        val ends = byDay.values.flatten().maxOfOrNull { it.end.toLocalTime() } ?: return emptyList()
+
+        val context = Context(
+            snapshot = snapshot,
+            settings = settings,
+            now = today.atTime(starts),
+            today = today,
+            options = WidgetOptions(),
+            shape = WidgetShape.WEEK,
+            maxLines = MAX_LINES,
+        )
+        return visible.map { day ->
+            val lessons = byDay[day].orEmpty()
+            val blocks = mutableListOf<WidgetBlock>()
+            val dayStart = day.atTime(starts)
+            val dayEnd = day.atTime(ends)
+            val head = lessons.minOfOrNull { it.start } ?: dayEnd
+            val tail = lessons.maxOfOrNull { it.end } ?: dayEnd
+            val lead = Duration.between(dayStart, head).toMinutes()
+            if (lead > 0) blocks += WidgetBlock(text = "", minutes = lead, blank = true)
+            blocks += dayBlocks(lessons, day, context)
+            val trail = Duration.between(tail, dayEnd).toMinutes()
+            if (trail > 0) blocks += WidgetBlock(text = "", minutes = trail, blank = true)
+            WidgetColumn(
+                name = Dates.dayName(day).take(3).replaceFirstChar { it.uppercase() },
+                today = day == today,
+                blocks = blocks,
+            )
+        }
     }
 
     // ── Objectif ─────────────────────────────────────────────────────────────

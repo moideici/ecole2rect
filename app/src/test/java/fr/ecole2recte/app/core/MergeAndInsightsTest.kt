@@ -208,6 +208,52 @@ class MergeAndInsightsTest {
         assertEquals(emptyMap<String, Double>(), Insights.impacts(periodGrades.take(1)))
     }
 
+    // ── L'année en chiffres ──────────────────────────────────────────────────
+
+    @Test
+    fun `le bilan compte l annee, mais les cours de la semaine seulement`() {
+        val snapshot = SchoolSnapshot(
+            lessons = listOf(
+                lesson("1", monday, 8),
+                lesson("2", monday, 10),
+                // La semaine suivante est en cache depuis qu'on l'a ouverte : elle ne doit
+                // pas gonfler un total présenté comme celui de la semaine en cours.
+                lesson("3", monday.plusWeeks(1), 8),
+            ),
+            homework = listOf(
+                homework("901", monday.plusDays(1)),
+                homework("902", monday.plusDays(2), done = true),
+            ),
+            grades = listOf(
+                Grade("1", "Maths", "DS", 16.0, 20.0, 2.0, null, monday, "A001"),
+                Grade("2", "Histoire-géo", "Compo", 10.0, 20.0, 2.0, null, monday, "A001"),
+            ),
+        )
+
+        val stats = Insights.yearStats(snapshot, AppSettings(), monday)
+
+        assertEquals(2, stats.gradeCount)
+        assertEquals("Maths", stats.bestSubject?.first)
+        assertEquals("Histoire-géo", stats.weakestSubject?.first)
+        assertEquals(1, stats.homeworkDone)
+        assertEquals(2, stats.homeworkTotal)
+        // Deux cours cette semaine, pas trois : annoncer un total depuis septembre à partir
+        // de ce qui traîne en cache serait un chiffre inventé.
+        assertEquals(2, stats.lessonsThisWeek)
+        assertEquals(120L, stats.minutesThisWeek)
+        assertEquals(monday, stats.busiestDay?.first)
+    }
+
+    @Test
+    fun `un bilan vide ne plante pas et n invente rien`() {
+        val stats = Insights.yearStats(SchoolSnapshot(), AppSettings(), monday)
+
+        assertEquals(0, stats.gradeCount)
+        assertNull(stats.average)
+        assertNull(stats.bestSubject)
+        assertNull(stats.busiestDay)
+    }
+
     // ── Professeurs ──────────────────────────────────────────────────────────
 
     @Test
