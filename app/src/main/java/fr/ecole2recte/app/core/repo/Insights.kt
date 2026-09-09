@@ -168,7 +168,7 @@ object Insights {
     }
 
     /** Tous les temps libres d'une journée, cours annulés exclus. */
-    private fun freeIntervals(lessons: List<Lesson>, date: LocalDate): List<Interval> =
+    fun freeIntervals(lessons: List<Lesson>, date: LocalDate): List<Interval> =
         lessonsOn(lessons, date)
             .filterNot { it.canceled }
             .sortedBy { it.start }
@@ -216,6 +216,63 @@ object Insights {
 
     /** En deçà, le trou effleure l'heure du repas sans en être un. */
     private const val MEAL_OVERLAP_MINUTES = 25L
+
+    /**
+     * Un trou de la journée, et ce qu'on pourrait y faire.
+     *
+     * [homework] est nul quand rien ne s'y prête : un trou sans devoir à y mettre reste un
+     * trou, et le dire vaut mieux que de recycler le même devoir dans les trois créneaux.
+     */
+    data class WorkSlot(val interval: Interval, val homework: HomeworkItem?, val midday: Boolean)
+
+    /**
+     * Un plan de travail dans les trous de la journée.
+     *
+     * L'emploi du temps montre les blancs ; il ne dit pas quoi en faire. Ici chaque trou
+     * assez long reçoit **un** devoir, du plus urgent au plus lointain, et jamais deux fois
+     * le même : une permanence de deux heures et un trou de trente minutes ne peuvent pas
+     * accueillir le même exercice.
+     *
+     * Ce que ce calcul **ne fait pas** : estimer combien de temps prend un devoir.
+     * ÉcoleDirecte ne le dit pas, et l'inventer donnerait des durées fausses la moitié du
+     * temps. On s'appuie sur le seul indice que le service fournit — une évaluation demande
+     * plus de temps qu'un exercice — pour réserver les longs créneaux aux révisions, et on
+     * affiche la durée du trou pour que l'élève juge lui-même.
+     *
+     * La pause méridienne est signalée sans se voir attribuer de devoir : déjeuner est aussi
+     * une occupation, et un plan de travail qui prend l'heure du repas ne sera pas suivi.
+     */
+    fun workPlan(
+        lessons: List<Lesson>,
+        homework: List<HomeworkItem>,
+        settings: AppSettings,
+        date: LocalDate,
+        minimumMinutes: Long = USABLE_GAP_MINUTES,
+    ): List<WorkSlot> {
+        val free = freeIntervals(lessons, date).filter { it.minutes >= minimumMinutes }
+        if (free.isEmpty()) return emptyList()
+        val midday = middayBreak(lessons, date)
+        val pending = pendingHomework(homework, settings, date).toMutableList()
+
+        return free.map { interval ->
+            if (interval == midday) return@map WorkSlot(interval, null, midday = true)
+            // Les longs créneaux d'abord aux révisions : c'est le seul indice de durée que
+            // le service donne, et il vaut mieux que rien.
+            val wanted = if (interval.minutes >= LONG_GAP_MINUTES) {
+                pending.firstOrNull { it.exam } ?: pending.firstOrNull()
+            } else {
+                pending.firstOrNull { !it.exam } ?: pending.firstOrNull()
+            }
+            if (wanted != null) pending.remove(wanted)
+            WorkSlot(interval, wanted, midday = false)
+        }
+    }
+
+    /** En deçà, un trou ne sert qu'à changer de salle. */
+    private const val USABLE_GAP_MINUTES = 25L
+
+    /** Au-delà, il y a la place de réviser plutôt que d'expédier un exercice. */
+    private const val LONG_GAP_MINUTES = 55L
 
     fun gaps(lessons: List<Lesson>, minimumMinutes: Long = 15): List<Pair<Lesson, Long>> {
         val ordered = lessons.filterNot { it.canceled }.sortedBy { it.start }

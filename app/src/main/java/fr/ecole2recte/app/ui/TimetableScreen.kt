@@ -360,6 +360,15 @@ private fun LazyListScope.dayContent(
         }
     }
 
+    // Ce que l'emploi du temps ne dit pas : quoi faire des blancs. Un devoir par trou, du
+    // plus urgent au plus lointain, et jamais deux fois le même.
+    val plan = Insights.workPlan(snapshot.lessons, snapshot.homework, settings, selectedDay)
+    if (plan.isNotEmpty()) {
+        item("temps-libre") {
+            WorkPlanCard(plan = plan, settings = settings, onOpenHomework = onOpenHomework)
+        }
+    }
+
     if (homework.isNotEmpty()) {
         item("homework-title") {
             Text(
@@ -437,6 +446,106 @@ private fun LazyListScope.weekContent(
             onSelectDay = onSelectDay,
             modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp),
         )
+    }
+}
+
+/**
+ * Le temps libre de la journée, et quoi en faire.
+ *
+ * Un emploi du temps montre les blancs sans jamais dire ce qu'on peut y mettre. La carte
+ * attribue un devoir par trou, du plus urgent au plus lointain — pas le même dans les trois,
+ * ce qui ne serait pas un plan mais un rappel répété.
+ *
+ * Elle n'annonce aucune durée de devoir : ÉcoleDirecte ne la donne pas, et l'inventer
+ * donnerait des estimations fausses la moitié du temps. C'est la durée du **trou** qui est
+ * affichée, et l'élève juge.
+ */
+@Composable
+private fun WorkPlanCard(
+    plan: List<Insights.WorkSlot>,
+    settings: AppSettings,
+    onOpenHomework: (HomeworkItem) -> Unit,
+) {
+    val total = plan.filterNot { it.midday }.sumOf { it.interval.minutes }
+    Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
+        AppCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "TEMPS LIBRE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.weight(1f))
+                if (total > 0) {
+                    Text(
+                        Dates.duration(total),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            plan.forEach { slot ->
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.width(78.dp)) {
+                        Text(
+                            "${Dates.time(slot.interval.start)} – ${Dates.time(slot.interval.end)}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            Dates.duration(slot.interval.minutes),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    val homework = slot.homework
+                    when {
+                        // Déjeuner est aussi une occupation : un plan de travail qui prend
+                        // l'heure du repas ne sera pas suivi.
+                        slot.midday -> Text(
+                            "Pause méridienne",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        homework == null -> Text(
+                            "Rien d'urgent à y mettre",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        else -> Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onOpenHomework(homework) },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SubjectDot(subjectColor(homework.subject, settings), 9.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    homework.subject,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (homework.content.isNotBlank()) {
+                                    Text(
+                                        homework.content,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            if (homework.exam) Tag("Évaluation", MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

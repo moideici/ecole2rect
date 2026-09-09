@@ -900,14 +900,21 @@ object WidgetContent {
     ): List<WidgetBlock> {
         val ordered = lessons.sortedBy { it.start }
         if (ordered.isEmpty()) return emptyList()
-        val pause = Insights.middayBreak(context.snapshot.lessons, date)
+        // Le plan de travail du jour : un devoir par trou, jamais deux fois le même. Sans
+        // lui, les trois trous d'une journée portaient tous le même exercice.
+        val plan = Insights.workPlan(
+            lessons = context.snapshot.lessons,
+            homework = context.snapshot.homework,
+            settings = context.settings,
+            date = date,
+        ).associateBy { it.interval.start }
         val blocks = mutableListOf<WidgetBlock>()
         var cursor = from?.coerceAtLeast(ordered.first().start) ?: ordered.first().start
 
         ordered.forEach { lesson ->
             if (lesson.end.isBefore(cursor) || lesson.end == cursor) return@forEach
             val gap = Duration.between(cursor, lesson.start).toMinutes()
-            if (gap > 0) blocks += gapBlock(cursor, lesson.start, gap, pause, context)
+            if (gap > 0) blocks += gapBlock(cursor, gap, plan[cursor])
             val start = maxOf(cursor, lesson.start)
             val minutes = Duration.between(start, lesson.end).toMinutes()
             if (minutes > 0) blocks += lessonBlock(lesson, minutes, context)
@@ -928,21 +935,17 @@ object WidgetContent {
     )
 
     /**
-     * Un trou. La pause méridienne se nomme, les autres portent le devoir qui y tiendrait —
-     * c'est ce qui transforme un blanc dans l'emploi du temps en une heure utilisable.
+     * Un trou.
+     *
+     * La pause méridienne se nomme et reste libre — déjeuner est aussi une occupation. Les
+     * autres portent le devoir que le plan leur a attribué : c'est ce qui transforme un blanc
+     * dans l'emploi du temps en une heure utilisable.
      */
-    private fun gapBlock(
-        start: LocalDateTime,
-        end: LocalDateTime,
-        minutes: Long,
-        pause: Insights.Interval?,
-        context: Context,
-    ): WidgetBlock {
+    private fun gapBlock(start: LocalDateTime, minutes: Long, slot: Insights.WorkSlot?): WidgetBlock {
         if (minutes < NAMED_GAP_MINUTES) return WidgetBlock(text = "", minutes = minutes, blank = true)
-        val isPause = pause != null && !start.isAfter(pause.start) && !end.isBefore(pause.end)
-        val homework = Insights.urgentHomework(context.snapshot.homework, context.settings, context.today)
+        val homework = slot?.homework
         return WidgetBlock(
-            text = if (isPause) "Pause" else "Temps libre",
+            text = if (slot?.midday == true) "Pause" else "Temps libre",
             secondary = Dates.duration(minutes),
             detail = homework?.let { "${it.subject} · ${Text.preview(it.content, 30)}" }.orEmpty(),
             minutes = minutes,
