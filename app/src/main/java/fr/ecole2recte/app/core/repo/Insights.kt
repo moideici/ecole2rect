@@ -271,6 +271,61 @@ object Insights {
     }
 
     /**
+     * Un objectif de moyenne, et ce qu'il faudrait pour l'atteindre.
+     *
+     * Un écart seul — « il manque 0,2 » — ne dit pas quoi faire. Le levier le dit : dans
+     * quelle matière une bonne note rapporterait le plus, et laquelle suffirait. C'est le
+     * coefficient qui décide, pas la sympathie pour la matière.
+     */
+    data class Objective(
+        val target: Double,
+        val current: Double,
+        /** Points manquants, zéro quand l'objectif est atteint. */
+        val gap: Double,
+        val lever: Lever?,
+    ) {
+        val reached: Boolean get() = gap <= 0.0
+    }
+
+    /** « un 17 en maths (coef. 4) suffit ». */
+    data class Lever(val subject: String, val coefficient: Double, val mark: Double)
+
+    fun objective(snapshot: SchoolSnapshot, today: LocalDate, target: Double?): Objective? {
+        if (target == null) return null
+        val period = currentPeriod(snapshot.periods, today)
+        val grades = gradesForPeriod(snapshot.grades, period?.code)
+            .filter { it.counted && it.value != null && it.scale > 0 && it.coefficient > 0 }
+        val current = generalAverage(snapshot, today)?.value ?: return null
+        val gap = (target - current).coerceAtLeast(0.0)
+        return Objective(target = target, current = current, gap = gap, lever = lever(grades, target))
+    }
+
+    /**
+     * La matière où une note de plus coûterait le moins cher.
+     *
+     * On simule l'ajout d'une note dans chaque matière, au coefficient qu'elle pratique déjà,
+     * et on garde celle qui demande la note la plus basse — à condition qu'elle existe : une
+     * matière qui exigerait un 23 sur 20 n'est pas un levier, c'est un mur.
+     */
+    private fun lever(grades: List<Grade>, target: Double): Lever? {
+        if (grades.isEmpty()) return null
+        val total = grades.sumOf { (it.outOfTwenty ?: 0.0) * it.coefficient }
+        val weights = grades.sumOf { it.coefficient }
+        if (weights <= 0.0) return null
+        return grades.groupBy { it.subject }
+            .mapNotNull { (subject, subjectGrades) ->
+                val coefficient = subjectGrades.map { it.coefficient }.average()
+                if (coefficient <= 0.0) return@mapNotNull null
+                // (total + x × coef) / (poids + coef) = objectif
+                val mark = (target * (weights + coefficient) - total) / coefficient
+                if (mark > MAXIMUM_MARK) null else Lever(subject, coefficient, mark.coerceAtLeast(0.0))
+            }
+            .minByOrNull { it.mark }
+    }
+
+    private const val MAXIMUM_MARK = 20.0
+
+    /**
      * Évolution de la moyenne au fil des notes.
      *
      * Chaque point est la moyenne pondérée de tout ce qui précède : c'est la courbe qu'on

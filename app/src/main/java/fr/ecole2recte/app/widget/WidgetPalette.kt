@@ -93,7 +93,7 @@ class WidgetPalette private constructor(
          * illisible. On mélange donc réellement les deux couleurs.
          */
         @ColorInt
-        private fun fade(@ColorInt ink: Int, @ColorInt surface: Int, amount: Float = 0.38f): Int {
+        fun fade(@ColorInt ink: Int, @ColorInt surface: Int, amount: Float = 0.38f): Int {
             fun blend(shift: Int): Int {
                 val from = (ink shr shift) and 0xFF
                 val to = (surface shr shift) and 0xFF
@@ -101,6 +101,18 @@ class WidgetPalette private constructor(
             }
             return (0xFF shl 24) or (blend(16) shl 16) or (blend(8) shl 8) or blend(0)
         }
+
+        /**
+         * Le fond d'un bloc de grille : la couleur de la matière, ramenée vers la surface.
+         *
+         * Un bloc peint à la couleur pleine de la matière rendrait son texte illisible et
+         * ferait du widget un damier. Un cinquième de teinte suffit à identifier la matière
+         * d'un regard tout en gardant l'encre lisible — c'est ce que fait un vrai emploi du
+         * temps papier avec ses surligneurs.
+         */
+        @ColorInt
+        fun block(@ColorInt accent: Int, @ColorInt surface: Int, amount: Float = 0.82f): Int =
+            fade(accent, surface, amount)
 
         /** Vrai quand le contraste du couple choisi descend sous le seuil de lisibilité. */
         fun isRisky(settings: AppSettings): Boolean {

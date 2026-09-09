@@ -112,7 +112,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 widgetId,
                 WidgetSizes.remoteViews(
                     context = this,
-                    kind = kindOfWidget() ?: WidgetKind.TODAY,
+                    kind = kindOfWidget() ?: WidgetKind.DAY,
                     data = WidgetData.load(this, options.accountId),
                     options = options,
                     bundle = manager.getAppWidgetOptions(widgetId),

@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Gabarit « liste » : un en-tête, une barre d'avancement facultative et jusqu'à huit
-     lignes. Huit, parce qu'un widget étiré en 4×4 a la place de les montrer et qu'il vaut
-     mieux des vues masquées qu'un widget qui plafonne à quatre. RemoteViews ne sait pas
-     répéter une vue : les lignes sont donc écrites une par une, avec des identifiants
-     distincts, et masquées à l'exécution.
+<!-- Gabarit « liste » : un en-tête, une barre d'avancement facultative, puis des lignes qui
+     **se partagent la hauteur restante**.
 
-     Chaque ligne commence par une **colonne d'heure**, comme un emploi du temps papier :
-     l'heure d'abord, la matière ensuite, la salle à droite. Mettre l'heure à droite obligeait
-     à lui laisser de la place au milieu de la ligne, et c'est la matière qui se faisait
-     couper — « Mathémati… » n'apprend rien à personne. La colonne disparaît pour les widgets
-     qui n'ont pas d'heure à donner : la ligne redevient alors une simple puce. -->
+     C'est le changement de fond par rapport à la version précédente. Les lignes étaient
+     empilées en haut, à hauteur naturelle, et un widget agrandi gagnait donc du blanc plutôt
+     que du contenu. Elles sont maintenant à poids égal : trois devoirs dans un 2×2 occupent
+     tout le 2×2, avec la place d'un second niveau de texte — l'échéance, le coefficient,
+     l'expéditeur, ce qu'on ne montrait pas. Plus de place veut dire plus d'information,
+     jamais plus de vide.
+
+     Huit lignes sont déclarées parce que `RemoteViews` ne sait pas répéter une vue ; celles
+     dont le contenu manque passent en `gone` et ne prennent alors aucune part de la hauteur.
+
+     Chaque ligne commence par une colonne d'heure, comme un emploi du temps papier : l'heure
+     d'abord, la matière ensuite, la valeur à droite. La colonne disparaît pour les widgets
+     qui n'ont pas d'heure à donner, et la matière récupère toute la largeur. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -33,6 +38,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="1dp"
         android:layout_marginBottom="3dp"
+        android:baselineAligned="false"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -70,14 +76,25 @@
         android:progressTint="@color/widget_accent"
         android:visibility="gone" />
 
+    <TextView
+        android:id="@+id/widget_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:maxLines="3"
+        android:textColor="@color/widget_muted"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/widget_row_1"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp">
 
         <TextView
             android:id="@+id/widget_time_1"
@@ -91,21 +108,38 @@
 
         <ImageView
             android:id="@+id/widget_dot_1"
-            android:layout_width="7dp"
-            android:layout_height="7dp"
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
             android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_bar" />
 
-        <TextView
-            android:id="@+id/widget_text_1"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_ink"
-            android:textSize="12sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_text_1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/widget_secondary_1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_muted"
+                android:textSize="9sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_value_1"
@@ -114,17 +148,18 @@
             android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/widget_row_2"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp">
 
         <TextView
             android:id="@+id/widget_time_2"
@@ -138,21 +173,38 @@
 
         <ImageView
             android:id="@+id/widget_dot_2"
-            android:layout_width="7dp"
-            android:layout_height="7dp"
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
             android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_bar" />
 
-        <TextView
-            android:id="@+id/widget_text_2"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_ink"
-            android:textSize="12sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_text_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/widget_secondary_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_muted"
+                android:textSize="9sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_value_2"
@@ -161,17 +213,18 @@
             android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/widget_row_3"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp">
 
         <TextView
             android:id="@+id/widget_time_3"
@@ -185,21 +238,38 @@
 
         <ImageView
             android:id="@+id/widget_dot_3"
-            android:layout_width="7dp"
-            android:layout_height="7dp"
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
             android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_bar" />
 
-        <TextView
-            android:id="@+id/widget_text_3"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_ink"
-            android:textSize="12sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_text_3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/widget_secondary_3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_muted"
+                android:textSize="9sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_value_3"
@@ -208,17 +278,18 @@
             android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/widget_row_4"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp">
 
         <TextView
             android:id="@+id/widget_time_4"
@@ -232,21 +303,38 @@
 
         <ImageView
             android:id="@+id/widget_dot_4"
-            android:layout_width="7dp"
-            android:layout_height="7dp"
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
             android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_bar" />
 
-        <TextView
-            android:id="@+id/widget_text_4"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_ink"
-            android:textSize="12sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_text_4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/widget_secondary_4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_muted"
+                android:textSize="9sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_value_4"
@@ -255,17 +343,18 @@
             android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/widget_row_5"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp">
 
         <TextView
             android:id="@+id/widget_time_5"
@@ -279,21 +368,38 @@
 
         <ImageView
             android:id="@+id/widget_dot_5"
-            android:layout_width="7dp"
-            android:layout_height="7dp"
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
             android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_bar" />
 
-        <TextView
-            android:id="@+id/widget_text_5"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_ink"
-            android:textSize="12sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_text_5"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/widget_secondary_5"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_muted"
+                android:textSize="9sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_value_5"
@@ -302,17 +408,18 @@
             android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/widget_row_6"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp">
 
         <TextView
             android:id="@+id/widget_time_6"
@@ -326,21 +433,38 @@
 
         <ImageView
             android:id="@+id/widget_dot_6"
-            android:layout_width="7dp"
-            android:layout_height="7dp"
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
             android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_bar" />
 
-        <TextView
-            android:id="@+id/widget_text_6"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_ink"
-            android:textSize="12sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_text_6"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/widget_secondary_6"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_muted"
+                android:textSize="9sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_value_6"
@@ -349,17 +473,18 @@
             android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/widget_row_7"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp">
 
         <TextView
             android:id="@+id/widget_time_7"
@@ -373,21 +498,38 @@
 
         <ImageView
             android:id="@+id/widget_dot_7"
-            android:layout_width="7dp"
-            android:layout_height="7dp"
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
             android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_bar" />
 
-        <TextView
-            android:id="@+id/widget_text_7"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_ink"
-            android:textSize="12sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_text_7"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/widget_secondary_7"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_muted"
+                android:textSize="9sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_value_7"
@@ -396,17 +538,18 @@
             android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/widget_row_8"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp">
 
         <TextView
             android:id="@+id/widget_time_8"
@@ -420,21 +563,38 @@
 
         <ImageView
             android:id="@+id/widget_dot_8"
-            android:layout_width="7dp"
-            android:layout_height="7dp"
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
             android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_bar" />
 
-        <TextView
-            android:id="@+id/widget_text_8"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_ink"
-            android:textSize="12sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_text_8"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_ink"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/widget_secondary_8"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_muted"
+                android:textSize="9sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_value_8"
@@ -443,17 +603,6 @@
             android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_muted"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/widget_empty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:ellipsize="end"
-        android:maxLines="2"
-        android:textColor="@color/widget_muted"
-        android:textSize="12sp"
-        android:visibility="gone" />
 </LinearLayout>

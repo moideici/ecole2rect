@@ -1,5 +1,7 @@
 package fr.ecole2recte.app.core
 
+import fr.ecole2recte.app.core.model.Change
+import fr.ecole2recte.app.core.model.ChangeKind
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.HomeworkItem
@@ -25,7 +27,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
- * Les seize widgets d'écran d'accueil.
+ * Les neuf widgets d'écran d'accueil.
  *
  * Un widget qui plante n'affiche rien du tout, parfois définitivement jusqu'au redémarrage
  * du lanceur : ces tests vérifient surtout qu'aucun ne dépend d'une donnée présente.
@@ -55,6 +57,17 @@ class WidgetContentTest {
         messages = listOf(
             MessageItem("3001", "Réunion", "Mme Legrand", monday.atTime(9, 42)),
         ),
+        changes = listOf(
+            Change(
+                id = "annule:2",
+                kind = ChangeKind.LESSON_CANCELED,
+                text = "Mathématiques 10:15 annulé",
+                detail = "aujourd'hui · 10:15",
+                subject = "Mathématiques",
+                noticedOn = monday,
+                atMillis = 1_800_000_000_000L,
+            ),
+        ),
         schoolLife = listOf(
             SchoolLifeEvent("v1", SchoolLifeKind.ABSENCE, "Absence", monday.minusDays(3).atTime(8, 0)),
             SchoolLifeEvent(
@@ -83,15 +96,14 @@ class WidgetContentTest {
     }
 
     @Test
-    fun `les seize widgets couvrent les cinq gabarits a l installation`() {
-        assertEquals(16, WidgetKind.entries.size)
-        assertEquals(6, WidgetKind.entries.count { it.natural == WidgetShape.TILE })
+    fun `les neuf widgets couvrent les gabarits a l installation`() {
+        assertEquals(9, WidgetKind.entries.size)
+        assertEquals(3, WidgetKind.entries.count { it.natural == WidgetShape.TILE })
         assertEquals(4, WidgetKind.entries.count { it.natural == WidgetShape.ROW })
         assertEquals(1, WidgetKind.entries.count { it.natural == WidgetShape.HOURS })
-        assertEquals(4, WidgetKind.entries.count { it.natural == WidgetShape.LIST })
         assertEquals(1, WidgetKind.entries.count { it.natural == WidgetShape.WEEK })
-        // Aucun gabarit ne doit rester sans widget : un gabarit orphelin est du code mort.
-        assertEquals(WidgetShape.entries.size, WidgetKind.entries.map { it.natural }.distinct().size)
+        // Quatre widgets portent un contenu horaire : ce sont les seuls que la grille sert.
+        assertEquals(4, WidgetKind.entries.count { it.timetable })
     }
 
     @Test
@@ -101,7 +113,9 @@ class WidgetContentTest {
                 val payload = WidgetContent.payload(
                     kind = kind,
                     snapshot = snapshot,
-                    settings = AppSettings(),
+                    // L'objectif n'existe que si on en a fixé un : sans lui, le widget dit
+                    // à juste titre qu'il n'a rien à montrer, et le test ne prouverait rien.
+                    settings = AppSettings(averageTarget = 16.0),
                     now = morning,
                     shape = shape,
                     maxLines = 6,
@@ -114,6 +128,11 @@ class WidgetContentTest {
                 if (shape == WidgetShape.LIST) {
                     assertTrue("${kind.name} en liste : aucune ligne", payload.lines.isNotEmpty())
                 }
+                // Une grille vide serait un widget vide : les widgets horaires doivent
+                // toujours avoir une journée à dessiner, fût-ce celle de demain.
+                if (shape == WidgetShape.GRID && kind.timetable) {
+                    assertTrue("${kind.name} en grille : aucun bloc", payload.blocks.isNotEmpty())
+                }
             }
         }
     }
@@ -124,15 +143,25 @@ class WidgetContentTest {
     @Test
     fun `la place disponible choisit le gabarit`() {
         // Les tailles sont celles que le lanceur annonce en dp pour 1×1, 2×1, 2×2 et 4×2.
-        assertEquals(WidgetShape.TILE, WidgetSizing.shapeFor(WidgetKind.AVERAGE, WidgetSize(40, 40)))
-        assertEquals(WidgetShape.ROW, WidgetSizing.shapeFor(WidgetKind.AVERAGE, WidgetSize(140, 40)))
-        assertEquals(WidgetShape.LIST, WidgetSizing.shapeFor(WidgetKind.AVERAGE, WidgetSize(140, 140)))
+        assertEquals(WidgetShape.TILE, WidgetSizing.shapeFor(WidgetKind.GRADES, WidgetSize(40, 40)))
+        assertEquals(WidgetShape.ROW, WidgetSizing.shapeFor(WidgetKind.GRADES, WidgetSize(140, 40)))
+        assertEquals(WidgetShape.LIST, WidgetSizing.shapeFor(WidgetKind.GRADES, WidgetSize(140, 140)))
         // La semaine est le seul contenu qui exige de la largeur ; à l'étroit elle se replie.
         assertEquals(WidgetShape.WEEK, WidgetSizing.shapeFor(WidgetKind.WEEK, WidgetSize(280, 140)))
-        assertEquals(WidgetShape.LIST, WidgetSizing.shapeFor(WidgetKind.WEEK, WidgetSize(140, 140)))
-        assertEquals(WidgetShape.LIST, WidgetSizing.shapeFor(WidgetKind.TODAY, WidgetSize(280, 140)))
+        // À l'étroit, la semaine redevient une grille de journée ; sans hauteur exacte —
+        // avant Android 12 — elle redevient une liste, qui ne ment pas sur les durées.
+        assertEquals(WidgetShape.GRID, WidgetSizing.shapeFor(WidgetKind.WEEK, WidgetSize(140, 140)))
+        assertEquals(WidgetShape.GRID, WidgetSizing.shapeFor(WidgetKind.DAY, WidgetSize(280, 140)))
+        assertEquals(
+            WidgetShape.LIST,
+            WidgetSizing.shapeFor(WidgetKind.DAY, WidgetSize(280, 140), proportional = false),
+        )
+        assertEquals(
+            WidgetShape.LIST,
+            WidgetSizing.shapeFor(WidgetKind.WEEK, WidgetSize(280, 140), proportional = false),
+        )
         // Une colonne étroite mais haute reste une tuile : aucune ligne de liste n'y tient.
-        assertEquals(WidgetShape.TILE, WidgetSizing.shapeFor(WidgetKind.TODAY, WidgetSize(40, 210)))
+        assertEquals(WidgetShape.TILE, WidgetSizing.shapeFor(WidgetKind.DAY, WidgetSize(40, 210)))
     }
 
     @Test
@@ -141,8 +170,10 @@ class WidgetContentTest {
         // d'une ligne de l'autre. Les surestimer faisait s'arrêter un widget haut à quatre
         // cours en laissant un tiers de sa surface blanche.
         assertEquals(1, WidgetSizing.maxLines(WidgetSize(140, 70)))
-        assertEquals(3, WidgetSizing.maxLines(WidgetSize(140, 140)))
-        assertEquals(7, WidgetSizing.maxLines(WidgetSize(140, 220)))
+        // Trois lignes en 2×2, et non six : une ligne porte désormais deux niveaux de texte,
+        // et promettre six lignes reviendrait à les faire rogner par le bas.
+        assertEquals(2, WidgetSizing.maxLines(WidgetSize(140, 140)))
+        assertEquals(5, WidgetSizing.maxLines(WidgetSize(140, 220)))
         assertEquals(WidgetSizing.MAX_LINES, WidgetSizing.maxLines(WidgetSize(140, 600)))
     }
 
@@ -151,11 +182,11 @@ class WidgetContentTest {
         // Avant le premier cours : la journée entière est encore devant.
         val dawn = monday.atTime(7, 30)
         val small = WidgetContent.payload(
-            WidgetKind.TODAY, snapshot, AppSettings(), dawn,
+            WidgetKind.DAY, snapshot, AppSettings(), dawn,
             shape = WidgetShape.LIST, maxLines = 1,
         )
         val large = WidgetContent.payload(
-            WidgetKind.TODAY, snapshot, AppSettings(), dawn,
+            WidgetKind.DAY, snapshot, AppSettings(), dawn,
             shape = WidgetShape.LIST, maxLines = 6,
         )
 
@@ -170,7 +201,7 @@ class WidgetContentTest {
         val evening = monday.atTime(19, 30)
 
         val payload = WidgetContent.payload(
-            WidgetKind.TODAY, snapshot, AppSettings(), evening,
+            WidgetKind.DAY, snapshot, AppSettings(), evening,
             shape = WidgetShape.LIST, maxLines = 4,
         )
 
@@ -188,7 +219,7 @@ class WidgetContentTest {
             shape = WidgetShape.ROW,
         )
         val tile = WidgetContent.payload(
-            WidgetKind.COUNTDOWN, snapshot, AppSettings(), evening,
+            WidgetKind.NEXT_LESSON, snapshot, AppSettings(), evening,
             shape = WidgetShape.TILE,
         )
 
@@ -247,7 +278,7 @@ class WidgetContentTest {
 
     @Test
     fun `la tuile de moyenne affiche celle de l etablissement`() {
-        val payload = WidgetContent.payload(WidgetKind.AVERAGE, snapshot, AppSettings(), morning)
+        val payload = WidgetContent.payload(WidgetKind.GRADES, snapshot, AppSettings(), morning)
 
         assertEquals("15,8", payload.title)
         assertEquals("Trimestre 1", payload.subtitle)
@@ -256,7 +287,10 @@ class WidgetContentTest {
 
     @Test
     fun `le compte a rebours parle en minutes puis en heures`() {
-        val payload = WidgetContent.payload(WidgetKind.COUNTDOWN, snapshot, AppSettings(), morning)
+        val payload = WidgetContent.payload(
+            WidgetKind.NEXT_LESSON, snapshot, AppSettings(), morning,
+            shape = WidgetShape.TILE,
+        )
 
         assertEquals("24 min", payload.title)
         // La tuile doit se suffire à elle-même : sans la salle, « dans 24 min » oblige à
@@ -277,7 +311,10 @@ class WidgetContentTest {
 
     @Test
     fun `la journee ne montre que les cours restants`() {
-        val payload = WidgetContent.payload(WidgetKind.TODAY, snapshot, AppSettings(), morning)
+        val payload = WidgetContent.payload(
+            WidgetKind.DAY, snapshot, AppSettings(), morning,
+            shape = WidgetShape.LIST,
+        )
 
         assertEquals(1, payload.lines.size)
         // L'heure à gauche, la matière au milieu, la salle à droite : la lecture d'un
@@ -291,7 +328,10 @@ class WidgetContentTest {
     fun `la liste de devoirs suit l etat local`() {
         val settings = AppSettings().withHomeworkDone("901", true)
 
-        val payload = WidgetContent.payload(WidgetKind.HOMEWORK_LIST, snapshot, settings, morning)
+        val payload = WidgetContent.payload(
+            WidgetKind.HOMEWORK, snapshot, settings, morning,
+            shape = WidgetShape.LIST,
+        )
 
         assertEquals("1 devoir", payload.title)
         assertEquals("Mathématiques", payload.lines.single().text)
@@ -299,38 +339,48 @@ class WidgetContentTest {
     }
 
     @Test
-    fun `la semaine compte les cours de chaque jour`() {
+    fun `la semaine dessine chaque jour sur la meme echelle`() {
         val payload = WidgetContent.payload(WidgetKind.WEEK, snapshot, AppSettings(), morning)
 
-        assertEquals(6, payload.days.size)
-        assertEquals("2", payload.days.first().value)
-        assertTrue(payload.days.first().today)
-        assertEquals("1", payload.days[1].value)
-        assertTrue(payload.days[2].empty)
+        // Le samedi n'a pas cours : sa colonne disparaît plutôt que de voler un sixième de
+        // la largeur aux autres.
+        assertEquals(5, payload.columns.size)
+        assertTrue(payload.columns.first().today)
+        assertEquals(listOf("Philosophie", "Mathématiques"), payload.columns.first().blocks
+            .filterNot { it.blank || it.free }.map { it.text })
+
+        // Toutes les colonnes couvrent exactement la même durée : c'est ce qui aligne les
+        // journées entre elles, et sans quoi la comparaison d'un regard ne veut plus rien dire.
+        val durations = payload.columns.map { column -> column.blocks.sumOf { it.minutes } }
+        assertEquals(1, durations.distinct().size)
     }
 
     @Test
-    fun `la tuile d evaluation annonce la prochaine, pas toutes`() {
-        val payload = WidgetContent.payload(WidgetKind.NEXT_EXAM, snapshot, AppSettings(), morning)
-
-        assertEquals("demain", payload.title)
-        assertEquals("Mathématiques", payload.subtitle)
-        assertEquals(
-            "sans évaluation annoncée, la tuile le dit au lieu de rester vide",
-            "rien d'annoncé",
-            WidgetContent.payload(WidgetKind.NEXT_EXAM, SchoolSnapshot(), AppSettings(), morning).subtitle,
-        )
-    }
-
-    @Test
-    fun `la tuile d absences ne compte que celles qui attendent un justificatif`() {
-        val payload = WidgetContent.payload(WidgetKind.ABSENCES, snapshot, AppSettings(), morning)
-
-        // Une absence justifiée et un retard ne sont pas des absences à justifier.
+    fun `la tuile de vie scolaire montre le compteur le plus urgent`() {
+        // Des messages non lus attendent une réponse : ils passent devant tout le reste,
+        // et l'en-tête dit lequel des compteurs on regarde.
+        val payload = WidgetContent.payload(WidgetKind.SCHOOL_LIFE, snapshot, AppSettings(), morning)
+        assertEquals("MESSAGES", payload.label)
         assertEquals("1", payload.title)
-        assertEquals("absence ce mois", payload.subtitle)
-        assertEquals("0", WidgetContent.payload(WidgetKind.ABSENCES, SchoolSnapshot(), AppSettings(), morning).title)
+        assertEquals("non lus", payload.subtitle)
+
+        // Tout lu : c'est alors l'absence à justifier qui réclame une action.
+        val read = AppSettings().withMessageRead("3001")
+        val next = WidgetContent.payload(WidgetKind.SCHOOL_LIFE, snapshot, read, morning)
+        assertEquals("À JUSTIFIER", next.label)
+        assertEquals("1", next.title)
     }
+
+    @Test
+    fun `la liste de vie scolaire finit par la prochaine evaluation`() {
+        val payload = WidgetContent.payload(
+            WidgetKind.SCHOOL_LIFE, snapshot, AppSettings(), morning,
+            shape = WidgetShape.LIST, maxLines = 6,
+        )
+
+        assertTrue("la liste doit porter quelque chose", payload.lines.isNotEmpty())
+    }
+
 
     @Test
     fun `les journees et les croisements devoirs-cours sont justes`() {

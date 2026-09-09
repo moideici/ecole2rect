@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Le fond d'un bloc de grille. Blanc dans le fichier, teinté à l'exécution par la couleur
+     de la matière : un drawable par couleur serait ingérable, et les couleurs de matières
+     sont choisies par l'utilisateur. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <corners android:radius="5dp" />
+</shape>

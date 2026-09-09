@@ -13,7 +13,7 @@ import fr.ecole2recte.app.core.widget.WidgetOptions
 import fr.ecole2recte.app.core.widget.WidgetSize
 
 /**
- * Les seize widgets d'écran d'accueil.
+ * Les neuf widgets d'écran d'accueil.
  *
  * Chacun n'est qu'un nom déclaré au système et un [WidgetKind] : tout le contenu vient de
  * `core`, tout le dessin de [WidgetRenderer]. Ajouter un widget, c'est donc ajouter une
@@ -142,29 +142,15 @@ object WidgetSizes {
     }
 }
 
-// ── 1×1 ──────────────────────────────────────────────────────────────────────
-class AverageWidget : Ecole2recteWidget(WidgetKind.AVERAGE)
-class HomeworkCountWidget : Ecole2recteWidget(WidgetKind.HOMEWORK_COUNT)
-class UnreadWidget : Ecole2recteWidget(WidgetKind.UNREAD)
-class CountdownWidget : Ecole2recteWidget(WidgetKind.COUNTDOWN)
-class NextExamWidget : Ecole2recteWidget(WidgetKind.NEXT_EXAM)
-class AbsencesWidget : Ecole2recteWidget(WidgetKind.ABSENCES)
-
-// ── 2×1 ──────────────────────────────────────────────────────────────────────
 class NextLessonWidget : Ecole2recteWidget(WidgetKind.NEXT_LESSON)
-class UrgentHomeworkWidget : Ecole2recteWidget(WidgetKind.URGENT_HOMEWORK)
-class LastGradeWidget : Ecole2recteWidget(WidgetKind.LAST_GRADE)
-class LastMessageWidget : Ecole2recteWidget(WidgetKind.LAST_MESSAGE)
-class DayHoursWidget : Ecole2recteWidget(WidgetKind.DAY_HOURS)
-
-// ── 2×2 ──────────────────────────────────────────────────────────────────────
-class TodayWidget : Ecole2recteWidget(WidgetKind.TODAY)
-class HomeworkListWidget : Ecole2recteWidget(WidgetKind.HOMEWORK_LIST)
-class GradesListWidget : Ecole2recteWidget(WidgetKind.GRADES_LIST)
-class SubjectAveragesWidget : Ecole2recteWidget(WidgetKind.SUBJECT_AVERAGES)
-
-// ── 4×2 ──────────────────────────────────────────────────────────────────────
+class DayWidget : Ecole2recteWidget(WidgetKind.DAY)
 class WeekWidget : Ecole2recteWidget(WidgetKind.WEEK)
+class HomeworkWidget : Ecole2recteWidget(WidgetKind.HOMEWORK)
+class GradesWidget : Ecole2recteWidget(WidgetKind.GRADES)
+class ObjectiveWidget : Ecole2recteWidget(WidgetKind.OBJECTIVE)
+class SchoolLifeWidget : Ecole2recteWidget(WidgetKind.SCHOOL_LIFE)
+class ChangesWidget : Ecole2recteWidget(WidgetKind.CHANGES)
+class TomorrowWidget : Ecole2recteWidget(WidgetKind.TOMORROW)
 
 /**
  * Rafraîchissement des widgets posés sur l'écran d'accueil.
@@ -176,22 +162,15 @@ class WeekWidget : Ecole2recteWidget(WidgetKind.WEEK)
 object WidgetUpdater {
 
     private val PROVIDERS: Map<WidgetKind, Class<out AppWidgetProvider>> = mapOf(
-        WidgetKind.AVERAGE to AverageWidget::class.java,
-        WidgetKind.HOMEWORK_COUNT to HomeworkCountWidget::class.java,
-        WidgetKind.UNREAD to UnreadWidget::class.java,
-        WidgetKind.COUNTDOWN to CountdownWidget::class.java,
-        WidgetKind.NEXT_EXAM to NextExamWidget::class.java,
-        WidgetKind.ABSENCES to AbsencesWidget::class.java,
         WidgetKind.NEXT_LESSON to NextLessonWidget::class.java,
-        WidgetKind.URGENT_HOMEWORK to UrgentHomeworkWidget::class.java,
-        WidgetKind.LAST_GRADE to LastGradeWidget::class.java,
-        WidgetKind.LAST_MESSAGE to LastMessageWidget::class.java,
-        WidgetKind.DAY_HOURS to DayHoursWidget::class.java,
-        WidgetKind.TODAY to TodayWidget::class.java,
-        WidgetKind.HOMEWORK_LIST to HomeworkListWidget::class.java,
-        WidgetKind.GRADES_LIST to GradesListWidget::class.java,
-        WidgetKind.SUBJECT_AVERAGES to SubjectAveragesWidget::class.java,
+        WidgetKind.DAY to DayWidget::class.java,
         WidgetKind.WEEK to WeekWidget::class.java,
+        WidgetKind.HOMEWORK to HomeworkWidget::class.java,
+        WidgetKind.GRADES to GradesWidget::class.java,
+        WidgetKind.OBJECTIVE to ObjectiveWidget::class.java,
+        WidgetKind.SCHOOL_LIFE to SchoolLifeWidget::class.java,
+        WidgetKind.CHANGES to ChangesWidget::class.java,
+        WidgetKind.TOMORROW to TomorrowWidget::class.java,
     )
 
     fun updateAll(context: Context) {

@@ -275,6 +275,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setBiometricLock(enabled: Boolean) = updateSettings { it.copy(biometricLock = enabled) }
 
+    /** La moyenne visée, ou null pour ne pas s'en fixer : l'application n'en invente pas. */
+    fun setAverageTarget(target: Double?) = updateSettings { it.copy(averageTarget = target) }
+
     fun setDynamicColor(enabled: Boolean) = updateSettings { it.copy(dynamicColor = enabled) }
 
     private fun updateSettings(transform: (AppSettings) -> AppSettings) {

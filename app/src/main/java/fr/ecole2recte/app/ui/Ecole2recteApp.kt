@@ -401,6 +401,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     onNotifications = viewModel::setNotifications,
                     onBiometricLock = viewModel::setBiometricLock,
                     onDynamicColor = viewModel::setDynamicColor,
+                    onAverageTarget = viewModel::setAverageTarget,
                     onRefresh = { viewModel.refresh() },
                     onSignOut = viewModel::signOut,
                 )

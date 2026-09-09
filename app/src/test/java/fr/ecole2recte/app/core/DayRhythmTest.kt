@@ -168,7 +168,7 @@ class DayRhythmTest {
     // ── Le widget « Horaires du jour » ───────────────────────────────────────
 
     private fun hours(lessons: List<Lesson>, now: LocalDateTime) = WidgetContent.payload(
-        kind = WidgetKind.DAY_HOURS,
+        kind = WidgetKind.DAY,
         snapshot = snapshotOf(lessons),
         settings = AppSettings(),
         now = now,
@@ -217,7 +217,7 @@ class DayRhythmTest {
     @Test
     fun `la liste du jour porte les plages horaires et la pause`() {
         val payload = WidgetContent.payload(
-            kind = WidgetKind.TODAY,
+            kind = WidgetKind.DAY,
             snapshot = snapshotOf(ordinaryDay),
             settings = AppSettings(),
             now = monday.atTime(7, 0),
@@ -237,7 +237,7 @@ class DayRhythmTest {
     @Test
     fun `la pause n'apparait qu'une fois`() {
         val payload = WidgetContent.payload(
-            kind = WidgetKind.TODAY,
+            kind = WidgetKind.DAY,
             snapshot = snapshotOf(ordinaryDay),
             settings = AppSettings(),
             now = monday.atTime(7, 0),
@@ -251,10 +251,11 @@ class DayRhythmTest {
 
     @Test
     fun `les horaires occupent un deux-par-un, et rien d'autre`() {
-        assertEquals(WidgetShape.HOURS, WidgetSizing.shapeFor(WidgetKind.DAY_HOURS, WidgetSize(150, 60)))
+        assertEquals(WidgetShape.HOURS, WidgetSizing.shapeFor(WidgetKind.DAY, WidgetSize(150, 60)))
         // Agrandi, il devient la journée détaillée ; réduit, le compte à rebours.
-        assertEquals(WidgetShape.LIST, WidgetSizing.shapeFor(WidgetKind.DAY_HOURS, WidgetSize(150, 150)))
-        assertEquals(WidgetShape.TILE, WidgetSizing.shapeFor(WidgetKind.DAY_HOURS, WidgetSize(60, 60)))
+        // En hauteur, la journée passe à la grille : c'est là qu'elle remplit vraiment sa place.
+        assertEquals(WidgetShape.GRID, WidgetSizing.shapeFor(WidgetKind.DAY, WidgetSize(150, 150)))
+        assertEquals(WidgetShape.TILE, WidgetSizing.shapeFor(WidgetKind.DAY, WidgetSize(60, 60)))
         // Les autres widgets ne prennent pas cette forme par accident.
         assertEquals(WidgetShape.ROW, WidgetSizing.shapeFor(WidgetKind.NEXT_LESSON, WidgetSize(150, 60)))
     }
@@ -263,7 +264,7 @@ class DayRhythmTest {
     fun `chaque forme du widget horaires reste lisible`() {
         WidgetShape.entries.forEach { shape ->
             val payload = WidgetContent.payload(
-                kind = WidgetKind.DAY_HOURS,
+                kind = WidgetKind.DAY,
                 snapshot = snapshotOf(ordinaryDay),
                 settings = AppSettings(),
                 now = monday.atTime(9, 30),

@@ -92,6 +92,7 @@ fun SettingsScreen(
     onNotifications: ((NotificationSettings) -> NotificationSettings) -> Unit,
     onBiometricLock: (Boolean) -> Unit,
     onDynamicColor: (Boolean) -> Unit,
+    onAverageTarget: (Double?) -> Unit,
     onRefresh: () -> Unit,
     onSignOut: () -> Unit,
 ) {
@@ -214,6 +215,10 @@ fun SettingsScreen(
                     }
                 },
             )
+        }
+
+        SettingsSection("Objectif") {
+            AverageTargetPicker(settings.averageTarget, onAverageTarget)
         }
 
         SettingsSection("Personnalisation") {
@@ -590,6 +595,39 @@ private fun NotificationsSection(
         }
     }
 }
+
+/**
+ * La moyenne visée pour la période.
+ *
+ * Des paliers plutôt qu'un champ de saisie : personne ne vise 14,37, et un clavier numérique
+ * pour trois chiffres est plus long à traverser qu'une rangée de pastilles. « Aucun » est le
+ * défaut assumé — l'application n'invente pas un objectif à la place de l'élève, et sans
+ * objectif le widget correspondant le dit au lieu d'afficher un chiffre inventé.
+ */
+@Composable
+private fun AverageTargetPicker(target: Double?, onChange: (Double?) -> Unit) {
+    Text(
+        "Ce qu'il faudrait obtenir pour l'atteindre s'affiche dans l'écran Notes et dans le " +
+            "widget Objectif, coefficients compris.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(12.dp))
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        item("aucun") {
+            FilterPill("Aucun", selected = target == null) { onChange(null) }
+        }
+        items(AVERAGE_TARGETS, key = { it.toString() }) { value ->
+            FilterPill(
+                text = value.toInt().toString(),
+                selected = target != null && kotlin.math.abs(target - value) < 0.01,
+            ) { onChange(value) }
+        }
+    }
+}
+
+/** Les paliers proposés : de « je veux la moyenne » aux mentions. */
+private val AVERAGE_TARGETS = listOf(10.0, 12.0, 14.0, 15.0, 16.0, 18.0)
 
 @Composable
 private fun SettingsSwitch(

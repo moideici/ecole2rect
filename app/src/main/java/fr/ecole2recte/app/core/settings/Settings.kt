@@ -216,6 +216,11 @@ data class AppSettings(
     val parentAccount: Boolean = false,
     /** Couleurs des widgets d'écran d'accueil, indépendantes du thème de l'application. */
     val widgetColors: WidgetColorSettings = WidgetColorSettings(),
+    /**
+     * Moyenne visée pour la période, sur 20. Null tant qu'on n'en a pas fixé : l'application
+     * n'invente pas un objectif à la place de l'élève.
+     */
+    val averageTarget: Double? = null,
 ) {
 
     /** Widgets visibles, dans l'ordre choisi ; les nouveaux widgets arrivent à la fin. */

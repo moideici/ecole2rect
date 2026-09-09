@@ -56,78 +56,6 @@
         <!-- Seize widgets d'écran d'accueil : six tuiles 1×1, cinq bandeaux 2×1,
              quatre listes 2×2 et une semaine 4×2. Chacun lit le cache local, sans réseau. -->
         <receiver
-            android:name=".widget.AverageWidget"
-            android:exported="false"
-            android:label="@string/widget_average_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_average" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.HomeworkCountWidget"
-            android:exported="false"
-            android:label="@string/widget_homework_count_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_homework_count" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.UnreadWidget"
-            android:exported="false"
-            android:label="@string/widget_unread_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_unread" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.CountdownWidget"
-            android:exported="false"
-            android:label="@string/widget_countdown_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_countdown" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.NextExamWidget"
-            android:exported="false"
-            android:label="@string/widget_next_exam_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_next_exam" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.AbsencesWidget"
-            android:exported="false"
-            android:label="@string/widget_absences_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_absences" />
-        </receiver>
-
-        <receiver
             android:name=".widget.NextLessonWidget"
             android:exported="false"
             android:label="@string/widget_next_lesson_label">
@@ -140,99 +68,15 @@
         </receiver>
 
         <receiver
-            android:name=".widget.UrgentHomeworkWidget"
+            android:name=".widget.DayWidget"
             android:exported="false"
-            android:label="@string/widget_urgent_homework_label">
+            android:label="@string/widget_day_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_urgent_homework" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.LastGradeWidget"
-            android:exported="false"
-            android:label="@string/widget_last_grade_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_last_grade" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.DayHoursWidget"
-            android:exported="false"
-            android:label="@string/widget_day_hours_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_day_hours" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.LastMessageWidget"
-            android:exported="false"
-            android:label="@string/widget_last_message_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_last_message" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.TodayWidget"
-            android:exported="false"
-            android:label="@string/widget_today_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_today" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.HomeworkListWidget"
-            android:exported="false"
-            android:label="@string/widget_homework_list_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_homework_list" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.GradesListWidget"
-            android:exported="false"
-            android:label="@string/widget_grades_list_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_grades_list" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.SubjectAveragesWidget"
-            android:exported="false"
-            android:label="@string/widget_subject_averages_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_subject_averages" />
+                android:resource="@xml/widget_day" />
         </receiver>
 
         <receiver
@@ -245,6 +89,78 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_week" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.HomeworkWidget"
+            android:exported="false"
+            android:label="@string/widget_homework_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_homework" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.GradesWidget"
+            android:exported="false"
+            android:label="@string/widget_grades_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_grades" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.ObjectiveWidget"
+            android:exported="false"
+            android:label="@string/widget_objective_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_objective" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.SchoolLifeWidget"
+            android:exported="false"
+            android:label="@string/widget_school_life_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_school_life" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.ChangesWidget"
+            android:exported="false"
+            android:label="@string/widget_changes_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_changes" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TomorrowWidget"
+            android:exported="false"
+            android:label="@string/widget_tomorrow_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_tomorrow" />
         </receiver>
     </application>
 </manifest>
