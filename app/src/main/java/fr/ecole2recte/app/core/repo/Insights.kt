@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.core.repo
 
+import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.format.Text
 import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.HomeworkItem
@@ -445,6 +446,72 @@ object Insights {
         return averagesBySubject(gradesForPeriod(snapshot.grades, period?.code))
             .toList()
             .sortedByDescending { it.second }
+    }
+
+    /**
+     * Ce que l'on sait d'un professeur.
+     *
+     * ÉcoleDirecte ne publie pas de fiche : le nom apparaît sur les cours et sur les
+     * moyennes, et c'est tout. On rassemble donc ce qui le concerne à partir de ces deux
+     * sources, et le lien vers les devoirs et les notes passe par la **matière** — le
+     * service ne dit pas qui a donné un devoir. L'écran le formule comme tel : « les devoirs
+     * de ses matières », et non « les devoirs qu'il a donnés », qui serait une affirmation
+     * que rien ne soutient.
+     */
+    data class TeacherProfile(
+        val name: String,
+        val subjects: List<String>,
+        val rooms: List<String>,
+        val lessonsThisWeek: Int,
+        val minutesThisWeek: Long,
+        /** Professeur principal de la période en cours. */
+        val headTeacher: Boolean,
+    )
+
+    /** Tous les professeurs connus, par ordre alphabétique. */
+    fun teachers(snapshot: SchoolSnapshot, today: LocalDate): List<TeacherProfile> {
+        val fromLessons = snapshot.lessons.map { it.teacher }
+        val fromAverages = snapshot.subjectAverages
+            .flatMap { average -> average.teachers + average.teacher }
+        return (fromLessons + fromAverages)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+            .map { teacherProfile(snapshot, today, it) }
+    }
+
+    fun teacherProfile(snapshot: SchoolSnapshot, today: LocalDate, name: String): TeacherProfile {
+        val key = Text.normalizeKey(name)
+        val week = Dates.startOfWeek(today)
+        val mine = snapshot.lessons.filter { Text.normalizeKey(it.teacher) == key }
+        // La semaine en cours seulement : additionner des semaines chargées au hasard
+        // donnerait un « par semaine » qui n'en est pas un.
+        val thisWeek = mine.filter { !it.date.isBefore(week) && it.date.isBefore(week.plusWeeks(1)) }
+            .filterNot { it.canceled }
+        val subjects = (
+            mine.map { it.subject } +
+                snapshot.subjectAverages
+                    .filter { average -> (average.teachers + average.teacher).any { Text.normalizeKey(it) == key } }
+                    .map { it.subject }
+            ).filter { it.isNotBlank() }.distinct().sorted()
+        return TeacherProfile(
+            name = name,
+            subjects = subjects,
+            rooms = mine.map { it.room }.filter { it.isNotBlank() }.distinct().sorted(),
+            lessonsThisWeek = thisWeek.size,
+            minutesThisWeek = thisWeek.sumOf { Duration.between(it.start, it.end).toMinutes() },
+            headTeacher = snapshot.periods.any { Text.normalizeKey(it.headTeacher) == key },
+        )
+    }
+
+    /** Les cours d'un professeur dans la semaine affichée, du lundi au samedi. */
+    fun lessonsOfTeacher(lessons: List<Lesson>, name: String, weekStart: LocalDate): List<Lesson> {
+        val key = Text.normalizeKey(name)
+        return lessons
+            .filter { Text.normalizeKey(it.teacher) == key }
+            .filter { !it.date.isBefore(weekStart) && it.date.isBefore(weekStart.plusWeeks(1)) }
+            .sortedBy { it.start }
     }
 
     /** Matières connues, tous écrans confondus : sert à l'éditeur de couleurs. */

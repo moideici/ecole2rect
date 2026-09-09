@@ -4,6 +4,8 @@ import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.model.Period
+import fr.ecole2recte.app.core.model.SubjectAverage
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.repo.Merge
@@ -204,6 +206,52 @@ class MergeAndInsightsTest {
         // « Sans elle » n'existe pas : la question n'a pas de réponse, et inventer zéro
         // laisserait croire qu'elle ne compte pas.
         assertEquals(emptyMap<String, Double>(), Insights.impacts(periodGrades.take(1)))
+    }
+
+    // ── Professeurs ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `un professeur se reconstitue depuis les cours et les moyennes`() {
+        val snapshot = SchoolSnapshot(
+            lessons = listOf(
+                lesson("1", monday, 8, "Mathématiques").copy(teacher = "M. Petit", room = "C011"),
+                lesson("2", monday, 10, "Mathématiques").copy(teacher = "M. Petit", room = "801"),
+                lesson("3", monday, 14, "Anglais").copy(teacher = "Mme Cresson"),
+                // La semaine suivante ne compte pas dans « cette semaine ».
+                lesson("4", monday.plusWeeks(1), 8, "Mathématiques").copy(teacher = "M. Petit"),
+            ),
+            subjectAverages = listOf(
+                SubjectAverage("A001", "Spécialité maths", 15.0, teachers = listOf("M. Petit")),
+            ),
+            periods = listOf(Period("A001", "Trimestre 1", headTeacher = "M. Petit")),
+        )
+
+        val profile = Insights.teacherProfile(snapshot, monday, "M. Petit")
+
+        assertEquals(listOf("Mathématiques", "Spécialité maths"), profile.subjects)
+        assertEquals(listOf("801", "C011"), profile.rooms)
+        // Deux cours cette semaine, pas trois : additionner des semaines chargées au hasard
+        // donnerait un « par semaine » qui n'en est pas un.
+        assertEquals(2, profile.lessonsThisWeek)
+        assertEquals(120L, profile.minutesThisWeek)
+        assertTrue(profile.headTeacher)
+    }
+
+    @Test
+    fun `la liste des professeurs ne garde chaque nom qu une fois`() {
+        val snapshot = SchoolSnapshot(
+            lessons = listOf(
+                lesson("1", monday, 8).copy(teacher = "M. Petit"),
+                lesson("2", monday, 10).copy(teacher = "M. Petit"),
+                lesson("3", monday, 14).copy(teacher = ""),
+            ),
+            subjectAverages = listOf(
+                SubjectAverage("A001", "Anglais", 14.0, teacher = "Mme Cresson"),
+            ),
+        )
+
+        // Un nom vide n'est pas un professeur, et le même nom n'apparaît pas deux fois.
+        assertEquals(listOf("M. Petit", "Mme Cresson"), Insights.teachers(snapshot, monday).map { it.name })
     }
 
     @Test

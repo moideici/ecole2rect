@@ -113,6 +113,7 @@ fun LessonDetailScreen(
     homework: List<HomeworkItem>,
     sessions: List<SessionContent>,
     onOpenHomework: (HomeworkItem) -> Unit,
+    onOpenTeacher: (String) -> Unit,
     onClose: () -> Unit,
 ) {
     if (lesson == null) {
@@ -149,7 +150,15 @@ fun LessonDetailScreen(
                 Spacer(Modifier.height(16.dp))
                 DetailLine("Horaire", Dates.range(lesson.start, lesson.end))
                 DetailLine("Salle", lesson.room.ifBlank { "non précisée" })
-                DetailLine("Professeur", lesson.teacher.ifBlank { "non précisé" })
+                // Le nom mène à sa fiche : c'est le seul endroit où l'on peut voir d'un
+                // coup ses cours de la semaine, ses moyennes et son appréciation.
+                if (lesson.teacher.isBlank()) {
+                    DetailLine("Professeur", "non précisé")
+                } else {
+                    Box(Modifier.clickable { onOpenTeacher(lesson.teacher) }) {
+                        DetailLine("Professeur", lesson.teacher)
+                    }
+                }
                 // Le groupe change tout quand la classe est dédoublée : deux élèves de la
                 // même classe ne sont alors pas au même cours.
                 if (lesson.group.isNotBlank()) DetailLine("Groupe", lesson.group)
@@ -213,7 +222,7 @@ fun LessonDetailScreen(
 }
 
 @Composable
-private fun DetailLine(label: String, value: String) {
+internal fun DetailLine(label: String, value: String) {
     Row(
         Modifier
             .fillMaxWidth()

@@ -72,6 +72,8 @@ sealed interface Detail {
     data object SubjectColors : Detail
     data object WidgetColors : Detail
     data object SchoolLife : Detail
+    data object Teachers : Detail
+    data class Teacher(val name: String) : Detail
     data object Documents : Detail
     data object News : Detail
     data object Textbooks : Detail
@@ -376,6 +378,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         }
                         .orEmpty(),
                     onOpenHomework = openHomework,
+                    onOpenTeacher = { openDetail(Detail.Teacher(it)) },
                     onClose = { detail = null },
                 )
 
@@ -383,6 +386,23 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     message = snapshot.messages.firstOrNull { it.id == current.id },
                     attachmentState = attachment,
                     onOpenAttachment = viewModel::openAttachment,
+                    onClose = { detail = null },
+                )
+
+                Detail.Teachers -> TeachersScreen(
+                    snapshot = snapshot,
+                    settings = settings,
+                    today = now.toLocalDate(),
+                    onOpenTeacher = { openDetail(Detail.Teacher(it)) },
+                    onClose = { detail = null },
+                )
+
+                is Detail.Teacher -> TeacherDetailScreen(
+                    name = current.name,
+                    snapshot = snapshot,
+                    settings = settings,
+                    today = now.toLocalDate(),
+                    onOpenHomework = openHomework,
                     onClose = { detail = null },
                 )
 
