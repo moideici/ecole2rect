@@ -224,6 +224,17 @@ object Insights {
             .filter { (_, minutes) -> minutes >= minimumMinutes }
     }
 
+    /**
+     * Ce qu'il faut emporter : les matières de la journée, et rien de plus.
+     *
+     * La tentation serait d'écrire « manuel de SVT, calculatrice, tenue d'EPS ». L'application
+     * ne sait rien de tout cela : elle connaît les matières, pas le contenu des cartables.
+     * Lister les matières est utile et vrai ; inventer une liste de fournitures serait faux
+     * la moitié du temps, et une liste fausse ne se relit pas deux fois.
+     */
+    fun satchel(lessons: List<Lesson>): List<String> =
+        lessons.filterNot { it.canceled }.map { it.subject }.distinct()
+
     /** Devoirs à rendre pour un jour donné, cochés compris : l'agenda dit tout. */
     fun homeworkDueOn(homework: List<HomeworkItem>, date: LocalDate): List<HomeworkItem> =
         homework.filter { it.dueDate == date }.sortedBy { it.subject }

@@ -69,7 +69,8 @@ object SettingsCodec {
                 .put("homework", settings.notifications.homework)
                 .put("messages", settings.notifications.messages)
                 .put("examReminder", settings.notifications.examReminder)
-                .put("timetable", settings.notifications.timetable),
+                .put("timetable", settings.notifications.timetable)
+                .put("tomorrow", settings.notifications.tomorrow),
         )
     }.toString()
 
@@ -119,6 +120,7 @@ object SettingsCodec {
                     messages = entry.optBoolean("messages", true),
                     examReminder = entry.optBoolean("examReminder", true),
                     timetable = entry.optBoolean("timetable", true),
+                    tomorrow = entry.optBoolean("tomorrow", true),
                 )
             } ?: NotificationSettings(),
         )

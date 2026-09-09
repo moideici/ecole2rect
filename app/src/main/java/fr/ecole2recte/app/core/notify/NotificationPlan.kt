@@ -10,13 +10,14 @@ import fr.ecole2recte.app.core.widget.WidgetContent
 import fr.ecole2recte.app.core.widget.WidgetTarget
 import java.time.LocalDateTime
 
-/** Les cinq familles de notifications, chacune sur son canal Android. */
+/** Les six familles de notifications, chacune sur son canal Android. */
 enum class NotificationKind(val channelId: String, val channelName: String, val channelDescription: String) {
     GRADE("notes", "Nouvelles notes", "Quand une note est publiée."),
     HOMEWORK("devoirs", "Nouveaux devoirs", "Quand un devoir est ajouté au cahier de textes."),
     MESSAGE("messages", "Nouveaux messages", "Quand un message arrive dans la messagerie."),
     EXAM("evaluations", "Rappels d'évaluation", "La veille d'un devoir surveillé annoncé."),
     TIMETABLE("emploi-du-temps", "Emploi du temps", "Quand un cours est annulé, déplacé ou ajouté."),
+    TOMORROW("demain", "Rappel du soir", "Les cours de demain et ce qu'il faut emporter."),
 }
 
 data class PlannedNotification(
@@ -61,6 +62,7 @@ object NotificationPlan {
             if (settings.notifications.messages) addAll(messages(snapshot, settings))
             if (settings.notifications.examReminder) addAll(examReminders(snapshot, settings, today))
             if (settings.notifications.timetable) addAll(timetable(snapshot))
+            if (settings.notifications.tomorrow) addAll(tomorrow(snapshot, settings, now))
         }
         val seen = candidates.map { it.id }
         if (!settings.notifications.enabled) return Plan(emptyList(), seen)
@@ -102,6 +104,51 @@ object NotificationPlan {
         ChangeKind.LESSON_ADDED,
         ChangeKind.LESSON_REMOVED,
     )
+
+    /**
+     * Le rappel du soir : demain en une phrase, pour préparer son sac.
+     *
+     * Trois précautions. Il n'arrive que **le soir** — un rappel de préparation de sac à
+     * quatorze heures n'est pas un rappel, c'est du bruit. Il porte la **date du jour visé**
+     * dans son identifiant, donc il ne peut pas tomber deux fois pour la même veille, même si
+     * la synchronisation de fond passe quatre fois entre dix-huit et vingt-deux heures. Et il
+     * vise le **prochain jour d'école**, pas le lendemain : un vendredi soir, ce qui compte
+     * n'est pas le samedi vide mais le lundi.
+     */
+    private fun tomorrow(
+        snapshot: SchoolSnapshot,
+        settings: AppSettings,
+        now: LocalDateTime,
+    ): List<PlannedNotification> {
+        if (now.hour !in EVENING_FROM..EVENING_TO) return emptyList()
+        val today = now.toLocalDate()
+        val date = Insights.nextLessonDay(snapshot.lessons, today) ?: return emptyList()
+        val summary = Insights.daySummary(snapshot.lessons, date)
+        val start = summary.start ?: return emptyList()
+        val end = summary.end ?: return emptyList()
+        val lessons = Insights.lessonsOn(snapshot.lessons, date)
+        val homework = Insights.homeworkDueOn(snapshot.homework, date)
+            .filterNot { settings.isHomeworkDone(it.id, it.done) }
+        val subjects = Insights.satchel(lessons)
+        return listOf(
+            PlannedNotification(
+                id = "demain:$date",
+                kind = NotificationKind.TOMORROW,
+                title = "Demain · ${Dates.dayName(date)}",
+                text = listOfNotNull(
+                    "${Dates.time(start)} – ${Dates.time(end)}",
+                    "${summary.lessons} cours",
+                    homework.size.takeIf { it > 0 }?.let { "$it à rendre" },
+                    subjects.takeIf { it.isNotEmpty() }?.joinToString(", ")?.let { "à prendre : $it" },
+                ).joinToString(" · "),
+                target = WidgetTarget.TIMETABLE,
+            ),
+        )
+    }
+
+    /** Le créneau où l'on prépare son sac : ni pendant les cours, ni au milieu de la nuit. */
+    private const val EVENING_FROM = 18
+    private const val EVENING_TO = 22
 
     private fun grades(snapshot: SchoolSnapshot) = snapshot.grades
         .filter { it.value != null }

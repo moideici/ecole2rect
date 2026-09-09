@@ -592,6 +592,13 @@ private fun NotificationsSection(
             SettingsSwitch("Rappel d'évaluation", "La veille d'un devoir surveillé annoncé.", settings.examReminder) { value ->
                 onChange { it.copy(examReminder = value) }
             }
+            SettingsSwitch(
+                "Rappel du soir",
+                "Les cours de demain et ce qu'il faut emporter, entre 18 h et 22 h.",
+                settings.tomorrow,
+            ) { value ->
+                onChange { it.copy(tomorrow = value) }
+            }
         }
     }
 }

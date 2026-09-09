@@ -167,9 +167,16 @@ data class NotificationSettings(
     val examReminder: Boolean = true,
     /** Cours annulé, déplacé ou ajouté : le seul changement qu'on veut connaître le matin. */
     val timetable: Boolean = true,
+    /**
+     * Le rappel du soir : les cours de demain et ce qu'il faut emporter.
+     *
+     * Celui-là s'adresse à ceux qui préparent leur sac la veille, et à personne d'autre :
+     * c'est la notification la plus facile à trouver envahissante, et elle se coupe seule.
+     */
+    val tomorrow: Boolean = true,
 ) {
     val anyEnabled: Boolean
-        get() = enabled && (grades || homework || messages || examReminder || timetable)
+        get() = enabled && (grades || homework || messages || examReminder || timetable || tomorrow)
 }
 
 /**

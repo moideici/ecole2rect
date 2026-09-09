@@ -1161,11 +1161,10 @@ object WidgetContent {
 
     /** Ce qu'il faut emporter : les matières de demain, pas un inventaire inventé. */
     private fun satchel(lessons: List<Lesson>, homework: List<HomeworkItem>): String {
-        val subjects = lessons.filterNot { it.canceled }.map { it.subject }.distinct()
+        val subjects = Insights.satchel(lessons)
         if (subjects.isEmpty()) return ""
-        val due = homework.size
         val list = subjects.joinToString(", ")
-        return if (due > 0) "$list · $due à rendre" else list
+        return if (homework.isEmpty()) list else "$list · ${homework.size} à rendre"
     }
 
     private fun tomorrowTile(kind: WidgetKind, context: Context): WidgetPayload {

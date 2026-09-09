@@ -898,13 +898,15 @@ private fun TomorrowWidget(
     today: LocalDate,
     onNavigate: (Destination) -> Unit,
 ) {
-    val tomorrow = today.plusDays(1)
+    // Le prochain jour d'école, et non le lendemain : un vendredi soir, ce qui compte n'est
+    // pas le samedi vide mais le lundi. « Aucun cours prévu » un vendredi n'aide personne.
+    val tomorrow = Insights.nextLessonDay(snapshot.lessons, today) ?: today.plusDays(1)
     val summary = Insights.daySummary(snapshot.lessons, tomorrow)
     val lessons = Insights.lessonsOn(snapshot.lessons, tomorrow).filterNot { it.canceled }
     val homework = Insights.homeworkDueOn(snapshot.homework, tomorrow)
         .filterNot { settings.isHomeworkDone(it.id, it.done) }
     AppCard(onClick = { onNavigate(Destination.TIMETABLE) }) {
-        WidgetLabel("DEMAIN")
+        WidgetLabel(if (tomorrow == today.plusDays(1)) "DEMAIN" else "PROCHAIN JOUR D'ÉCOLE")
         Spacer(Modifier.height(8.dp))
         Text(
             Dates.dayAndMonth(tomorrow).replaceFirstChar { it.uppercase() },
@@ -948,6 +950,25 @@ private fun TomorrowWidget(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+        // Les matières de la journée, et rien de plus : l'application ne sait pas ce qu'il y
+        // a dans un cartable, et une liste de fournitures inventée serait fausse une fois
+        // sur deux — une liste fausse ne se relit pas deux fois.
+        val satchel = Insights.satchel(lessons)
+        if (satchel.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "À PRENDRE",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                satchel.joinToString(", "),
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
