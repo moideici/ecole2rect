@@ -2,6 +2,7 @@ package fr.ecole2recte.app.core.notify
 
 import fr.ecole2recte.app.core.format.Dates
 import fr.ecole2recte.app.core.format.Text
+import fr.ecole2recte.app.core.model.ChangeKind
 import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.settings.AppSettings
@@ -9,12 +10,13 @@ import fr.ecole2recte.app.core.widget.WidgetContent
 import fr.ecole2recte.app.core.widget.WidgetTarget
 import java.time.LocalDateTime
 
-/** Les quatre familles de notifications, chacune sur son canal Android. */
+/** Les cinq familles de notifications, chacune sur son canal Android. */
 enum class NotificationKind(val channelId: String, val channelName: String, val channelDescription: String) {
     GRADE("notes", "Nouvelles notes", "Quand une note est publiée."),
     HOMEWORK("devoirs", "Nouveaux devoirs", "Quand un devoir est ajouté au cahier de textes."),
     MESSAGE("messages", "Nouveaux messages", "Quand un message arrive dans la messagerie."),
     EXAM("evaluations", "Rappels d'évaluation", "La veille d'un devoir surveillé annoncé."),
+    TIMETABLE("emploi-du-temps", "Emploi du temps", "Quand un cours est annulé, déplacé ou ajouté."),
 }
 
 data class PlannedNotification(
@@ -58,6 +60,7 @@ object NotificationPlan {
             if (settings.notifications.homework) addAll(homework(snapshot, settings, today))
             if (settings.notifications.messages) addAll(messages(snapshot, settings))
             if (settings.notifications.examReminder) addAll(examReminders(snapshot, settings, today))
+            if (settings.notifications.timetable) addAll(timetable(snapshot))
         }
         val seen = candidates.map { it.id }
         if (!settings.notifications.enabled) return Plan(emptyList(), seen)
@@ -73,6 +76,32 @@ object NotificationPlan {
             seen = seen,
         )
     }
+
+    /**
+     * Un cours annulé, déplacé ou ajouté.
+     *
+     * C'est la seule notification qui ne naît pas d'une donnée mais d'une **différence** :
+     * elle relit l'historique tenu par [fr.ecole2recte.app.core.repo.Changes] au lieu de
+     * recalculer sa propre comparaison. Un seul endroit décide de ce qui a changé.
+     */
+    private fun timetable(snapshot: SchoolSnapshot) = snapshot.changes
+        .filter { it.kind in TIMETABLE_CHANGES }
+        .map { change ->
+            PlannedNotification(
+                id = "edt:${change.id}",
+                kind = NotificationKind.TIMETABLE,
+                title = change.kind.label,
+                text = listOf(change.text, change.detail).filter { it.isNotBlank() }.joinToString(" · "),
+                target = WidgetTarget.TIMETABLE,
+            )
+        }
+
+    private val TIMETABLE_CHANGES = setOf(
+        ChangeKind.LESSON_CANCELED,
+        ChangeKind.LESSON_MOVED,
+        ChangeKind.LESSON_ADDED,
+        ChangeKind.LESSON_REMOVED,
+    )
 
     private fun grades(snapshot: SchoolSnapshot) = snapshot.grades
         .filter { it.value != null }

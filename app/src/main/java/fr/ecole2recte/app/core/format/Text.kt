@@ -89,6 +89,19 @@ object Text {
         .trim()
 
     /** Première ligne utile d'un contenu, pour les aperçus de cartes et de listes. */
+    /**
+     * Un nombre tel qu'on l'écrit ici : une décimale au plus, virgule décimale, et « 16 »
+     * plutôt que « 16,0 » quand la décimale n'apprend rien.
+     */
+    fun number(value: Double): String {
+        val rounded = Math.round(value * 10.0) / 10.0
+        return if (rounded == Math.floor(rounded)) {
+            rounded.toInt().toString()
+        } else {
+            rounded.toString().replace('.', ',')
+        }
+    }
+
     fun preview(value: String, maxLength: Int = 120): String {
         val flat = value.replace('\n', ' ').replace(Regex("\\s+"), " ").trim()
         return if (flat.length <= maxLength) flat else flat.take(maxLength - 1).trimEnd() + "…"

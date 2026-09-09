@@ -882,12 +882,5 @@ object WidgetContent {
     }
 
     /** Une note ou une moyenne, à la française et sans décimale inutile. */
-    fun number(value: Double): String {
-        val rounded = Math.round(value * 10.0) / 10.0
-        return if (rounded == Math.floor(rounded)) {
-            rounded.toInt().toString()
-        } else {
-            rounded.toString().replace('.', ',')
-        }
-    }
+    fun number(value: Double): String = Text.number(value)
 }

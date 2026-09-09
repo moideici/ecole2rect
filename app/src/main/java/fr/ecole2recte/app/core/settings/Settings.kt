@@ -165,8 +165,11 @@ data class NotificationSettings(
     val homework: Boolean = true,
     val messages: Boolean = true,
     val examReminder: Boolean = true,
+    /** Cours annulé, déplacé ou ajouté : le seul changement qu'on veut connaître le matin. */
+    val timetable: Boolean = true,
 ) {
-    val anyEnabled: Boolean get() = enabled && (grades || homework || messages || examReminder)
+    val anyEnabled: Boolean
+        get() = enabled && (grades || homework || messages || examReminder || timetable)
 }
 
 /**

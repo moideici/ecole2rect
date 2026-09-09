@@ -3,6 +3,8 @@ package fr.ecole2recte.app.core.store
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.AttachmentSource
+import fr.ecole2recte.app.core.model.Change
+import fr.ecole2recte.app.core.model.ChangeKind
 import fr.ecole2recte.app.core.model.CloudFile
 import fr.ecole2recte.app.core.model.DataSection
 import fr.ecole2recte.app.core.model.Document
@@ -40,7 +42,7 @@ object SnapshotCodec {
      * numériques et espace de stockage. Un cache d'une version antérieure est ignoré plutôt
      * que réinterprété — il sera reconstruit à la première synchronisation.
      */
-    const val VERSION = 3
+    const val VERSION = 4
 
     fun encode(snapshot: SchoolSnapshot): String = JSONObject().apply {
         put("version", VERSION)
@@ -57,6 +59,7 @@ object SnapshotCodec {
         put("news", snapshot.news.jsonArray(::encodeNews))
         put("textbooks", snapshot.textbooks.jsonArray(::encodeTextbook))
         put("cloudFiles", snapshot.cloudFiles.jsonArray(::encodeCloudFile))
+        put("changes", snapshot.changes.jsonArray(::encodeChange))
         put(
             "syncedAt",
             JSONObject().apply {
@@ -84,6 +87,7 @@ object SnapshotCodec {
                 news = root.optJSONArray("news").decode(::decodeNews),
                 textbooks = root.optJSONArray("textbooks").decode(::decodeTextbook),
                 cloudFiles = root.optJSONArray("cloudFiles").decode(::decodeCloudFile),
+                changes = root.optJSONArray("changes").decode(::decodeChange),
                 syncedAt = decodeSyncedAt(root.optJSONObject("syncedAt")),
             )
         }.getOrNull()
@@ -226,6 +230,16 @@ object SnapshotCodec {
         put("date", session.date.toString())
         put("content", session.content)
         put("attachments", session.attachments.jsonArray(::encodeAttachment))
+    }
+
+    private fun encodeChange(change: Change) = JSONObject().apply {
+        put("id", change.id)
+        put("kind", change.kind.name)
+        put("text", change.text)
+        put("detail", change.detail)
+        put("subject", change.subject)
+        put("noticedOn", change.noticedOn.toString())
+        put("atMillis", change.atMillis)
     }
 
     private fun encodeDocument(document: Document) = JSONObject().apply {
@@ -421,6 +435,21 @@ object SnapshotCodec {
             date = date,
             content = entry.optString("content"),
             attachments = entry.optJSONArray("attachments").decode(::decodeAttachment),
+        )
+    }
+
+    /** Un changement dont le type a disparu d'une version à l'autre est simplement oublié. */
+    private fun decodeChange(entry: JSONObject): Change? {
+        val kind = runCatching { ChangeKind.valueOf(entry.optString("kind")) }.getOrNull() ?: return null
+        val noticedOn = entry.date("noticedOn") ?: return null
+        return Change(
+            id = entry.optString("id"),
+            kind = kind,
+            text = entry.optString("text"),
+            detail = entry.optString("detail"),
+            subject = entry.optString("subject"),
+            noticedOn = noticedOn,
+            atMillis = entry.optLong("atMillis"),
         )
     }
 

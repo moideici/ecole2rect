@@ -383,6 +383,36 @@ enum class DataSection(val label: String, val optional: Boolean = false) {
     }
 }
 
+/** Ce qu'un changement peut être. L'ordre décide de la priorité d'affichage. */
+enum class ChangeKind(val label: String) {
+    LESSON_CANCELED("Cours annulé"),
+    LESSON_MOVED("Cours déplacé"),
+    LESSON_ADDED("Cours ajouté"),
+    LESSON_REMOVED("Cours retiré"),
+    GRADE("Note"),
+    HOMEWORK("Devoir"),
+    MESSAGE("Message"),
+    SCHOOL_LIFE("Vie scolaire"),
+}
+
+/**
+ * Un fait nouveau depuis la dernière synchronisation.
+ *
+ * [id] est stable : c'est lui qui garantit qu'un même changement n'apparaît qu'une fois dans
+ * l'historique, même si dix synchronisations le retrouvent.
+ */
+data class Change(
+    val id: String,
+    val kind: ChangeKind,
+    val text: String,
+    val detail: String = "",
+    val subject: String = "",
+    /** Jour où le changement a été repéré : c'est lui qui groupe la liste. */
+    val noticedOn: LocalDate,
+    /** Instant du repérage, pour l'ordre et pour « il y a vingt minutes ». */
+    val atMillis: Long,
+)
+
 /**
  * Photo complète des données scolaires à un instant donné.
  *
@@ -404,6 +434,13 @@ data class SchoolSnapshot(
     val news: List<NewsItem> = emptyList(),
     val textbooks: List<Textbook> = emptyList(),
     val cloudFiles: List<CloudFile> = emptyList(),
+    /**
+     * Ce qui a changé depuis les dernières synchronisations, le plus récent d'abord.
+     *
+     * L'historique vit dans l'instantané parce qu'il se calcule à partir de lui et se relit
+     * avec lui : widgets et notifications n'ont ainsi rien de plus à charger.
+     */
+    val changes: List<Change> = emptyList(),
     /** Millisecondes epoch de la dernière synchronisation réussie, section par section. */
     val syncedAt: Map<DataSection, Long> = emptyMap(),
 ) {

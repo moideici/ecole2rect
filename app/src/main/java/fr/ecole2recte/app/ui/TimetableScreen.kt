@@ -96,13 +96,15 @@ class TimetableState internal constructor(
     }
 
     companion object {
-        val Saver: Saver<TimetableState, List<String>> = listSaver(
+        // listSaver rend un Saver<Original, Any> : c'est lui qui décide du type enregistré,
+        // pas nous. L'annoter en List<String> ne compile pas.
+        val Saver: Saver<TimetableState, Any> = listSaver<TimetableState, String>(
             save = { listOf(it.selectedDay.toString(), it.weekStart.toString(), it.mode.name) },
-            restore = {
+            restore = { saved ->
                 TimetableState(
-                    day = LocalDate.parse(it[0]),
-                    week = LocalDate.parse(it[1]),
-                    mode = TimetableMode.valueOf(it[2]),
+                    day = LocalDate.parse(saved[0]),
+                    week = LocalDate.parse(saved[1]),
+                    mode = TimetableMode.valueOf(saved[2]),
                 )
             },
         )

@@ -577,6 +577,13 @@ private fun NotificationsSection(
             SettingsSwitch("Nouveaux messages", "Quand un message arrive.", settings.messages) { value ->
                 onChange { it.copy(messages = value) }
             }
+            SettingsSwitch(
+                "Emploi du temps",
+                "Un cours annulé, déplacé ou ajouté.",
+                settings.timetable,
+            ) { value ->
+                onChange { it.copy(timetable = value) }
+            }
             SettingsSwitch("Rappel d'évaluation", "La veille d'un devoir surveillé annoncé.", settings.examReminder) { value ->
                 onChange { it.copy(examReminder = value) }
             }

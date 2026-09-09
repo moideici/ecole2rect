@@ -67,7 +67,8 @@ object SettingsCodec {
                 .put("grades", settings.notifications.grades)
                 .put("homework", settings.notifications.homework)
                 .put("messages", settings.notifications.messages)
-                .put("examReminder", settings.notifications.examReminder),
+                .put("examReminder", settings.notifications.examReminder)
+                .put("timetable", settings.notifications.timetable),
         )
     }.toString()
 
@@ -114,6 +115,7 @@ object SettingsCodec {
                     homework = entry.optBoolean("homework", true),
                     messages = entry.optBoolean("messages", true),
                     examReminder = entry.optBoolean("examReminder", true),
+                    timetable = entry.optBoolean("timetable", true),
                 )
             } ?: NotificationSettings(),
         )

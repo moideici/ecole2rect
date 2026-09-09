@@ -478,6 +478,9 @@ class SchoolRepository(
             _sync.update { it.copy(running = true) }
             var offline = false
             val errors = _sync.value.errors.toMutableMap()
+            // L'état d'avant, gardé le temps de la synchronisation : c'est la seule chose
+            // dont « ce qui a changé » a besoin pour exister.
+            val before = _snapshot.value
             sections.forEach { section ->
                 when (val result = fetch(section, account)) {
                     is ApiResult.Ok -> errors.remove(section)
@@ -500,8 +503,29 @@ class SchoolRepository(
                     }
                 }
             }
+            recordChanges(before)
             withContext(io) { snapshots.write(profile, _snapshot.value) }
             _sync.value = SyncState(running = false, errors = errors.toMap(), offline = offline)
+        }
+    }
+
+    /**
+     * Range dans l'instantané ce qui a bougé depuis [before].
+     *
+     * Le calcul est fait ici, une fois toutes les sections rentrées : le faire section par
+     * section donnerait des demi-vérités — un cours « ajouté » qui n'est que le même cours
+     * déplacé, vu avant que le reste de la journée n'arrive.
+     */
+    private fun recordChanges(before: SchoolSnapshot) {
+        val at = now()
+        _snapshot.update { after ->
+            after.copy(
+                changes = Changes.merge(
+                    existing = after.changes,
+                    fresh = Changes.between(before, after, today(), at),
+                    atMillis = at,
+                ),
+            )
         }
     }
 
