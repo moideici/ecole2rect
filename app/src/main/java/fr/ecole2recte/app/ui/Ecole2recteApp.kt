@@ -320,6 +320,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         settings = settings,
                         sync = sync,
                         now = now,
+                        onAverageTarget = viewModel::setAverageTarget,
                         onRefresh = { viewModel.refresh(setOf(DataSection.GRADES)) },
                         onSearch = { openDetail(Detail.Search) },
                     )

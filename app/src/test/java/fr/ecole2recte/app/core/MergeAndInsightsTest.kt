@@ -4,6 +4,7 @@ import fr.ecole2recte.app.core.model.Grade
 import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.model.Lesson
 import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.model.SchoolSnapshot
 import fr.ecole2recte.app.core.repo.Insights
 import fr.ecole2recte.app.core.repo.Merge
 import fr.ecole2recte.app.core.settings.AppSettings
@@ -133,6 +134,76 @@ class MergeAndInsightsTest {
         // (18×3 + 10×1) / 4 = 16 ; la note non significative est écartée.
         assertEquals(16.0, Insights.weightedAverage(grades)!!, 0.001)
         assertNull(Insights.weightedAverage(emptyList()))
+    }
+
+    // ── Objectif et impact ───────────────────────────────────────────────────
+
+    private val periodGrades = listOf(
+        Grade("1", "Maths", "DS", 16.0, 20.0, 4.0, null, monday, "A001"),
+        Grade("2", "Histoire-géo", "Composition", 10.0, 20.0, 3.0, null, monday, "A001"),
+        Grade("3", "Anglais", "Oral", 14.0, 20.0, 2.0, null, monday, "A001"),
+    )
+
+    private val periodSnapshot = SchoolSnapshot(grades = periodGrades)
+
+    @Test
+    fun `sans objectif fixe, il n y en a pas`() {
+        // L'application n'invente pas un objectif à la place de l'élève.
+        assertNull(Insights.objective(periodSnapshot, monday, target = null))
+    }
+
+    @Test
+    fun `l objectif dit l ecart et la note qui suffirait`() {
+        val objective = Insights.objective(periodSnapshot, monday, target = 15.0)!!
+
+        // (16×4 + 10×3 + 14×2) / 9 = 13,56
+        assertEquals(13.56, objective.current, 0.01)
+        assertEquals(1.44, objective.gap, 0.01)
+
+        // Le levier est la matière où la note demandée est la plus basse : le coefficient
+        // décide, pas la sympathie pour la matière.
+        val lever = objective.lever!!
+        assertEquals("Maths", lever.subject)
+        assertEquals(4.0, lever.coefficient, 0.01)
+        // (15 × 13 − 122) / 4 = 18,25
+        assertEquals(18.25, lever.mark, 0.01)
+    }
+
+    @Test
+    fun `un objectif atteint le dit, sans levier`() {
+        val objective = Insights.objective(periodSnapshot, monday, target = 12.0)!!
+
+        assertTrue(objective.reached)
+        assertEquals(0.0, objective.gap, 0.001)
+    }
+
+    @Test
+    fun `un objectif hors d atteinte ne propose pas un vingt-trois sur vingt`() {
+        val objective = Insights.objective(periodSnapshot, monday, target = 18.0)!!
+
+        // Aucune note seule ne suffirait : l'écran le dit au lieu d'afficher un chiffre
+        // impossible, qui ferait passer la fonctionnalité pour cassée.
+        assertFalse(objective.reached)
+        assertNull(objective.lever)
+    }
+
+    @Test
+    fun `l impact d une note est ce qu elle a vraiment fait a la moyenne`() {
+        val impacts = Insights.impacts(periodGrades)
+
+        // Sans le 10 en histoire-géo : (16×4 + 14×2) / 6 = 15,33, soit 1,78 de plus.
+        assertEquals(-1.78, impacts.getValue("2"), 0.01)
+        // Le 16 en maths, lui, tire la moyenne vers le haut.
+        assertTrue(impacts.getValue("1") > 0)
+        // La somme des trois ne vaut rien de particulier, mais aucun impact n'est nul ici.
+        assertEquals(3, impacts.size)
+    }
+
+    @Test
+    fun `une note seule n a pas d impact mesurable`() {
+        // « Sans elle » n'existe pas : la question n'a pas de réponse, et inventer zéro
+        // laisserait croire qu'elle ne compte pas.
+        assertEquals(emptyMap<String, Double>(), Insights.impacts(periodGrades.take(1)))
     }
 
     @Test

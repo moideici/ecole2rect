@@ -75,6 +75,7 @@ fun GradesScreen(
     settings: AppSettings,
     sync: SyncState,
     now: LocalDateTime,
+    onAverageTarget: (Double?) -> Unit,
     onRefresh: () -> Unit,
     onSearch: () -> Unit = {},
 ) {
@@ -91,6 +92,9 @@ fun GradesScreen(
     val subjectAverages = snapshot.subjectAverages.filter { selectedCode == null || it.periodCode == selectedCode }
     val computedBySubject = Insights.averagesBySubject(grades)
     val subjects = (subjectAverages.map { it.subject } + grades.map { it.subject }).distinct().sorted()
+    // Calculé une fois pour toute la période : l'impact d'une note se mesure sur l'ensemble,
+    // pas sur sa seule matière, et le recalculer par carte serait à la fois faux et coûteux.
+    val impacts = Insights.impacts(grades)
 
     LazyColumn(contentPadding = PaddingValues(bottom = 28.dp)) {
         item {
@@ -204,6 +208,13 @@ fun GradesScreen(
         }
 
         if (grades.isNotEmpty()) {
+            item("objectif") {
+                ObjectiveCard(
+                    objective = Insights.objective(snapshot, now.toLocalDate(), settings.averageTarget),
+                    target = settings.averageTarget,
+                    onTarget = onAverageTarget,
+                )
+            }
             item("history") { HistoryCard(Insights.averageHistory(grades)) }
             item("simulator") { SimulatorCard(snapshot, settings, subjects, now.toLocalDate()) }
         }
@@ -228,7 +239,85 @@ fun GradesScreen(
                 average = detail?.average ?: computedBySubject[subject],
                 detail = detail,
                 grades = grades.filter { it.subject == subject },
+                impacts = impacts,
             )
+        }
+    }
+}
+
+/** En deçà, l'impact d'une note se perd dans l'arrondi et n'apprend rien. */
+private const val IMPACT_THRESHOLD = 0.05
+
+/** Les paliers d'objectif proposés : de « je veux la moyenne » aux mentions. */
+private val AVERAGE_TARGETS = listOf(10.0, 12.0, 14.0, 15.0, 16.0, 18.0)
+
+/**
+ * L'objectif de la période, et ce qui le comble.
+ *
+ * Un écart seul — « il manque 0,2 » — ne dit pas quoi faire. Le levier le dit : dans quelle
+ * matière une bonne note rapporterait le plus, et laquelle suffirait. C'est le coefficient
+ * qui décide, pas la sympathie qu'on porte à la matière.
+ *
+ * Sans objectif fixé, la carte ne fait que le proposer : l'application n'en invente pas un à
+ * la place de l'élève.
+ */
+@Composable
+private fun ObjectiveCard(
+    objective: Insights.Objective?,
+    target: Double?,
+    onTarget: (Double?) -> Unit,
+) {
+    Box(Modifier.padding(horizontal = ScreenPadding, vertical = 5.dp)) {
+        AppCard {
+            Text("OBJECTIF DE LA PÉRIODE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(8.dp))
+            if (objective == null) {
+                Text("Aucun objectif fixé", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Choisis une moyenne visée : l'application dira ce qu'il faut obtenir pour l'atteindre.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        if (objective.reached) "Atteint" else "Il manque ${formatGrade(objective.gap)}",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (objective.reached) AppTheme.palette.success else MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Tag("${formatGrade(objective.current)} / ${formatGrade(objective.target)}")
+                }
+                Spacer(Modifier.height(10.dp))
+                ProgressBar(fraction = (objective.current / objective.target).toFloat().coerceIn(0f, 1f))
+                objective.lever?.takeIf { !objective.reached }?.let { lever ->
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Un ${formatGrade(lever.mark)} en ${lever.subject} " +
+                            "(coef. ${formatGrade(lever.coefficient)}) suffirait.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                if (objective.lever == null && !objective.reached) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        // Mieux vaut le dire que de proposer un 23 sur 20.
+                        "Aucune note seule ne suffirait à l'atteindre : il y faudra plusieurs devoirs.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item("aucun") { FilterPill("Aucun", selected = target == null) { onTarget(null) } }
+                items(AVERAGE_TARGETS, key = { it.toString() }) { value ->
+                    FilterPill(
+                        text = value.toInt().toString(),
+                        selected = target != null && kotlin.math.abs(target - value) < 0.01,
+                    ) { onTarget(value) }
+                }
+            }
         }
     }
 }
@@ -461,6 +550,7 @@ private fun SubjectCard(
     average: Double?,
     detail: SubjectAverage?,
     grades: List<Grade>,
+    impacts: Map<String, Double>,
 ) {
     val teachers = detail?.teachers.orEmpty().ifEmpty { listOfNotNull(detail?.teacher?.takeIf { it.isNotBlank() }) }
     val appreciation = detail?.appreciation.orEmpty()
@@ -520,7 +610,7 @@ private fun SubjectCard(
                     }
                     grades.forEach { grade ->
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        GradeRow(grade)
+                        GradeRow(grade, impacts[grade.id])
                     }
                     if (grades.isEmpty()) {
                         Text(
@@ -546,7 +636,7 @@ private fun skillColor(value: Int?): androidx.compose.ui.graphics.Color = when (
 }
 
 @Composable
-private fun GradeRow(grade: Grade) {
+private fun GradeRow(grade: Grade, impact: Double?) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -608,6 +698,20 @@ private fun GradeRow(grade: Grade) {
                     "Non comptée dans la moyenne",
                     style = MaterialTheme.typography.bodySmall,
                     color = AppTheme.palette.warning,
+                )
+            }
+            // Ce que cette note a réellement fait à la moyenne générale — la question qu'on
+            // se pose devant un bulletin, et à laquelle un coefficient seul ne répond pas.
+            if (impact != null && kotlin.math.abs(impact) >= IMPACT_THRESHOLD) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (impact > 0) {
+                        "A tiré la moyenne de +${formatGrade(impact)}"
+                    } else {
+                        "A coûté ${formatGrade(impact)} à la moyenne"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (impact > 0) AppTheme.palette.success else AppTheme.palette.warning,
                 )
             }
         }

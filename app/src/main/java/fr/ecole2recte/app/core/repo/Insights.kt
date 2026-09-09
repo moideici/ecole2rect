@@ -271,6 +271,28 @@ object Insights {
     }
 
     /**
+     * Ce que chaque note a fait à la moyenne générale, en points sur 20.
+     *
+     * La question que tout le monde se pose devant un bulletin — « ce 8 en histoire, ça m'a
+     * coûté combien ? » — et à laquelle un coefficient seul ne répond pas : un 8 de coefficient
+     * 1 dans une matière où l'on a déjà dix notes ne pèse presque rien, un 8 de coefficient 4
+     * dans une période qui en compte cinq pèse lourd.
+     *
+     * La réponse est exacte, pas estimée : c'est la différence entre la moyenne telle qu'elle
+     * est et la moyenne qu'elle serait si cette note n'existait pas.
+     */
+    fun impacts(grades: List<Grade>): Map<String, Double> {
+        val usable = grades.filter { it.counted && it.value != null && it.scale > 0 && it.coefficient > 0 }
+        // Avec une seule note, la question n'a pas de sens : il n'y a pas de « sans elle ».
+        if (usable.size < 2) return emptyMap()
+        val overall = weightedAverage(usable) ?: return emptyMap()
+        return usable.associate { grade ->
+            val without = weightedAverage(usable.filterNot { it.id == grade.id }) ?: overall
+            grade.id to (overall - without)
+        }
+    }
+
+    /**
      * Un objectif de moyenne, et ce qu'il faudrait pour l'atteindre.
      *
      * Un écart seul — « il manque 0,2 » — ne dit pas quoi faire. Le levier le dit : dans
