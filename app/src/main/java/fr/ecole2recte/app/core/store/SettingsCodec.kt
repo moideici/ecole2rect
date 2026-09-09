@@ -42,6 +42,7 @@ object SettingsCodec {
         put("doneHomework", JSONArray(settings.doneHomework.toList()))
         put("undoneHomework", JSONArray(settings.undoneHomework.toList()))
         put("readMessages", JSONArray(settings.readMessages.toList()))
+        put("binnedMessages", JSONArray(settings.binnedMessages.toList()))
         settings.selectedAccountId?.let { put("selectedAccountId", it) }
         put("showDiagnostics", settings.showDiagnostics)
         put("biometricLock", settings.biometricLock)
@@ -92,6 +93,7 @@ object SettingsCodec {
             doneHomework = root.optJSONArray("doneHomework").stringSet(),
             undoneHomework = root.optJSONArray("undoneHomework").stringSet(),
             readMessages = root.optJSONArray("readMessages").stringSet(),
+            binnedMessages = root.optJSONArray("binnedMessages").stringSet(),
             selectedAccountId = root.optString("selectedAccountId").takeIf { it.isNotBlank() },
             showDiagnostics = root.optBoolean("showDiagnostics", false),
             biometricLock = root.optBoolean("biometricLock", false),

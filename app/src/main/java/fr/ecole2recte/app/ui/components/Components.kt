@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -395,6 +396,31 @@ fun SectionError(message: String, onRetry: (() -> Unit)? = null) {
                         .size(20.dp),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Une précision que l'écran doit donner sans alarmer : ni erreur, ni action, juste ce qu'il
+ * faut savoir pour ne pas se méprendre sur ce que fait l'application.
+ */
+@Composable
+fun NoticeCard(message: String) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ScreenPadding, vertical = 6.dp),
+        shape = SmallCardShape,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    ) {
+        Row(
+            Modifier.padding(14.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(Icons.Outlined.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(message, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

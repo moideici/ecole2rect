@@ -27,9 +27,13 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +50,7 @@ import fr.ecole2recte.app.core.repo.SyncState
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.ui.components.AppCard
 import fr.ecole2recte.app.ui.components.FilterPill
+import fr.ecole2recte.app.ui.components.LoadingRow
 import fr.ecole2recte.app.ui.components.ProgressBar
 import fr.ecole2recte.app.ui.components.RoundIconButton
 import fr.ecole2recte.app.ui.components.ScreenHeader
@@ -59,7 +64,54 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 
-private enum class TimetableMode(val label: String) { DAY("Jour"), WEEK("Semaine") }
+enum class TimetableMode(val label: String) { DAY("Jour"), WEEK("Semaine") }
+
+/**
+ * Ce que l'écran doit retrouver quand on en revient.
+ *
+ * L'état vivait dans l'écran ; ouvrir un devoir le sortait de la composition, et le retour
+ * ramenait sur aujourd'hui au lieu du jour qu'on regardait. Il est donc tenu au-dessus de la
+ * fiche de détail, et enregistré : une rotation ne le perd pas non plus.
+ */
+@Stable
+class TimetableState internal constructor(
+    day: LocalDate,
+    week: LocalDate = Dates.startOfWeek(day),
+    mode: TimetableMode = TimetableMode.DAY,
+) {
+    var mode by mutableStateOf(mode)
+    var weekStart by mutableStateOf(week)
+    var selectedDay by mutableStateOf(day)
+
+    /** Montrer un jour, c'est aussi ouvrir la semaine qui le contient. */
+    fun showDay(day: LocalDate) {
+        selectedDay = day
+        weekStart = Dates.startOfWeek(day)
+    }
+
+    /** Changer de semaine amène sur son lundi : c'est le repère de la vue semaine. */
+    fun showWeek(start: LocalDate) {
+        weekStart = start
+        selectedDay = start
+    }
+
+    companion object {
+        val Saver: Saver<TimetableState, List<String>> = listSaver(
+            save = { listOf(it.selectedDay.toString(), it.weekStart.toString(), it.mode.name) },
+            restore = {
+                TimetableState(
+                    day = LocalDate.parse(it[0]),
+                    week = LocalDate.parse(it[1]),
+                    mode = TimetableMode.valueOf(it[2]),
+                )
+            },
+        )
+    }
+}
+
+@Composable
+fun rememberTimetableState(today: LocalDate): TimetableState =
+    rememberSaveable(saver = TimetableState.Saver) { TimetableState(today) }
 
 /** Le jour d'école suivant : le dimanche n'existe pas dans un emploi du temps. */
 private fun nextSchoolDay(date: LocalDate): LocalDate =
@@ -74,27 +126,39 @@ private fun previousSchoolDay(date: LocalDate): LocalDate =
  * Deux lectures : la journée, heure par heure, avec ses trous et les devoirs à rendre pour
  * chaque cours ; et la semaine, pour choisir où regarder. Le cours en cours est toujours
  * repérable d'un coup d'œil, et un cours annulé se voit sans se lire.
+ *
+ * Une seule semaine est chargée à la fois : ouvrir une semaine qu'on n'a pas encore vue la
+ * demande, et la barre de chargement dit qu'elle arrive plutôt que de laisser croire au vide.
  */
 @Composable
 fun TimetableScreen(
+    state: TimetableState,
     snapshot: SchoolSnapshot,
     settings: AppSettings,
     sync: SyncState,
     now: LocalDateTime,
+    loadingWeeks: Set<LocalDate>,
+    onLoadWeek: (LocalDate) -> Unit,
     onOpenLesson: (Lesson) -> Unit,
     onOpenHomework: (HomeworkItem) -> Unit,
-    onRefresh: () -> Unit,
+    onRefreshWeek: (LocalDate) -> Unit,
     onSearch: () -> Unit = {},
 ) {
     val today = now.toLocalDate()
-    var mode by remember { mutableStateOf(TimetableMode.DAY) }
-    var weekStart by remember { mutableStateOf(Dates.startOfWeek(today)) }
-    var selectedDay by remember { mutableStateOf(today) }
+    val mode = state.mode
+    val weekStart = state.weekStart
+    val selectedDay = state.selectedDay
+    val loading = weekStart in loadingWeeks
+    val onRefresh: () -> Unit = { onRefreshWeek(weekStart) }
 
     val week = Insights.week(snapshot.lessons, weekStart)
     val summary = Insights.daySummary(snapshot.lessons, selectedDay)
     val lessons = Insights.lessonsOn(snapshot.lessons, selectedDay)
     val homework = Insights.homeworkDueOn(snapshot.homework, selectedDay)
+
+    // Changer de semaine la demande, une fois. Le dépôt ignore une semaine déjà connue,
+    // donc revenir en arrière n'appelle rien.
+    LaunchedEffect(weekStart) { onLoadWeek(weekStart) }
 
     // Balayer horizontalement change de jour, comme dans un agenda. Le samedi mène au lundi
     // suivant : personne n'a cours le dimanche, et une journée vide n'est pas une étape.
@@ -105,11 +169,9 @@ fun TimetableScreen(
             onDragStart = { travelled = 0f },
             onDragEnd = {
                 if (mode == TimetableMode.DAY && kotlin.math.abs(travelled) > threshold) {
-                    val target = if (travelled < 0) nextSchoolDay(selectedDay) else previousSchoolDay(selectedDay)
-                    selectedDay = target
-                    if (target.isBefore(weekStart) || target.isAfter(weekStart.plusDays(5))) {
-                        weekStart = Dates.startOfWeek(target)
-                    }
+                    state.showDay(
+                        if (travelled < 0) nextSchoolDay(selectedDay) else previousSchoolDay(selectedDay),
+                    )
                 }
             },
         ) { _, amount -> travelled += amount }
@@ -147,7 +209,7 @@ fun TimetableScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TimetableMode.entries.forEach { entry ->
-                    FilterPill(entry.label, selected = mode == entry) { mode = entry }
+                    FilterPill(entry.label, selected = mode == entry) { state.mode = entry }
                 }
                 Spacer(Modifier.weight(1f))
                 // Les flèches suivent le mode affiché : en « Jour » elles avancent d'un
@@ -158,31 +220,18 @@ fun TimetableScreen(
                     Icons.Outlined.ChevronLeft,
                     if (byDay) "Jour précédent" else "Semaine précédente",
                 ) {
-                    if (byDay) {
-                        val target = previousSchoolDay(selectedDay)
-                        selectedDay = target
-                        weekStart = Dates.startOfWeek(target)
-                    } else {
-                        weekStart = weekStart.minusWeeks(1)
-                        selectedDay = weekStart
-                    }
+                    if (byDay) state.showDay(previousSchoolDay(selectedDay))
+                    else state.showWeek(weekStart.minusWeeks(1))
                 }
                 RoundIconButton(Icons.Outlined.CalendarMonth, "Revenir à aujourd'hui") {
-                    weekStart = Dates.startOfWeek(today)
-                    selectedDay = today
+                    state.showDay(today)
                 }
                 RoundIconButton(
                     Icons.Outlined.ChevronRight,
                     if (byDay) "Jour suivant" else "Semaine suivante",
                 ) {
-                    if (byDay) {
-                        val target = nextSchoolDay(selectedDay)
-                        selectedDay = target
-                        weekStart = Dates.startOfWeek(target)
-                    } else {
-                        weekStart = weekStart.plusWeeks(1)
-                        selectedDay = weekStart
-                    }
+                    if (byDay) state.showDay(nextSchoolDay(selectedDay))
+                    else state.showWeek(weekStart.plusWeeks(1))
                 }
             }
         }
@@ -191,15 +240,24 @@ fun TimetableScreen(
             item("error") { SectionError(error, onRefresh) }
         }
 
+        if (loading) {
+            item("loading") {
+                Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
+                    LoadingRow("Chargement de la semaine…")
+                }
+            }
+        }
+
         when (mode) {
             TimetableMode.WEEK -> weekContent(
                 week = week,
                 snapshot = snapshot,
                 settings = settings,
                 today = today,
+                loading = loading,
                 onSelectDay = { day ->
-                    selectedDay = day
-                    mode = TimetableMode.DAY
+                    state.selectedDay = day
+                    state.mode = TimetableMode.DAY
                 },
                 onRefresh = onRefresh,
             )
@@ -214,7 +272,8 @@ fun TimetableScreen(
                 now = now,
                 weekStart = weekStart,
                 selectedDay = selectedDay,
-                onSelectDay = { selectedDay = it },
+                loading = loading,
+                onSelectDay = { state.selectedDay = it },
                 onOpenLesson = onOpenLesson,
                 onOpenHomework = onOpenHomework,
                 onRefresh = onRefresh,
@@ -234,6 +293,7 @@ private fun LazyListScope.dayContent(
     now: LocalDateTime,
     weekStart: LocalDate,
     selectedDay: LocalDate,
+    loading: Boolean,
     onSelectDay: (LocalDate) -> Unit,
     onOpenLesson: (Lesson) -> Unit,
     onOpenHomework: (HomeworkItem) -> Unit,
@@ -267,18 +327,20 @@ private fun LazyListScope.dayContent(
     }
 
     if (lessons.isEmpty()) {
-        item("empty") {
-            StatePlaceholder(
-                icon = Icons.Outlined.CalendarMonth,
-                title = "Aucun cours ce jour-là",
-                description = if (snapshot.lessons.isEmpty()) {
-                    "L'emploi du temps n'a pas encore été synchronisé."
-                } else {
-                    "Journée libre, ou emploi du temps non publié pour cette date."
-                },
-                actionLabel = "Synchroniser",
-                onAction = onRefresh,
-            )
+        if (!loading) {
+            item("empty") {
+                StatePlaceholder(
+                    icon = Icons.Outlined.CalendarMonth,
+                    title = "Aucun cours ce jour-là",
+                    description = if (snapshot.lessons.isEmpty()) {
+                        "L'emploi du temps n'a pas encore été synchronisé."
+                    } else {
+                        "Journée libre, ou emploi du temps non publié pour cette date."
+                    },
+                    actionLabel = "Synchroniser",
+                    onAction = onRefresh,
+                )
+            }
         }
     } else {
         // La grille remplace la liste : un cours de trois heures y est trois fois plus haut
@@ -342,10 +404,14 @@ private fun LazyListScope.weekContent(
     snapshot: SchoolSnapshot,
     settings: AppSettings,
     today: LocalDate,
+    loading: Boolean,
     onSelectDay: (LocalDate) -> Unit,
     onRefresh: () -> Unit,
 ) {
     if (week.all { it.isEmpty }) {
+        // Une semaine qui n'est pas encore arrivée n'est pas une semaine vide : la barre
+        // de chargement le dit déjà au-dessus, inutile d'annoncer un creux qui n'existe pas.
+        if (loading) return
         item("week-empty") {
             StatePlaceholder(
                 icon = Icons.Outlined.CalendarMonth,

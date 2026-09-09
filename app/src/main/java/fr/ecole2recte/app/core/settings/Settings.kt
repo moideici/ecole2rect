@@ -183,6 +183,14 @@ data class AppSettings(
     val doneHomework: Set<String> = emptySet(),
     val undoneHomework: Set<String> = emptySet(),
     val readMessages: Set<String> = emptySet(),
+    /**
+     * Conversations rangées à la Corbeille, par identifiant.
+     *
+     * Purement local : ÉcoleDirecte n'offre aucune suppression, et l'application n'écrit
+     * rien pour autant. C'est un classement pour s'y retrouver, pas un effacement — la
+     * Corbeille le dit d'ailleurs en toutes lettres.
+     */
+    val binnedMessages: Set<String> = emptySet(),
     val selectedAccountId: String? = null,
     /** Affiche les diagnostics réseau sur l'écran de connexion et dans les réglages. */
     val showDiagnostics: Boolean = false,
@@ -271,6 +279,12 @@ data class AppSettings(
     fun isMessageRead(id: String, remoteRead: Boolean): Boolean = remoteRead || id in readMessages
 
     fun withMessageRead(id: String): AppSettings = copy(readMessages = readMessages + id)
+
+    fun isMessageBinned(id: String): Boolean = id in binnedMessages
+
+    /** Range une conversation à la Corbeille, ou l'en ressort. Rien ne quitte l'appareil. */
+    fun withMessageBinned(id: String, binned: Boolean): AppSettings =
+        copy(binnedMessages = if (binned) binnedMessages + id else binnedMessages - id)
 
     private companion object {
         const val MAX_NOTIFIED = 400

@@ -196,10 +196,17 @@ data class SubjectAverage(
  * ÉcoleDirecte range les messages en trois dossiers, et l'application n'en lisait qu'un :
  * un message envoyé depuis le site n'existait tout simplement pas ici.
  */
+/**
+ * Les trois dossiers de la messagerie.
+ *
+ * [ARCHIVED] s'appelle « Corbeille » dans l'application : ÉcoleDirecte ne sait pas supprimer
+ * une conversation, et l'application ne le fera pas semblant. La Corbeille range les messages
+ * archivés côté serveur et ceux qu'on y met soi-même, sans que rien ne parte au serveur.
+ */
 enum class MessageFolder(val label: String, val apiValue: String) {
     RECEIVED("Reçus", "received"),
     SENT("Envoyés", "sent"),
-    ARCHIVED("Archivés", "archived"),
+    ARCHIVED("Corbeille", "archived"),
 }
 
 /** Un message de la messagerie. */

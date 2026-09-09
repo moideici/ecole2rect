@@ -72,6 +72,7 @@ class SettingsTest {
             subjectColors = mapOf("maths" to 0xFF112233),
             doneHomework = setOf("901"),
             readMessages = setOf("3001"),
+            binnedMessages = setOf("3002"),
             selectedAccountId = "4242",
             showDiagnostics = true,
         ).move(HomeWidget.MESSAGES, -2)
@@ -82,12 +83,24 @@ class SettingsTest {
         assertEquals(settings.subjectColors, restored.subjectColors)
         assertEquals(settings.orderedWidgets, restored.orderedWidgets)
         assertEquals(settings.doneHomework, restored.doneHomework)
+        assertEquals(settings.binnedMessages, restored.binnedMessages)
         assertEquals("4242", restored.selectedAccountId)
         assertTrue(restored.showDiagnostics)
 
         // Un fichier corrompu redonne les réglages par défaut, jamais une exception.
         assertEquals(AppSettings(), SettingsCodec.decode("ceci n'est pas du JSON"))
         assertEquals(ThemeChoice.SYSTEM, SettingsCodec.decode("""{"theme":"NEON"}""").theme)
+    }
+
+    @Test
+    fun `la corbeille range sans rien supprimer, et se defait`() {
+        val binned = AppSettings().withMessageBinned("3001", binned = true)
+
+        assertTrue(binned.isMessageBinned("3001"))
+        assertFalse(binned.isMessageBinned("3002"))
+        // Rien d'irréversible : ÉcoleDirecte ne sait pas supprimer une conversation, et
+        // l'application ne fait donc que la ranger.
+        assertFalse(binned.withMessageBinned("3001", binned = false).isMessageBinned("3001"))
     }
 
     @Test

@@ -68,6 +68,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val errorLog = repository.errorLog.entries
     val autoAnswer = repository.autoAnswer
     val messagesComplete = repository.messagesComplete
+    val loadingWeeks = repository.loadingWeeks
     val messageFolder = repository.messageFolder
     val loadingMoreMessages = repository.loadingMoreMessages
 
@@ -181,12 +182,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refresh()
     }
 
+    /**
+     * Ouvre une semaine de l'emploi du temps. Elle n'est demandée qu'une fois : revenir sur
+     * une semaine déjà consultée n'appelle plus rien.
+     */
+    fun loadWeek(weekStart: LocalDate) {
+        viewModelScope.launch { repository.loadWeek(weekStart) }
+    }
+
+    /** Le bouton de synchronisation de l'emploi du temps : il porte sur la semaine affichée. */
+    fun refreshWeek(weekStart: LocalDate) {
+        viewModelScope.launch { repository.loadWeek(weekStart, force = true) }
+    }
+
     fun loadHomeworkDetails(date: LocalDate) {
         viewModelScope.launch { repository.loadHomeworkDetails(date) }
     }
 
     fun openMessage(message: MessageItem) {
         viewModelScope.launch { repository.openMessage(message) }
+    }
+
+    /**
+     * Range une conversation à la Corbeille, ou l'en ressort.
+     *
+     * Le geste ne quitte pas l'appareil : ÉcoleDirecte ne sait pas supprimer une
+     * conversation, et l'application n'écrit rien pour faire croire le contraire.
+     */
+    fun binMessage(message: MessageItem, binned: Boolean) {
+        updateSettings { it.withMessageBinned(message.id, binned) }
     }
 
     fun toggleHomework(item: HomeworkItem) {

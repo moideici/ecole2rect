@@ -71,8 +71,12 @@ object Insights {
     ): HomeworkItem? = pendingHomework(homework, settings, today)
         .minWithOrNull(compareBy({ it.dueDate }, { if (it.exam) 0 else 1 }))
 
+    /**
+     * Les non-lus, corbeille exclue : ranger une conversation, c'est justement dire qu'on
+     * ne veut plus la voir compter — dans l'onglet, dans les widgets, dans les notifications.
+     */
     fun unreadMessages(messages: List<MessageItem>, settings: AppSettings): List<MessageItem> =
-        messages.filterNot { settings.isMessageRead(it.id, it.read) }
+        messages.filterNot { settings.isMessageRead(it.id, it.read) || settings.isMessageBinned(it.id) }
 
     /** Notes de la période, les plus récentes d'abord. */
     fun gradesForPeriod(grades: List<Grade>, periodCode: String?): List<Grade> =

@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.time.DayOfWeek
 import java.time.LocalDate
 
 /** Où en est la connexion — l'interface n'a besoin de rien d'autre pour décider quoi afficher. */
@@ -126,7 +127,7 @@ class SchoolRepository(
     private val _loadingMore = MutableStateFlow(false)
     val loadingMoreMessages: StateFlow<Boolean> = _loadingMore.asStateFlow()
 
-    /** Dossier de messagerie affiché : reçus, envoyés ou archivés. */
+    /** Dossier de messagerie affiché : reçus, envoyés ou corbeille. */
     private val _messageFolder = MutableStateFlow(MessageFolder.RECEIVED)
     val messageFolder: StateFlow<MessageFolder> = _messageFolder.asStateFlow()
 
@@ -139,6 +140,19 @@ class SchoolRepository(
 
     /** Jours dont le détail (devoirs et contenu de séance) a déjà été demandé. */
     private val loadedDays = mutableSetOf<LocalDate>()
+
+    /**
+     * Semaines dont l'emploi du temps a déjà été demandé, repérées par leur lundi.
+     *
+     * Charger trois semaines d'avance à chaque synchronisation faisait payer à tout le monde
+     * ce que presque personne ne regarde. On ne charge que la semaine ouverte ; les autres
+     * arrivent quand on y va.
+     */
+    private val loadedWeeks = mutableSetOf<LocalDate>()
+
+    /** Semaines en cours de chargement : l'écran y affiche une barre plutôt qu'un vide. */
+    private val _loadingWeeks = MutableStateFlow<Set<LocalDate>>(emptySet())
+    val loadingWeeks: StateFlow<Set<LocalDate>> = _loadingWeeks.asStateFlow()
 
     /** Profil dont le cache est actuellement chargé — l'identifiant du compte suivi. */
     private var profile: String? = null
@@ -424,6 +438,7 @@ class SchoolRepository(
         withContext(io) { snapshots.write(profile, _snapshot.value) }
         profile = account.id
         loadedDays.clear()
+        loadedWeeks.clear()
         resetMessages()
         _auth.value = AuthState.SignedIn(account, state.accounts)
         _snapshot.value = withContext(io) { snapshots.read(account.id) }
@@ -446,6 +461,7 @@ class SchoolRepository(
         _snapshot.value = SchoolSnapshot()
         _sync.value = SyncState()
         loadedDays.clear()
+        loadedWeeks.clear()
         resetMessages()
         _auth.value = AuthState.SignedOut
     }
@@ -491,16 +507,10 @@ class SchoolRepository(
 
     private suspend fun fetch(section: DataSection, account: Account): ApiResult<Unit> = when (section) {
         DataSection.TIMETABLE -> {
-            val from = Dates.startOfWeek(today())
-            val to = from.plusDays(TIMETABLE_WINDOW_DAYS)
-            withSession { api.timetable(account.id, from, to) }.onOk { lessons ->
-                _snapshot.update {
-                    it.copy(
-                        lessons = Merge.lessons(it.lessons, lessons, from, to),
-                        syncedAt = it.syncedAt + (section to now()),
-                    )
-                }
-            }
+            // Une synchronisation explicite redemande ce qu'elle affiche : les semaines déjà
+            // vues sont oubliées ici pour être rechargées quand on y retournera.
+            loadedWeeks.clear()
+            fetchWeeks(account, openingWeeks())
         }
 
         DataSection.HOMEWORK -> withSession { api.homework(account.id) }.onOk { items ->
@@ -524,7 +534,7 @@ class SchoolRepository(
         }
 
         // La synchronisation ne rafraîchit que les messages reçus : les envoyés et les
-        // archivés se chargent quand on ouvre leur onglet, et ne changent pas tout seuls.
+        // la corbeille se chargent quand on ouvre leur onglet, et ne changent pas tout seuls.
         DataSection.MESSAGES -> withSession { api.messages(account, page = 0) }.onOk { messages ->
             pages[MessageFolder.RECEIVED] = 0
             setComplete(MessageFolder.RECEIVED, messages.size < EcoleDirecteApi.MESSAGES_PER_PAGE)
@@ -643,6 +653,77 @@ class SchoolRepository(
      */
     suspend fun downloadAttachment(attachment: Attachment): ApiResult<DownloadedFile> =
         withSession { api.downloadAttachment(attachment) }
+
+    // ── Emploi du temps ──────────────────────────────────────────────────────
+
+    /**
+     * Les semaines à charger à l'ouverture : celle d'aujourd'hui, et la suivante dès le
+     * vendredi. Sans quoi « demain » et l'écran d'accueil seraient vides tout le week-end.
+     */
+    private fun openingWeeks(): List<LocalDate> {
+        val current = Dates.startOfWeek(today())
+        val weekendAhead = today().dayOfWeek.value >= DayOfWeek.FRIDAY.value
+        return if (weekendAhead) listOf(current, current.plusWeeks(1)) else listOf(current)
+    }
+
+    /** Charge plusieurs semaines à la suite ; la première qui échoue décide du résultat. */
+    private suspend fun fetchWeeks(account: Account, weeks: List<LocalDate>): ApiResult<Unit> {
+        var outcome: ApiResult<Unit> = ApiResult.Ok(Unit)
+        weeks.forEach { week ->
+            val result = fetchWeek(account, week)
+            if (result is ApiResult.Failure && outcome is ApiResult.Ok) outcome = result
+        }
+        return outcome
+    }
+
+    /** Une semaine, du lundi au samedi — le dimanche n'a jamais de cours. */
+    private suspend fun fetchWeek(account: Account, weekStart: LocalDate): ApiResult<Unit> {
+        val to = weekStart.plusDays(TIMETABLE_WEEK_DAYS)
+        return withSession { api.timetable(account.id, weekStart, to) }.onOk { lessons ->
+            loadedWeeks += weekStart
+            _snapshot.update {
+                it.copy(
+                    // Merge conserve ce qui est hors de la fenêtre : charger une semaine
+                    // n'efface donc pas celles qu'on a déjà consultées.
+                    lessons = Merge.lessons(it.lessons, lessons, weekStart, to),
+                    syncedAt = it.syncedAt + (DataSection.TIMETABLE to now()),
+                )
+            }
+        }
+    }
+
+    /**
+     * Charge l'emploi du temps d'une semaine quand on l'ouvre, et une seule fois.
+     *
+     * [force] redemande une semaine déjà connue : c'est ce que fait le bouton de
+     * synchronisation de l'écran, qui porte sur la semaine affichée et non sur aujourd'hui.
+     */
+    suspend fun loadWeek(weekStart: LocalDate, force: Boolean = false) {
+        val account = currentAccount ?: return
+        val monday = Dates.startOfWeek(weekStart)
+        if (monday in _loadingWeeks.value) return
+        if (!force && monday in loadedWeeks) return
+        _loadingWeeks.update { it + monday }
+        try {
+            when (val result = fetchWeek(account, monday)) {
+                is ApiResult.Ok -> _sync.update { it.copy(errors = it.errors - DataSection.TIMETABLE) }
+                is ApiResult.Failure -> {
+                    if (result.kind != ApiErrorKind.NETWORK) {
+                        errorLog.record(DataSection.TIMETABLE.label, result.message, result.diagnostic)
+                    }
+                    _sync.update {
+                        it.copy(
+                            errors = it.errors + (DataSection.TIMETABLE to result.message),
+                            offline = it.offline || result.kind == ApiErrorKind.NETWORK,
+                        )
+                    }
+                }
+            }
+            withContext(io) { snapshots.write(profile, _snapshot.value) }
+        } finally {
+            _loadingWeeks.update { it - monday }
+        }
+    }
 
     /**
      * Charge le contenu détaillé des devoirs d'un jour, à l'ouverture d'une fiche.
@@ -804,8 +885,8 @@ class SchoolRepository(
     }
 
     private companion object {
-        /** Trois semaines : la semaine en cours et les deux suivantes, comme le site web. */
-        const val TIMETABLE_WINDOW_DAYS = 20L
+        /** Du lundi au samedi : le dimanche n'a jamais de cours, le demander est du bruit. */
+        const val TIMETABLE_WEEK_DAYS = 5L
     }
 }
 

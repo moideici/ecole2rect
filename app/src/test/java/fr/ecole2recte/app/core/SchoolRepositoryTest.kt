@@ -103,6 +103,81 @@ class SchoolRepositoryTest {
         assertTrue("le cache doit être écrit après la synchronisation", snapshots.writes > 0)
     }
 
+    // ── Emploi du temps, semaine par semaine ─────────────────────────────────
+
+    /** Les corps de requête d'emploi du temps, dans l'ordre où ils sont partis. */
+    private fun FakeHttpEngine.timetableCalls(): List<String> =
+        requests.filter { "emploidutemps" in it.url }.mapNotNull { it.body }
+
+    @Test
+    fun `la synchronisation ne demande qu une semaine d emploi du temps`() = runTest {
+        val engine = fullEngine()
+        val repository = repository(engine)
+
+        repository.start()
+        repository.refresh()
+
+        val calls = engine.timetableCalls()
+        assertEquals(1, calls.size)
+        // Du lundi au samedi : demander le dimanche ne rapporte jamais rien.
+        assertTrue(calls.single(), calls.single().contains("2026-09-07"))
+        assertTrue(calls.single(), calls.single().contains("2026-09-12"))
+    }
+
+    @Test
+    fun `ouvrir une semaine non chargee la demande, et une seule fois`() = runTest {
+        val engine = fullEngine()
+        val repository = repository(engine)
+        repository.start()
+        repository.refresh()
+
+        val next = today.plusWeeks(1)
+        repository.loadWeek(next)
+        repository.loadWeek(next)
+
+        val calls = engine.timetableCalls()
+        assertEquals("la semaine déjà chargée ne doit pas être redemandée", 2, calls.size)
+        assertTrue(calls[1], calls[1].contains("2026-09-14"))
+        // La semaine en cours reste connue : charger la suivante n'efface rien.
+        assertEquals(2, repository.snapshot.value.lessons.size)
+    }
+
+    @Test
+    fun `le bouton de synchronisation redemande la semaine affichee`() = runTest {
+        val engine = fullEngine()
+        val repository = repository(engine)
+        repository.start()
+        repository.refresh()
+
+        repository.loadWeek(today, force = true)
+
+        assertEquals(2, engine.timetableCalls().size)
+    }
+
+    @Test
+    fun `des le vendredi, la semaine suivante arrive avec la synchronisation`() = runTest {
+        val engine = fullEngine()
+        val friday = LocalDate.of(2026, 9, 11)
+        val repository = SchoolRepository(
+            api = EcoleDirecteApi(engine),
+            credentials = InMemoryCredentialStore(credentials),
+            snapshots = InMemorySnapshotStore(),
+            settingsStore = InMemorySettingsStore(),
+            io = Dispatchers.Unconfined,
+            now = { 1_700_000_000_000L },
+            today = { friday },
+        )
+
+        repository.start()
+        repository.refresh()
+
+        // Sans ça, « demain » et l'écran d'accueil seraient vides tout le week-end.
+        val calls = engine.timetableCalls()
+        assertEquals(2, calls.size)
+        assertTrue(calls[0], calls[0].contains("2026-09-07"))
+        assertTrue(calls[1], calls[1].contains("2026-09-14"))
+    }
+
     // ── Question de sécurité ─────────────────────────────────────────────────
 
     @Test

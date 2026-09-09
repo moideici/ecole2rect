@@ -44,6 +44,7 @@ import fr.ecole2recte.app.core.model.HomeworkItem
 import fr.ecole2recte.app.core.repo.AuthState
 import fr.ecole2recte.app.data.AttachmentOpener
 import fr.ecole2recte.app.ui.theme.Ecole2recteTheme
+import java.time.LocalDate
 
 /** Les cinq pages principales : chacune est complète, aucune n'est un aperçu. */
 enum class Destination(val label: String, val icon: ImageVector) {
@@ -150,6 +151,10 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var detail by remember { mutableStateOf<Detail?>(null) }
 
+    // L'emploi du temps garde son jour ici, au-dessus de la fiche de détail : ouvrir un
+    // devoir depuis mardi puis revenir doit ramener sur mardi, pas sur aujourd'hui.
+    val timetable = rememberTimetableState(LocalDate.now())
+
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val sync by viewModel.sync.collectAsStateWithLifecycle()
@@ -157,6 +162,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     val auth by viewModel.auth.collectAsStateWithLifecycle()
     val attachment by viewModel.attachment.collectAsStateWithLifecycle()
     val messagesComplete by viewModel.messagesComplete.collectAsStateWithLifecycle()
+    val loadingWeeks by viewModel.loadingWeeks.collectAsStateWithLifecycle()
     val loadingMore by viewModel.loadingMoreMessages.collectAsStateWithLifecycle()
     val errors by viewModel.errorLog.collectAsStateWithLifecycle()
     val autoAnswer by viewModel.autoAnswer.collectAsStateWithLifecycle()
@@ -188,6 +194,9 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
         request?.let {
             destination = it.destination
             detail = null
+            // Un widget parle d'aujourd'hui : le toucher ramène sur aujourd'hui, même si
+            // l'écran était resté sur la semaine prochaine.
+            if (it.destination == Destination.TIMETABLE) timetable.showDay(LocalDate.now())
         }
     }
 
@@ -277,10 +286,13 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     )
 
                     Destination.TIMETABLE -> TimetableScreen(
+                        state = timetable,
                         snapshot = snapshot,
                         settings = settings,
                         sync = sync,
                         now = now,
+                        loadingWeeks = loadingWeeks,
+                        onLoadWeek = viewModel::loadWeek,
                         onOpenLesson = { lesson ->
                             // Le contenu de séance n'est pas dans la liste : il arrive avec
                             // le détail du jour, qu'on demande à l'ouverture de la fiche.
@@ -288,7 +300,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                             openDetail(Detail.Lesson(lesson.id))
                         },
                         onOpenHomework = openHomework,
-                        onRefresh = { viewModel.refresh(setOf(DataSection.TIMETABLE)) },
+                        onRefreshWeek = viewModel::refreshWeek,
                         onSearch = { openDetail(Detail.Search) },
                     )
 
@@ -323,6 +335,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                             viewModel.openMessage(message)
                             openDetail(Detail.Message(message.id))
                         },
+                        onBin = viewModel::binMessage,
                         onLoadMore = viewModel::loadMoreMessages,
                         canLoadMore = !messagesComplete &&
                             snapshot.messages.any { it.folder == messageFolder },

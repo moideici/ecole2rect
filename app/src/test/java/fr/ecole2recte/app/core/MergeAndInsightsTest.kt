@@ -141,4 +141,19 @@ class MergeAndInsightsTest {
         assertTrue(Insights.matches("", "quoi que ce soit"))
         assertFalse(Insights.matches("anglais", "Mathématiques"))
     }
+
+    @Test
+    fun `une conversation rangee a la corbeille cesse de compter comme non lue`() {
+        val date = LocalDateTime.of(2026, 9, 7, 9, 0)
+        val messages = listOf(
+            MessageItem("1", "Objet", "Vie scolaire", date),
+            MessageItem("2", "Autre", "M. Gay-Vidal", date),
+        )
+        val settings = AppSettings().withMessageBinned("2", binned = true)
+
+        // Ranger, c'est dire qu'on ne veut plus la voir compter : ni sur l'onglet, ni dans
+        // les widgets, ni dans les notifications, qui passent tous par ici.
+        assertEquals(listOf("1"), Insights.unreadMessages(messages, settings).map { it.id })
+        assertEquals(2, Insights.unreadMessages(messages, AppSettings()).size)
+    }
 }

@@ -103,13 +103,16 @@ class ScreensTest {
         compose.setContent {
             Ecole2recteTheme {
                 TimetableScreen(
+                    state = rememberTimetableState(now.toLocalDate()),
                     snapshot = SchoolSnapshot(),
                     settings = AppSettings(),
                     sync = SyncState(),
                     now = now,
+                    loadingWeeks = emptySet(),
+                    onLoadWeek = {},
                     onOpenLesson = {},
                     onOpenHomework = {},
-                    onRefresh = {},
+                    onRefreshWeek = {},
                 )
             }
         }

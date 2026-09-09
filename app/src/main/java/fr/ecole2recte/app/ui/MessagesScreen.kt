@@ -16,7 +16,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.RestoreFromTrash
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -43,6 +45,7 @@ import fr.ecole2recte.app.core.repo.SyncState
 import fr.ecole2recte.app.core.settings.AppSettings
 import fr.ecole2recte.app.ui.components.AppCard
 import fr.ecole2recte.app.ui.components.FilterPill
+import fr.ecole2recte.app.ui.components.NoticeCard
 import fr.ecole2recte.app.ui.components.RoundIconButton
 import fr.ecole2recte.app.ui.components.ScreenHeader
 import fr.ecole2recte.app.ui.components.ScreenPadding
@@ -50,6 +53,7 @@ import fr.ecole2recte.app.ui.components.SectionError
 import fr.ecole2recte.app.ui.components.StatePlaceholder
 import fr.ecole2recte.app.ui.components.SubjectBadge
 import fr.ecole2recte.app.ui.components.SubjectDot
+import fr.ecole2recte.app.ui.components.Tag
 import fr.ecole2recte.app.ui.components.subjectColor
 import java.time.LocalDateTime
 
@@ -61,7 +65,11 @@ import java.time.LocalDateTime
  *
  * Les trois dossiers du service sont là, et pas seulement les messages reçus : un message
  * envoyé depuis le site existait bel et bien, l'application se contentait de l'ignorer. Les
- * envoyés et les archivés se chargent au premier passage sur leur onglet, jamais avant.
+ * envoyés et la corbeille se chargent au premier passage sur leur onglet, jamais avant.
+ *
+ * La Corbeille remplace l'ancien onglet « Archivés ». Elle range côte à côte ce qu'ÉcoleDirecte
+ * a archivé et ce qu'on y met soi-même — et le rangement s'arrête à l'appareil : le service ne
+ * sait pas supprimer une conversation, l'application ne prétend donc pas le faire.
  */
 @Composable
 fun MessagesScreen(
@@ -72,6 +80,7 @@ fun MessagesScreen(
     folder: MessageFolder,
     onSelectFolder: (MessageFolder) -> Unit,
     onOpen: (MessageItem) -> Unit,
+    onBin: (MessageItem, Boolean) -> Unit,
     onLoadMore: () -> Unit,
     canLoadMore: Boolean,
     loadingMore: Boolean,
@@ -81,8 +90,15 @@ fun MessagesScreen(
     var query by remember { mutableStateOf("") }
     var unreadOnly by remember { mutableStateOf(false) }
 
+    val bin = folder == MessageFolder.ARCHIVED
     val unread = Insights.unreadMessages(snapshot.inbox, settings)
-    val inFolder = snapshot.messages.filter { it.folder == folder }
+    // La Corbeille réunit ce que le serveur a archivé et ce qu'on y a rangé soi-même ; les
+    // autres dossiers, eux, ne montrent plus ce qui est à la corbeille.
+    val inFolder = snapshot.messages.filter { message ->
+        val binned = settings.isMessageBinned(message.id)
+        if (bin) message.folder == MessageFolder.ARCHIVED || binned
+        else message.folder == folder && !binned
+    }
     val visible = inFolder
         // Le non-lu ne veut rien dire dans les envoyés : le filtre disparaît avec l'onglet.
         .filter { folder != MessageFolder.RECEIVED || !unreadOnly || !settings.isMessageRead(it.id, it.read) }
@@ -94,6 +110,7 @@ fun MessagesScreen(
                 eyebrow = "Messagerie",
                 title = "Messages",
                 subtitle = when {
+                    bin -> if (inFolder.size == 1) "1 conversation rangée" else "${inFolder.size} conversations rangées"
                     folder != MessageFolder.RECEIVED -> folder.label.lowercase().replaceFirstChar { it.uppercase() }
                     unread.isEmpty() -> "Tout est lu"
                     unread.size == 1 -> "1 message non lu"
@@ -155,6 +172,15 @@ fun MessagesScreen(
             }
         }
 
+        if (bin) {
+            item("corbeille-note") {
+                NoticeCard(
+                    "Rangement local. ÉcoleDirecte ne permet pas de supprimer une conversation : " +
+                        "rien n'est effacé sur le service, et tout reste lisible ici.",
+                )
+            }
+        }
+
         sync.errorFor(DataSection.MESSAGES)?.let { error ->
             item { SectionError(error, onRefresh) }
         }
@@ -166,6 +192,7 @@ fun MessagesScreen(
                     title = if (query.isBlank()) "Aucun message" else "Aucun résultat",
                     description = when {
                         query.isNotBlank() || unreadOnly -> "Rien ne correspond à ce filtre."
+                        bin -> "Rien n'y a encore été rangé."
                         folder == MessageFolder.RECEIVED -> "La messagerie n'a pas encore été synchronisée."
                         else -> "Ce dossier est vide."
                     },
@@ -177,6 +204,9 @@ fun MessagesScreen(
 
         items(visible, key = { it.id }) { message ->
             val read = settings.isMessageRead(message.id, message.read)
+            // Rangé ici, ou archivé sur ÉcoleDirecte : la Corbeille montre les deux, mais
+            // seul le premier peut être défait — l'application n'écrit rien sur le service.
+            val binnedHere = settings.isMessageBinned(message.id)
             Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
                 AppCard(onClick = { onOpen(message) }) {
                     Row(verticalAlignment = Alignment.Top) {
@@ -223,9 +253,29 @@ fun MessagesScreen(
                                 )
                             }
                         }
-                        if (!read) {
+                        if (!read && !bin) {
                             Spacer(Modifier.width(8.dp))
                             SubjectDot(MaterialTheme.colorScheme.primary, 8.dp)
+                        }
+                        // Ranger ou ressortir : le même geste dans les deux sens, et jamais
+                        // un mot qui laisserait croire à une suppression.
+                        Spacer(Modifier.width(4.dp))
+                        when {
+                            !bin -> RoundIconButton(
+                                icon = Icons.Outlined.DeleteOutline,
+                                contentDescription = "Ranger à la corbeille",
+                                onClick = { onBin(message, true) },
+                            )
+
+                            binnedHere -> RoundIconButton(
+                                icon = Icons.Outlined.RestoreFromTrash,
+                                contentDescription = "Sortir de la corbeille",
+                                onClick = { onBin(message, false) },
+                            )
+
+                            // Archivé sur le site : l'application ne peut pas l'en sortir,
+                            // et un bouton qui ne ferait rien serait pire que pas de bouton.
+                            else -> Tag("Archivé", MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
