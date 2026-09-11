@@ -619,7 +619,14 @@ private fun GradesWidget(snapshot: SchoolSnapshot, settings: AppSettings, onNavi
             }
         }
         Text(
-            period?.name?.let { "Moyenne générale · $it" } ?: "Moyenne générale",
+            buildString {
+                append("Moyenne générale")
+                period?.name?.let { append(" · $it") }
+                // Le drapeau existait depuis le début et l'accueil l'ignorait : un chiffre
+                // recalculé depuis les notes s'y affichait comme s'il venait du bulletin.
+                // L'écran Notes, lui, prenait déjà cette précaution.
+                if (period?.average == null) append(" · calculée")
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

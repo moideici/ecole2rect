@@ -384,6 +384,10 @@ object WidgetContent {
             title = number(average.value),
             subtitle = listOfNotNull(
                 average.periodName.takeIf { it.isNotBlank() },
+                // La forme tuile du même widget disait déjà « estimée » ; cette forme-ci
+                // affichait un chiffre recalculé avec la moyenne de classe à côté, donc avec
+                // l'allure d'un bulletin.
+                "calculée".takeUnless { average.official },
                 period?.classAverage?.let { "classe ${number(it)}" },
                 trend?.let { if (it >= 0) "↗ +${number(it)}" else "↘ ${number(it)}" },
             ).joinToString(" · "),
@@ -1123,7 +1127,11 @@ object WidgetContent {
             kind, context,
             label = "OBJECTIF ${number(objective.target)}",
             title = if (objective.reached) "Objectif atteint" else "Il manque ${number(objective.gap)}",
-            subtitle = "moyenne ${number(objective.current)}",
+            // « Calculée » plutôt que « moyenne » tout court : l'écart et le levier se
+            // résolvent sur les notes de la période, pas sur la moyenne du bulletin, et
+            // l'établissement affiche parfois un autre chiffre. Deux mots suffisent à ne pas
+            // faire passer l'une pour l'autre.
+            subtitle = "moyenne calculée ${number(objective.current)}",
             // Les matières qui décrochent en premier : ce sont elles qui tiennent l'écart.
             lines = averages.sortedBy { it.second }.take(context.maxLines).map { (subject, value) ->
                 val distance = value - objective.target
