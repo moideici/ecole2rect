@@ -114,4 +114,52 @@ class WidgetGridTest {
         assertEquals(2, WidgetGrid.levels(34))
         assertEquals(3, WidgetGrid.levels(60))
     }
+
+    // ── La coupe et l'alignement des colonnes ────────────────────────────────
+
+    @Test
+    fun `une journee coupee garde ses espaces d alignement`() {
+        // Une colonne de semaine commence par un remplissage : c'est lui qui fait démarrer
+        // les six colonnes à la même heure. À l'étroit, la coupe le mettait à zéro et la
+        // journée remontait se coller en haut — l'échelle commune devenait fausse.
+        val column = listOf(gap(120)) + (1..6).map { lesson(55, "Cours $it") }
+
+        val heights = WidgetGrid.heights(column, availableDp = 40, minimumDp = 10)
+
+        assertTrue("le remplissage de tête doit garder de la hauteur : $heights", heights[0] > 0)
+        assertEquals(40, heights.sum())
+    }
+
+    @Test
+    fun `deux journees de meme duree commencent a la meme hauteur`() {
+        // C'est l'invariant de la semaine : `weekColumns` complète chaque colonne en tête et
+        // en pied pour que les six couvrent **exactement** la même plage horaire. À totaux
+        // égaux, le remplissage de tête doit donc faire la même hauteur partout — que la
+        // journée tienne dans la place (répartition au prorata) ou non (coupe). Sans cela,
+        // une journée chargée glisserait par rapport à ses voisines.
+        val chargee = listOf(gap(60)) + (1..9).map { lesson(60, "Cours $it") } // 600 minutes
+        val legere = listOf(gap(60), lesson(120), gap(300), lesson(120)) // 600 minutes aussi
+
+        assertEquals(600L, chargee.sumOf { it.minutes })
+        assertEquals(600L, legere.sumOf { it.minutes })
+
+        val hautChargee = WidgetGrid.heights(chargee, availableDp = 60, minimumDp = 10).first()
+        val hautLegere = WidgetGrid.heights(legere, availableDp = 60, minimumDp = 10).first()
+
+        assertEquals("les deux colonnes doivent démarrer à la même hauteur", hautChargee, hautLegere)
+        assertTrue("et cette hauteur n'est pas zéro", hautChargee > 0)
+    }
+
+    @Test
+    fun `les blocs reellement dessines sont comptes, pas tous les blocs`() {
+        // Les marges retirées de la place disponible ne doivent l'être que pour les blocs
+        // visibles : un intercours rendu à zéro n'occupe rien.
+        val day = listOf(lesson(55), gap(2), lesson(55), gap(2), lesson(55))
+
+        val drawn = WidgetGrid.drawnCount(day, availableDp = 50)
+        val heights = WidgetGrid.heights(day, availableDp = 50)
+
+        assertEquals(heights.count { it > 0 }, drawn)
+        assertTrue("$drawn blocs dessinés sur ${day.size}", drawn <= day.size)
+    }
 }

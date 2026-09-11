@@ -375,12 +375,24 @@ object Insights {
      * est et la moyenne qu'elle serait si cette note n'existait pas.
      */
     fun impacts(grades: List<Grade>): Map<String, Double> {
-        val usable = grades.filter { it.counted && it.value != null && it.scale > 0 && it.coefficient > 0 }
+        val usable = usableGrades(grades)
         // Avec une seule note, la question n'a pas de sens : il n'y a pas de « sans elle ».
         if (usable.size < 2) return emptyMap()
-        val overall = weightedAverage(usable) ?: return emptyMap()
+        val total = usable.sumOf { (it.outOfTwenty ?: 0.0) * it.coefficient }
+        val weights = usable.sumOf { it.coefficient }
+        if (weights <= 0.0) return emptyMap()
+        val overall = total / weights
+        // « La moyenne sans cette note » se déduit des deux sommes : retirer la note du total
+        // et son coefficient du poids. Refiltrer la liste entière pour chaque note donnait le
+        // même résultat en temps quadratique — quarante-cinq mille opérations pour un carnet
+        // de cent vingt notes, refaites à chaque recomposition de l'écran.
         return usable.associate { grade ->
-            val without = weightedAverage(usable.filterNot { it.id == grade.id }) ?: overall
+            val weight = weights - grade.coefficient
+            val without = if (weight <= 0.0) {
+                overall
+            } else {
+                (total - (grade.outOfTwenty ?: 0.0) * grade.coefficient) / weight
+            }
             grade.id to (overall - without)
         }
     }
@@ -464,11 +476,16 @@ object Insights {
         val ordered = grades
             .filter { it.counted && it.value != null && it.date != null && it.scale > 0 }
             .sortedBy { it.date }
+        // Sommes courantes : chaque point est la moyenne de tout ce qui précède, et la
+        // recalculer depuis le début à chaque note refaisait le travail n fois.
         val history = mutableListOf<Pair<LocalDate, Double>>()
-        val seen = mutableListOf<Grade>()
+        var total = 0.0
+        var weights = 0.0
         ordered.forEach { grade ->
-            seen += grade
-            weightedAverage(seen)?.let { average -> history += (grade.date ?: return@forEach) to average }
+            val date = grade.date ?: return@forEach
+            total += (grade.outOfTwenty ?: 0.0) * grade.coefficient
+            weights += grade.coefficient
+            if (weights > 0.0) history += date to (total / weights)
         }
         return history
     }
@@ -513,7 +530,10 @@ object Insights {
         return (fromLessons + fromAverages)
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .distinct()
+            // Dédoublonné sur la clé normalisée, comme le fait l'appariement du profil :
+            // l'emploi du temps écrit « MARTIN » là où le bulletin écrit « Mme MARTIN », et
+            // distinguer les deux donnait deux fiches, chacune avec la moitié des données.
+            .distinctBy { Text.normalizeKey(it) }
             .sorted()
             .map { teacherProfile(snapshot, today, it) }
     }

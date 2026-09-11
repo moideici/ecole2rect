@@ -107,16 +107,29 @@ object WidgetGrid {
      * Les premiers blocs gardent leur hauteur minimale et les suivants disparaissent : un
      * widget qui montre le début de la journée en entier est plus utile qu'un widget qui
      * montre la journée complète en bandes illisibles.
+     *
+     * Les espaces nus, eux, gardent leur part du temps. Ils ne portent pas de texte mais ils
+     * portent l'alignement : dans une semaine, ce sont eux qui font commencer les six colonnes
+     * à la même heure. Les mettre à zéro collait chaque journée en haut de sa colonne et
+     * faisait mentir l'échelle commune — c'est-à-dire la seule raison d'être de ce gabarit.
      */
     private fun trim(blocks: List<WidgetBlock>, availableDp: Int, minimumDp: Int): List<Int> {
-        val heights = MutableList(blocks.size) { 0 }
-        var left = availableDp
+        val total = blocks.sumOf { it.minutes }.coerceAtLeast(1)
+        val spacers = blocks.map { block ->
+            if (block.blank) availableDp.toDouble() * block.minutes / total else 0.0
+        }
+        val heights = MutableList(blocks.size) { 0.0 }
+        var left = availableDp - spacers.sum()
         blocks.forEachIndexed { index, block ->
-            if (block.blank || left < minimumDp) return@forEachIndexed
-            heights[index] = minimumDp
+            if (block.blank) {
+                heights[index] = spacers[index]
+                return@forEachIndexed
+            }
+            if (left < minimumDp) return@forEachIndexed
+            heights[index] = minimumDp.toDouble()
             left -= minimumDp
         }
-        return heights
+        return round(heights, availableDp)
     }
 
     /**
@@ -142,6 +155,16 @@ object WidgetGrid {
         }
         return heights
     }
+
+    /**
+     * Combien de blocs seront réellement dessinés dans cette hauteur.
+     *
+     * Sert à ne retirer de la place que les marges qui existeront : un bloc rendu à zéro est
+     * masqué, et sa marge avec lui. Le calcul est le même que [heights], fait une fois de
+     * plus — une poignée d'additions, contre un cours perdu au bord du widget.
+     */
+    fun drawnCount(blocks: List<WidgetBlock>, availableDp: Int, minimumDp: Int = MIN_BLOCK_DP): Int =
+        heights(blocks, availableDp, minimumDp).count { it > 0 }
 
     /**
      * Combien de niveaux de texte tiennent dans un bloc de cette hauteur.

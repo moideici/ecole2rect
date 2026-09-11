@@ -191,4 +191,47 @@ class GradeFiguresTest {
         assertEquals(14.5, stats.average!!, 0.001)
         assertTrue(abs(stats.average!! - 13.0) > 0.1) // pas une moyenne simple
     }
+
+    // ── L'impact de chaque note, et la courbe ────────────────────────────────
+
+    @Test
+    fun `l impact d une note reste la difference exacte, en temps lineaire`() {
+        val grades = listOf(
+            grade("a", 8.0, coefficient = 4.0),
+            grade("b", 15.0, subject = "Anglais"),
+            grade("c", 12.0, subject = "Histoire", coefficient = 2.0),
+            grade("d", 18.0, coefficient = 0.5),
+        )
+
+        val impacts = Insights.impacts(grades)
+
+        // Le calcul passe désormais par deux sommes plutôt que par n moyennes recalculées :
+        // le résultat doit rester identique à la définition, note par note.
+        val overall = Insights.weightedAverage(grades)!!
+        grades.forEach { grade ->
+            val without = Insights.weightedAverage(grades.filterNot { it.id == grade.id })!!
+            assertEquals(grade.id, overall - without, impacts[grade.id]!!, 0.0001)
+        }
+    }
+
+    @Test
+    fun `une note seule n a pas d impact a montrer`() {
+        assertTrue(Insights.impacts(listOf(grade("a", 12.0))).isEmpty())
+    }
+
+    @Test
+    fun `le dernier point de la courbe est la moyenne generale`() {
+        val grades = listOf(
+            grade("a", 10.0, day = 1),
+            grade("b", 16.0, day = 2, coefficient = 3.0),
+            grade("c", 12.0, day = 3, subject = "Anglais"),
+        )
+
+        val history = Insights.averageHistory(grades)
+
+        assertEquals(3, history.size)
+        assertEquals(Insights.weightedAverage(grades)!!, history.last().second, 0.0001)
+        // Et chaque point est bien la moyenne de ce qui précède, pas une somme courante brute.
+        assertEquals(10.0, history.first().second, 0.0001)
+    }
 }

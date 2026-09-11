@@ -332,10 +332,17 @@ object WidgetRenderer {
         val blocks = WidgetGrid.fit(payload.blocks, GRID_IDS.size)
         // Les marges entre blocs sont retirées de la place à partager : les oublier ferait
         // déborder la grille d'une vingtaine de points, et le dernier cours de la journée
-        // serait rogné par le bord — exactement ce qu'on cherche à éviter.
-        val available = (WidgetSizing.contentHeightDp(size) - blocks.size * GRID_SLOT_MARGIN_DP)
-            .coerceAtLeast(0)
-        val heights = WidgetGrid.heights(blocks, available)
+        // serait rogné par le bord — exactement ce qu'on cherche à éviter. Mais un bloc rendu
+        // à zéro n'est pas dessiné et ne porte donc pas de marge : les compter tous retirait
+        // de la hauteur pour des intercours invisibles, au point de faire perdre un cours
+        // entier sur un 2×2. Une première répartition dit lesquels seront dessinés.
+        val heights = WidgetGrid.heights(
+            blocks,
+            (
+                WidgetSizing.contentHeightDp(size) -
+                    WidgetGrid.drawnCount(blocks, WidgetSizing.contentHeightDp(size)) * GRID_SLOT_MARGIN_DP
+                ).coerceAtLeast(0),
+        )
         GRID_IDS.forEachIndexed { index, slot ->
             val block = blocks.getOrNull(index)
             val height = heights.getOrNull(index) ?: 0
@@ -422,9 +429,10 @@ object WidgetRenderer {
 
             val slots = WEEK_BLOCK_IDS[index]
             val blocks = WidgetGrid.fit(column.blocks, slots.size)
+            val drawn = WidgetGrid.drawnCount(blocks, available, WEEK_MIN_BLOCK_DP)
             val heights = WidgetGrid.heights(
                 blocks,
-                (available - blocks.size * WEEK_SLOT_MARGIN_DP).coerceAtLeast(0),
+                (available - drawn * WEEK_SLOT_MARGIN_DP).coerceAtLeast(0),
                 WEEK_MIN_BLOCK_DP,
             )
             slots.forEachIndexed { position, blockId ->

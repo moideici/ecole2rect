@@ -116,15 +116,27 @@ object Text {
      */
     fun normalizeWords(value: String): String =
         Normalizer.normalize(value.trim().lowercase(), Normalizer.Form.NFD)
-            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
-            .replace("[^a-z0-9]+".toRegex(), " ")
+            .replace(DIACRITICS, "")
+            .replace(NON_ALPHANUMERIC, " ")
             .trim()
 
     /** Minuscule sans accent ni ponctuation : sert de clé stable pour les matières. */
     fun normalizeKey(value: String): String =
         Normalizer.normalize(value.trim().lowercase(), Normalizer.Form.NFD)
-            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
-            .replace("[^a-z0-9]+".toRegex(), "")
+            .replace(DIACRITICS, "")
+            .replace(NON_ALPHANUMERIC, "")
+
+    /**
+     * Les deux motifs, compilés une seule fois.
+     *
+     * [normalizeKey] est la fonction la plus appelée du projet : une pastille de couleur par
+     * cours, par note et par message, plus chaque champ de chaque élément filtré par la
+     * recherche. Les compiler dans le corps de la fonction faisait construire deux `Regex`
+     * par appel — de l'ordre de cent quarante par rendu d'une grille de semaine, deux fois
+     * par minute. `Dates` hissait déjà ses formats ; ici, c'était oublié.
+     */
+    private val DIACRITICS = "\\p{InCombiningDiacriticalMarks}+".toRegex()
+    private val NON_ALPHANUMERIC = "[^a-z0-9]+".toRegex()
 
     /** « MATHEMATIQUES » ou « mathematiques » → « Mathématiques » quand c'est possible. */
     fun titleCase(value: String): String {
