@@ -65,7 +65,16 @@ class UnlockRefresher : BroadcastReceiver() {
         /** En deçà, redessiner le cache suffit : rien n'a pu changer côté établissement. */
         private const val STALE_AFTER_MILLIS = 20 * 60 * 1000L
 
-        private val ACTIONS = setOf(Intent.ACTION_USER_PRESENT, Intent.ACTION_SCREEN_ON)
+        /**
+         * Le déverrouillage seul.
+         *
+         * `ACTION_SCREEN_ON` arrive aussi pour un simple coup d'œil aux notifications, et
+         * précède de toute façon `ACTION_USER_PRESENT` lors d'un déverrouillage : écouter les
+         * deux faisait le travail deux fois par déverrouillage, et une fois pour rien chaque
+         * fois que l'écran s'allumait sans qu'on regarde l'accueil. Plusieurs dizaines de
+         * lectures de disque par jour, pour un widget que personne ne voit.
+         */
+        private val ACTIONS = setOf(Intent.ACTION_USER_PRESENT)
 
         /**
          * Écoute le déverrouillage tant que le processus vit.

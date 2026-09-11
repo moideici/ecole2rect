@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Le widget est redimensionnable dans les deux sens, et son contenu suit : réduit à une
      case il montre l'essentiel, étiré il montre le détail — pas du vide. Les tailles
-     minimales autorisent la case unique, les maximales couvrent un écran de tablette. -->
+     minimales autorisent la case unique, les maximales couvrent un écran de tablette.
+
+     Le contenu dépend de l'heure : le réveil du système reste la seule garantie que
+     « dans 24 min » vieillisse, même si le processus a été tué. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:configure="fr.ecole2recte.app.widget.WidgetConfigActivity"
     android:description="@string/widget_day_description"

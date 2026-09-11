@@ -33,6 +33,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -65,6 +67,9 @@ import fr.ecole2recte.app.ui.components.StatePlaceholder
 import fr.ecole2recte.app.ui.components.SubjectDot
 import fr.ecole2recte.app.ui.components.Tag
 import fr.ecole2recte.app.ui.components.subjectColor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -152,6 +157,10 @@ fun TimetableScreen(
     onSearch: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Vrai le temps que l'image de la semaine se dessine : un second appui n'en relance pas
+    // un second dessin.
+    var sharing by remember { mutableStateOf(false) }
     val today = now.toLocalDate()
     val mode = state.mode
     val weekStart = state.weekStart
@@ -206,15 +215,32 @@ fun TimetableScreen(
                     // quelqu'un, pas une journée isolée.
                     if (mode == TimetableMode.WEEK) {
                         RoundIconButton(Icons.Outlined.Share, "Partager la semaine") {
-                            val columns = WidgetContent.weekColumns(snapshot, settings, weekStart, today)
-                            val intent = WeekImage(context).share(
-                                columns = columns,
-                                title = "Semaine du ${Dates.dayLabel(weekStart)} ${Dates.monthName(weekStart)}",
-                                subtitle = "${week.sumOf { it.lessons }} cours · " +
-                                    Dates.duration(week.sumOf { it.minutes }),
-                            )
-                            if (intent != null) {
-                                runCatching { context.startActivity(Intent.createChooser(intent, "Partager vers")) }
+                            // Dessiner 1400 × 1000 en ARGB puis compresser en PNG sans perte
+                            // se compte en centaines de millisecondes : sur le fil principal,
+                            // l'écran gelait le temps du partage. Le travail part au fond, et
+                            // seul le choix de l'application revient au premier plan. Le
+                            // drapeau évite qu'un second appui lance un second dessin.
+                            if (!sharing) {
+                                sharing = true
+                                scope.launch {
+                                    val intent = withContext(Dispatchers.Default) {
+                                        val columns =
+                                            WidgetContent.weekColumns(snapshot, settings, weekStart, today)
+                                        WeekImage(context).share(
+                                            columns = columns,
+                                            title = "Semaine du ${Dates.dayLabel(weekStart)} " +
+                                                Dates.monthName(weekStart),
+                                            subtitle = "${week.sumOf { it.lessons }} cours · " +
+                                                Dates.duration(week.sumOf { it.minutes }),
+                                        )
+                                    }
+                                    if (intent != null) {
+                                        runCatching {
+                                            context.startActivity(Intent.createChooser(intent, "Partager vers"))
+                                        }
+                                    }
+                                    sharing = false
+                                }
                             }
                         }
                     }

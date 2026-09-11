@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Le widget est redimensionnable dans les deux sens, et son contenu suit : réduit à une
      case il montre l'essentiel, étiré il montre le détail — pas du vide. Les tailles
-     minimales autorisent la case unique, les maximales couvrent un écran de tablette. -->
+     minimales autorisent la case unique, les maximales couvrent un écran de tablette.
+
+     Aucun réveil périodique (updatePeriodMillis à zéro) : l'application pousse elle-même à
+     chaque fin de synchronisation, à chaque geste local et au déverrouillage. Neuf providers
+     réveillés toutes les demi-heures relisaient tout le cache pour redessiner l'identique. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:configure="fr.ecole2recte.app.widget.WidgetConfigActivity"
     android:description="@string/widget_objective_description"
@@ -16,6 +20,6 @@
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="1"
     android:targetCellWidth="2"
-    android:updatePeriodMillis="1800000"
+    android:updatePeriodMillis="0"
     android:widgetCategory="home_screen"
     android:widgetFeatures="reconfigurable|configuration_optional" />

@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -33,9 +34,14 @@ class Ecole2recteApplication : Application() {
     }
 
     /**
-     * Le système ne réveille les widgets qu'une fois par demi-heure. L'application, elle,
-     * sait exactement quand la donnée change : fin de synchronisation, devoir coché, couleur
-     * de matière modifiée. Elle pousse donc la mise à jour au lieu de la laisser attendre.
+     * Les widgets ne sont plus réveillés par le système, sauf les deux qui affichent une heure.
+     * L'application, elle, sait exactement quand la donnée change : fin de synchronisation,
+     * devoir coché, couleur de matière modifiée. Elle pousse donc la mise à jour.
+     *
+     * Le `conflate` n'est pas un détail. Une synchronisation écrit l'instantané **section par
+     * section** — emploi du temps, devoirs, notes, messages… — et chaque écriture changeait la
+     * clé : les neuf widgets étaient donc reconstruits six ou sept fois de suite, chaque fois
+     * en relisant et réanalysant tout le cache. On ne garde que le dernier état.
      */
     private fun observeForWidgets() {
         scope.launch {
@@ -55,6 +61,7 @@ class Ecole2recteApplication : Application() {
                 )
             }
                 .distinctUntilChanged()
+                .conflate()
                 .collect { WidgetUpdater.updateAll(this@Ecole2recteApplication) }
         }
     }

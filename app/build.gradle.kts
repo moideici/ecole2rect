@@ -14,6 +14,10 @@ android {
         targetSdk = 35
         versionCode = 2
         versionName = "0.2.0"
+        // Sans lanceur déclaré, AGP retombe sur le lanceur historique, qui ignore
+        // `@RunWith(AndroidJUnit4::class)` : la suite d'interface était compilée par la CI et
+        // n'avait jamais pu s'exécuter une seule fois.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -100,6 +104,9 @@ dependencies {
     // donnent une vraie implémentation d'`org.json` — celle d'`android.jar` n'est qu'un
     // squelette — et de quoi exécuter des fonctions suspendues.
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    // Le lanceur lui-même : `androidx.test.ext:junit` apporte les règles, pas
+    // `AndroidJUnitRunner`, que `testInstrumentationRunner` désigne plus haut.
+    androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 

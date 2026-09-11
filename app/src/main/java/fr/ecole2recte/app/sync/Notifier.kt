@@ -77,7 +77,11 @@ class Notifier(private val context: Context) {
     private fun openApp(planned: PlannedNotification): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // Même raison que pour les widgets : réutiliser l'écran ouvert plutôt que
+            // de le recréer, pour que `onNewIntent` serve et que rien ne soit perdu.
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(MainActivity.EXTRA_DESTINATION, planned.target.name)
         }
         return PendingIntent.getActivity(

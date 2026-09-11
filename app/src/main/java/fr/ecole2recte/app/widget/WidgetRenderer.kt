@@ -513,7 +513,12 @@ object WidgetRenderer {
     private fun openApp(context: Context, kind: WidgetKind): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // `SINGLE_TOP` réutilise l'activité déjà au sommet : sans lui, et sans le
+            // `launchMode` du manifeste, toucher un widget détruisait puis recréait l'écran —
+            // `onNewIntent` n'était jamais appelé, et l'état en cours était perdu.
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(MainActivity.EXTRA_DESTINATION, kind.target.name)
         }
         return PendingIntent.getActivity(

@@ -11,6 +11,10 @@ import android.widget.RemoteViews
 import fr.ecole2recte.app.core.widget.WidgetKind
 import fr.ecole2recte.app.core.widget.WidgetOptions
 import fr.ecole2recte.app.core.widget.WidgetSize
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Les neuf widgets d'écran d'accueil.
@@ -27,18 +31,31 @@ import fr.ecole2recte.app.core.widget.WidgetSize
 abstract class Ecole2recteWidget(private val kind: WidgetKind) : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        val store = WidgetOptionsStore(context)
-        // Deux widgets peuvent suivre deux enfants différents : le cache est donc relu par
-        // profil, mais une seule fois pour tous les widgets qui partagent le même.
-        val caches = mutableMapOf<String?, WidgetData.Loaded>()
-        appWidgetIds.forEach { id ->
-            runCatching {
-                val options = store.read(id)
-                val data = caches.getOrPut(options.accountId) { WidgetData.load(context, options.accountId) }
-                appWidgetManager.updateAppWidget(
-                    id,
-                    views(context, data, options, appWidgetManager.getAppWidgetOptions(id)),
-                )
+        val application = context.applicationContext
+        // `WidgetData.load` lit un fichier et réanalyse tout l'instantané : sur le fil
+        // principal d'un receveur, et multiplié par le nombre de providers posés, c'est un
+        // ANR qui attend son appareil lent. `UnlockRefresher` prenait déjà cette précaution.
+        val pending = goAsync()
+        SCOPE.launch {
+            try {
+                val store = WidgetOptionsStore(application)
+                // Deux widgets peuvent suivre deux enfants différents : le cache est donc relu
+                // par profil, mais une seule fois pour tous ceux qui partagent le même.
+                val caches = mutableMapOf<String?, WidgetData.Loaded>()
+                appWidgetIds.forEach { id ->
+                    runCatching {
+                        val options = store.read(id)
+                        val data = caches.getOrPut(options.accountId) {
+                            WidgetData.load(application, options.accountId)
+                        }
+                        appWidgetManager.updateAppWidget(
+                            id,
+                            views(application, data, options, appWidgetManager.getAppWidgetOptions(id)),
+                        )
+                    }
+                }
+            } finally {
+                runCatching { pending.finish() }
             }
         }
     }
@@ -54,10 +71,21 @@ abstract class Ecole2recteWidget(private val kind: WidgetKind) : AppWidgetProvid
         appWidgetId: Int,
         newOptions: Bundle,
     ) {
-        val stored = WidgetOptionsStore(context).read(appWidgetId)
-        val data = WidgetData.load(context, stored.accountId)
-        runCatching {
-            appWidgetManager.updateAppWidget(appWidgetId, views(context, data, stored, newOptions))
+        val application = context.applicationContext
+        val pending = goAsync()
+        SCOPE.launch {
+            try {
+                val stored = WidgetOptionsStore(application).read(appWidgetId)
+                val data = WidgetData.load(application, stored.accountId)
+                runCatching {
+                    appWidgetManager.updateAppWidget(
+                        appWidgetId,
+                        views(application, data, stored, newOptions),
+                    )
+                }
+            } finally {
+                runCatching { pending.finish() }
+            }
         }
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
     }
@@ -74,6 +102,17 @@ abstract class Ecole2recteWidget(private val kind: WidgetKind) : AppWidgetProvid
         options: WidgetOptions,
         bundle: Bundle?,
     ): RemoteViews = WidgetSizes.remoteViews(context, kind, data, options, bundle)
+
+    private companion object {
+        /**
+         * Le fil sur lequel les widgets se dessinent.
+         *
+         * Partagé par les neuf providers, et volontairement survivant au receveur : le travail
+         * tient dans la fenêtre que `goAsync` accorde, et un `SupervisorJob` évite qu'un
+         * widget en échec emporte les autres.
+         */
+        private val SCOPE = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    }
 }
 
 /**
