@@ -37,11 +37,12 @@ import java.time.LocalDate
  * notes, dans quelle matière on tient et dans laquelle on lâche, combien de devoirs cochés,
  * combien d'absences.
  *
- * Chaque carte dit **sur quoi** elle porte, et c'est le point délicat. Notes, devoirs, vie
- * scolaire et messagerie couvrent l'année, parce qu'ÉcoleDirecte les donne en entier. Pas
- * l'emploi du temps : il ne se charge plus qu'une semaine à la fois, et annoncer « 320 heures
- * de cours depuis septembre » à partir de ce qui traîne en cache serait un chiffre inventé.
- * La carte des cours dit donc « cette semaine », et rien de plus.
+ * Chaque carte dit **sur quoi** elle porte, et c'est le point délicat — y compris quand la
+ * réponse est décevante. Notes, vie scolaire et messagerie couvrent l'année, parce
+ * qu'ÉcoleDirecte les donne en entier ; la moyenne, elle, est recalculée, l'établissement n'en
+ * publiant que par période. L'emploi du temps ne se charge qu'une semaine à la fois, donc la
+ * carte des cours dit « cette semaine », et rien de plus. Le cahier de textes part du jour
+ * présent : son total ne couvre pas l'année non plus, et la carte le dit.
  */
 @Composable
 fun StatsScreen(
@@ -65,22 +66,36 @@ fun StatsScreen(
             return@DetailScaffold
         }
 
-        StatsCard(title = "Notes", scope = "depuis le début de l'année") {
+        StatsCard(title = "Notes", scope = "année · moyenne recalculée") {
             Row(verticalAlignment = Alignment.Bottom) {
                 BigFigure(stats.gradeCount.toString(), if (stats.gradeCount > 1) "notes" else "note")
                 Spacer(Modifier.width(24.dp))
                 stats.average?.let { BigFigure(Format.number(it), "de moyenne") }
             }
-            stats.trend?.let { trend ->
+            // Ce que les cinq dernières notes font vraiment à la moyenne — la moyenne telle
+            // qu'elle est, moins celle qu'elle serait sans elles. La tendance de l'accueil
+            // répond à une autre question (l'écart avec les cinq d'avant) et le chiffre y est
+            // environ deux fois plus gros : l'afficher ici disait faux.
+            stats.recentEffect?.let { effect ->
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    if (trend >= 0) {
-                        "Les cinq dernières notes tirent la moyenne de +${Format.number(trend)}"
+                    if (effect >= 0) {
+                        "Les cinq dernières notes valent +${Format.number(effect)} sur la moyenne"
                     } else {
-                        "Les cinq dernières notes coûtent ${Format.number(trend)}"
+                        "Les cinq dernières notes coûtent ${Format.number(effect)} à la moyenne"
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (trend >= 0) AppTheme.palette.success else AppTheme.palette.warning,
+                    color = if (effect >= 0) AppTheme.palette.success else AppTheme.palette.warning,
+                )
+            }
+            if (stats.uncountedGrades > 0) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "${stats.uncountedGrades} note${if (stats.uncountedGrades > 1) "s" else ""} " +
+                        "publiée${if (stats.uncountedGrades > 1) "s" else ""} hors moyenne, " +
+                        "non comptée${if (stats.uncountedGrades > 1) "s" else ""} ici",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             stats.bestSubject?.let { (subject, value) ->
@@ -92,9 +107,19 @@ fun StatsScreen(
             stats.weakestSubject?.takeIf { it != stats.bestSubject }?.let { (subject, value) ->
                 StatLine("Matière la plus fragile", "$subject · ${Format.number(value)}")
             }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                // L'établissement ne publie de moyenne que par période : celle-ci est
+                // pondérée par les coefficients, toutes périodes confondues. Ce n'est pas
+                // le chiffre du bulletin, et le taire serait le faire passer pour lui.
+                "Moyenne pondérée sur toute l'année, calculée depuis les notes : " +
+                    "l'établissement n'en publie que par période.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
-        StatsCard(title = "Devoirs", scope = "tout le cahier de textes connu") {
+        StatsCard(title = "Devoirs", scope = "le cahier de textes chargé") {
             Row(verticalAlignment = Alignment.Bottom) {
                 BigFigure("${stats.homeworkDone}", "cochés")
                 Spacer(Modifier.width(24.dp))
@@ -108,6 +133,15 @@ fun StatsScreen(
                 Spacer(Modifier.height(10.dp))
                 StatLine("Évaluations annoncées", stats.examCount.toString())
             }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                // Annoncer « tout le cahier de textes » était faux : le travail chargé part
+                // d'aujourd'hui, donc un devoir ancien finit par sortir du compte.
+                "Le cahier de textes chargé porte sur les jours à venir : un devoir ancien " +
+                    "n'y reste pas, et ce total n'est donc pas celui de l'année.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         StatsCard(title = "Cours", scope = "cette semaine seulement") {

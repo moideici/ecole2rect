@@ -120,6 +120,28 @@ object Insights {
         return recent - previous
     }
 
+    /**
+     * Ce que les dernières notes valent réellement sur la moyenne.
+     *
+     * [trend] compare deux paquets de notes **entre eux** : c'est la flèche « ↗ » de
+     * l'accueil, et elle ne répond pas à la question « qu'est-ce que ces notes m'ont
+     * rapporté ». Confondre les deux gonfle le chiffre d'un facteur deux, parce qu'un écart
+     * entre deux paquets n'est pas un effet sur l'ensemble. Ici la réponse est exacte : la
+     * moyenne telle qu'elle est, moins la moyenne qu'elle serait sans ces notes-là.
+     */
+    fun recentEffect(grades: List<Grade>, recentCount: Int = 5): Double? {
+        val ordered = usableGrades(grades).sortedByDescending { it.date ?: LocalDate.MIN }
+        // Sans note antérieure, il n'y a pas de « moyenne sans elles » à comparer.
+        if (ordered.size <= recentCount) return null
+        val overall = weightedAverage(ordered) ?: return null
+        val without = weightedAverage(ordered.drop(recentCount)) ?: return null
+        return overall - without
+    }
+
+    /** Les notes qui entrent dans un calcul de moyenne : partout le même filtre. */
+    private fun usableGrades(grades: List<Grade>): List<Grade> =
+        grades.filter { it.counted && it.value != null && it.scale > 0 && it.coefficient > 0 }
+
     // ── Journée et semaine ───────────────────────────────────────────────────
 
     /** Ce qu'il faut savoir d'une journée avant même de dérouler la liste des cours. */
@@ -369,6 +391,12 @@ object Insights {
      * Un écart seul — « il manque 0,2 » — ne dit pas quoi faire. Le levier le dit : dans
      * quelle matière une bonne note rapporterait le plus, et laquelle suffirait. C'est le
      * coefficient qui décide, pas la sympathie pour la matière.
+     *
+     * L'écart et le levier se calculent sur **la même** base : les notes de la période. Les
+     * mélanger — l'écart pris sur la moyenne du bulletin, le levier résolu sur les notes —
+     * fait dire à la même carte deux choses contradictoires, « il manque 0,2 » au-dessus d'un
+     * conseil calculé sur un socle où l'objectif est déjà dépassé. Quand l'établissement
+     * publie sa moyenne, [official] la porte : c'est un repère à afficher, pas le socle.
      */
     data class Objective(
         val target: Double,
@@ -376,6 +404,8 @@ object Insights {
         /** Points manquants, zéro quand l'objectif est atteint. */
         val gap: Double,
         val lever: Lever?,
+        /** La moyenne du bulletin, quand l'établissement la publie. */
+        val official: Double? = null,
     ) {
         val reached: Boolean get() = gap <= 0.0
     }
@@ -386,11 +416,16 @@ object Insights {
     fun objective(snapshot: SchoolSnapshot, today: LocalDate, target: Double?): Objective? {
         if (target == null) return null
         val period = currentPeriod(snapshot.periods, today)
-        val grades = gradesForPeriod(snapshot.grades, period?.code)
-            .filter { it.counted && it.value != null && it.scale > 0 && it.coefficient > 0 }
-        val current = generalAverage(snapshot, today)?.value ?: return null
+        val grades = usableGrades(gradesForPeriod(snapshot.grades, period?.code))
+        val current = weightedAverage(grades) ?: return null
         val gap = (target - current).coerceAtLeast(0.0)
-        return Objective(target = target, current = current, gap = gap, lever = lever(grades, target))
+        return Objective(
+            target = target,
+            current = current,
+            gap = gap,
+            lever = lever(grades, target),
+            official = period?.average,
+        )
     }
 
     /**
@@ -527,11 +562,16 @@ object Insights {
      * en entier.
      */
     data class YearStats(
+        /** Notes qui entrent dans la moyenne : le même ensemble que [average]. */
         val gradeCount: Int,
+        /** Notes publiées mais hors moyenne — « non significatif ». Les taire fausse le total. */
+        val uncountedGrades: Int,
         val bestSubject: Pair<String, Double>?,
         val weakestSubject: Pair<String, Double>?,
         val average: Double?,
         val trend: Double?,
+        /** Effet réel des cinq dernières notes sur la moyenne, pas un écart entre paquets. */
+        val recentEffect: Double?,
         val homeworkDone: Int,
         val homeworkTotal: Int,
         val examCount: Int,
@@ -547,15 +587,19 @@ object Insights {
     )
 
     fun yearStats(snapshot: SchoolSnapshot, settings: AppSettings, today: LocalDate): YearStats {
-        val graded = snapshot.grades.filter { it.value != null }
+        // Un seul ensemble : compter 40 notes sous une moyenne qui n'en utilise que 35
+        // donne deux chiffres qui ne parlent pas de la même chose.
+        val graded = usableGrades(snapshot.grades)
         val subjects = averagesBySubject(graded).toList()
         val week = week(snapshot.lessons, Dates.startOfWeek(today))
         return YearStats(
             gradeCount = graded.size,
+            uncountedGrades = snapshot.grades.count { it.value != null } - graded.size,
             bestSubject = subjects.maxByOrNull { it.second },
             weakestSubject = subjects.minByOrNull { it.second },
             average = weightedAverage(graded),
             trend = trend(graded),
+            recentEffect = recentEffect(graded),
             homeworkDone = snapshot.homework.count { settings.isHomeworkDone(it.id, it.done) },
             homeworkTotal = snapshot.homework.size,
             examCount = snapshot.homework.count { it.exam },

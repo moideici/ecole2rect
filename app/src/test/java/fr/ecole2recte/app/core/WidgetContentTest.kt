@@ -96,14 +96,28 @@ class WidgetContentTest {
     }
 
     @Test
-    fun `les neuf widgets couvrent les gabarits a l installation`() {
-        assertEquals(9, WidgetKind.entries.size)
-        assertEquals(3, WidgetKind.entries.count { it.natural == WidgetShape.TILE })
-        assertEquals(4, WidgetKind.entries.count { it.natural == WidgetShape.ROW })
-        assertEquals(1, WidgetKind.entries.count { it.natural == WidgetShape.HOURS })
-        assertEquals(1, WidgetKind.entries.count { it.natural == WidgetShape.WEEK })
-        // Quatre widgets portent un contenu horaire : ce sont les seuls que la grille sert.
-        assertEquals(4, WidgetKind.entries.count { it.timetable })
+    fun `la forme declaree est celle que la taille d installation rend vraiment`() {
+        // `natural` est la forme annoncée par chaque widget ; elle sert de valeur par défaut
+        // et d'intention documentée. Recompter l'énumération ne prouvait rien : ce qui compte
+        // est qu'à la taille où le lanceur pose le widget, le dimensionnement rende cette
+        // forme-là. Une intention que le code contredit est une intention fausse.
+        WidgetKind.entries.forEach { kind ->
+            val size = installSize(kind.natural)
+            assertEquals(
+                "${kind.name} s'annonce en ${kind.natural} mais s'installe en " +
+                    "${WidgetSizing.shapeFor(kind, size)}",
+                kind.natural,
+                WidgetSizing.shapeFor(kind, size),
+            )
+        }
+    }
+
+    /** La taille que le lanceur annonce pour la forme visée, en dp. */
+    private fun installSize(shape: WidgetShape): WidgetSize = when (shape) {
+        WidgetShape.TILE -> WidgetSize(40, 40)
+        WidgetShape.ROW, WidgetShape.HOURS -> WidgetSize(140, 40)
+        WidgetShape.LIST, WidgetShape.GRID -> WidgetSize(140, 140)
+        WidgetShape.WEEK -> WidgetSize(280, 140)
     }
 
     @Test
@@ -170,7 +184,7 @@ class WidgetContentTest {
         // d'une ligne de l'autre. Les surestimer faisait s'arrêter un widget haut à quatre
         // cours en laissant un tiers de sa surface blanche.
         assertEquals(1, WidgetSizing.maxLines(WidgetSize(140, 70)))
-        // Trois lignes en 2×2, et non six : une ligne porte désormais deux niveaux de texte,
+        // Deux lignes en 2×2, et non six : une ligne porte désormais deux niveaux de texte,
         // et promettre six lignes reviendrait à les faire rogner par le bas.
         assertEquals(2, WidgetSizing.maxLines(WidgetSize(140, 140)))
         assertEquals(5, WidgetSizing.maxLines(WidgetSize(140, 220)))
@@ -411,5 +425,90 @@ class WidgetContentTest {
         assertFalse(computed.official)
         // (17,5 × 2 + 12 × 1) / 3
         assertEquals(15.666, computed.value, 0.01)
+    }
+
+    // ── Ce que le widget écrit, mot pour mot ─────────────────────────────────
+
+    @Test
+    fun `une seule note ne donne pas un pluriel`() {
+        val one = snapshot.copy(grades = snapshot.grades.take(1))
+
+        val payload = WidgetContent.payload(
+            WidgetKind.GRADES, one, AppSettings(), morning, shape = WidgetShape.LIST,
+        )
+
+        // « 1 notes » est la faute qu'on lit sur un écran d'accueil tous les débuts de
+        // trimestre ; les trois autres listes du fichier traitaient déjà le cas.
+        assertEquals("1 note", payload.title)
+        assertEquals(
+            "Aucune note",
+            WidgetContent.payload(
+                WidgetKind.GRADES, SchoolSnapshot(), AppSettings(), morning, shape = WidgetShape.LIST,
+            ).title,
+        )
+    }
+
+    @Test
+    fun `le vendredi soir, le widget Demain ne dit pas demain pour un lundi`() {
+        // Vendredi 20 h : le prochain jour d'école est le lundi suivant.
+        val friday = monday.plusDays(4)
+        val evening = friday.atTime(20, 0)
+        val week = snapshot.copy(
+            lessons = listOf(
+                Lesson("l1", "Histoire", room = "D02", start = friday.atTime(8, 0), end = friday.atTime(9, 0)),
+                Lesson(
+                    "l2", "Physique", room = "E11",
+                    start = friday.plusDays(3).atTime(8, 0),
+                    end = friday.plusDays(3).atTime(10, 0),
+                ),
+            ),
+        )
+
+        listOf(WidgetShape.ROW, WidgetShape.GRID, WidgetShape.LIST).forEach { shape ->
+            val label = WidgetContent.payload(
+                WidgetKind.TOMORROW, week, AppSettings(), evening, shape = shape,
+            ).label
+
+            assertFalse("$shape : « demain » annoncé pour un lundi → $label", label.contains("DEMAIN"))
+            assertTrue("$shape : le jour montré doit être nommé → $label", label.contains("LUNDI"))
+        }
+    }
+
+    @Test
+    fun `le widget Demain dit demain quand c en est un`() {
+        val label = WidgetContent.payload(
+            WidgetKind.TOMORROW, snapshot, AppSettings(), monday.atTime(20, 0), shape = WidgetShape.ROW,
+        ).label
+
+        assertTrue(label, label.startsWith("DEMAIN"))
+    }
+
+    @Test
+    fun `agrandir le widget des changements ne change pas le compte`() {
+        // Deux changements repérés il y a trois jours, un repéré aujourd'hui. Tant que la
+        // tuile comptait « depuis hier » et la liste « sept jours », le même widget annonçait
+        // 1 en 1×1 et 3 en 2×2 sans que rien n'ait bougé entre les deux rendus.
+        val older = (1..2).map { index ->
+            Change(
+                id = "salle:$index",
+                kind = ChangeKind.LESSON_MOVED,
+                text = "Salle changée",
+                detail = "il y a trois jours",
+                noticedOn = monday.minusDays(3),
+                atMillis = 1_700_000_000_000L,
+            )
+        }
+        val full = snapshot.copy(changes = snapshot.changes + older)
+
+        val tile = WidgetContent.payload(
+            WidgetKind.CHANGES, full, AppSettings(), morning, shape = WidgetShape.TILE,
+        )
+        val list = WidgetContent.payload(
+            WidgetKind.CHANGES, full, AppSettings(), morning, shape = WidgetShape.LIST, maxLines = 6,
+        )
+
+        assertEquals("3", tile.title)
+        assertEquals("3 changements", list.title)
+        assertEquals(3, list.lines.size)
     }
 }

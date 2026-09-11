@@ -413,7 +413,11 @@ object WidgetContent {
         return payloadOf(
             kind, context,
             label = "DERNIÈRES NOTES",
-            title = if (grades.isEmpty()) "Aucune note" else "${grades.size} notes",
+            title = when (grades.size) {
+                0 -> "Aucune note"
+                1 -> "1 note"
+                else -> "${grades.size} notes"
+            },
             subtitle = Insights.generalAverage(context.snapshot, context.today)
                 ?.let { "moyenne ${number(it.value)}" }
                 .orEmpty(),
@@ -1136,9 +1140,15 @@ object WidgetContent {
 
     // ── Ce qui a changé ──────────────────────────────────────────────────────
 
-    /** Les changements repérés depuis hier : au-delà, ce n'est plus une nouvelle. */
-    private fun recentChanges(context: Context) =
-        context.snapshot.changes.filter { !it.noticedOn.isBefore(context.today.minusDays(1)) }
+    /**
+     * Les changements que le widget montre, quelle que soit sa forme.
+     *
+     * L'horizon est celui que le dépôt conserve — une semaine. Le faire varier avec la taille
+     * posée donnait deux comptes au même widget : « 2 · depuis hier » en 1×1, « 11
+     * changements » en 2×2, sans que rien n'ait bougé entre les deux. Une semaine, c'est
+     * aussi ce qu'il faut pour qu'un retour de week-end rattrape ce qu'il a manqué.
+     */
+    private fun recentChanges(context: Context) = context.snapshot.changes
 
     private fun changesTile(kind: WidgetKind, context: Context): WidgetPayload {
         val changes = recentChanges(context)
@@ -1146,17 +1156,17 @@ object WidgetContent {
             kind, context,
             label = "CHANGÉ",
             title = changes.size.toString(),
-            subtitle = if (changes.isEmpty()) "rien de neuf" else "depuis hier",
+            subtitle = if (changes.isEmpty()) "rien de neuf" else "sur 7 jours",
         )
     }
 
     private fun changesRow(kind: WidgetKind, context: Context): WidgetPayload {
         val changes = recentChanges(context)
         val first = changes.firstOrNull()
-            ?: return empty(kind, context, "DEPUIS HIER", "Rien de neuf", "aucun changement")
+            ?: return empty(kind, context, "CE QUI A CHANGÉ", "Rien de neuf", "aucun changement")
         return payloadOf(
             kind, context,
-            label = "DEPUIS HIER",
+            label = "CE QUI A CHANGÉ",
             title = first.text,
             subtitle = first.detail,
             trailing = if (changes.size > 1) "+${changes.size - 1}" else "",
@@ -1166,7 +1176,7 @@ object WidgetContent {
     }
 
     private fun changesList(kind: WidgetKind, context: Context): WidgetPayload {
-        val changes = context.snapshot.changes
+        val changes = recentChanges(context)
         return payloadOf(
             kind, context,
             label = "CE QUI A CHANGÉ",
@@ -1223,7 +1233,7 @@ object WidgetContent {
         val homework = Insights.homeworkDueOn(context.snapshot.homework, date)
         return payloadOf(
             kind, context,
-            label = "DEMAIN · ${Dates.dayName(date)}",
+            label = nextDayLabel(date, context.today),
             title = listOfNotNull(
                 summary.start?.let { Dates.time(it) },
                 summary.end?.let { Dates.time(it) },
@@ -1241,7 +1251,7 @@ object WidgetContent {
         val summary = Insights.daySummary(context.snapshot.lessons, date)
         return payloadOf(
             kind, context,
-            label = "DEMAIN · ${Dates.dayName(date)}",
+            label = nextDayLabel(date, context.today),
             title = Dates.compactDay(date).replaceFirstChar { it.uppercase() },
             subtitle = satchel(lessons, homework),
             trailing = "${summary.lessons} cours",
@@ -1257,7 +1267,7 @@ object WidgetContent {
         val homework = Insights.homeworkDueOn(context.snapshot.homework, date)
         return payloadOf(
             kind, context,
-            label = "DEMAIN · ${Dates.dayName(date)}",
+            label = nextDayLabel(date, context.today),
             title = Dates.compactDay(date).replaceFirstChar { it.uppercase() },
             subtitle = satchel(lessons, homework),
             lines = lessons.take(context.maxLines).map { lesson ->
@@ -1376,6 +1386,17 @@ object WidgetContent {
     }
 
     /** « demain », « lundi », « dans 12 jours » : de quoi situer un jour sans calculer. */
+    /**
+     * L'étiquette du widget « Demain ».
+     *
+     * Il montre le prochain jour d'école, qui le vendredi soir est un lundi : écrire
+     * « DEMAIN · LUNDI » se contredit dans la même ligne. On ne dit « demain » que quand
+     * c'en est un ; sinon le nom du jour suffit, et il est exact.
+     */
+    private fun nextDayLabel(date: LocalDate, today: LocalDate): String =
+        if (date == today.plusDays(1)) "DEMAIN · ${Dates.dayName(date).uppercase()}"
+        else Dates.dayName(date).uppercase()
+
     private fun dayLabel(date: LocalDate, today: LocalDate): String = when {
         date == today -> "aujourd'hui"
         date == today.plusDays(1) -> "demain"

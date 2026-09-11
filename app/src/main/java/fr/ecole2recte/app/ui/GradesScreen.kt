@@ -290,6 +290,17 @@ private fun ObjectiveCard(
                 }
                 Spacer(Modifier.height(10.dp))
                 ProgressBar(fraction = (objective.current / objective.target).toFloat().coerceIn(0f, 1f))
+                // L'écart et le conseil se calculent sur les notes de la période. Quand le
+                // bulletin publie sa propre moyenne et qu'elle diffère, le dire : sinon
+                // l'élève lit deux chiffres sans savoir lequel l'établissement retient.
+                objective.official?.takeIf { kotlin.math.abs(it - objective.current) >= 0.05 }?.let {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Calculé depuis les notes. Le bulletin, lui, affiche ${formatGrade(it)}.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 objective.lever?.takeIf { !objective.reached }?.let { lever ->
                     Spacer(Modifier.height(10.dp))
                     Text(
