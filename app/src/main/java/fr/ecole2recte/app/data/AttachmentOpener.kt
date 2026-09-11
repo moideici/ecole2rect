@@ -16,8 +16,13 @@ import java.io.File
  */
 class AttachmentOpener(private val context: Context) {
 
-    fun save(name: String, bytes: ByteArray): Uri {
-        val directory = File(context.cacheDir, DIRECTORY).apply { mkdirs() }
+    /**
+     * [key] est l'identifiant de la pièce jointe côté serveur : il donne au fichier un dossier
+     * à lui. Deux messages portant tous deux un « Devoir.pdf » s'écrasaient l'un l'autre, et
+     * un lecteur externe qui relisait l'URI plus tard affichait le mauvais document.
+     */
+    fun save(key: String, name: String, bytes: ByteArray): Uri {
+        val directory = File(File(context.cacheDir, DIRECTORY), sanitize(key)).apply { mkdirs() }
         val file = File(directory, sanitize(name))
         file.writeBytes(bytes)
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -29,9 +34,18 @@ class AttachmentOpener(private val context: Context) {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
-    /** Le nom vient du serveur : il ne doit pas pouvoir désigner un dossier parent. */
+    /**
+     * Le nom vient du serveur : il ne doit pas pouvoir désigner un dossier parent.
+     *
+     * Seuls les caractères dangereux sont retirés — séparateurs de chemin et caractères de
+     * contrôle. Tout remplacer hors de l'ASCII mutilait les noms que l'élève reconnaît :
+     * « Contrôle_1.pdf » devenait « Contr_le_1.pdf », et un nom entièrement accentué se
+     * réduisait à une suite de soulignés.
+     */
     private fun sanitize(name: String): String = name
-        .replace(Regex("[^A-Za-z0-9._ -]"), "_")
+        .map { character -> if (character in FORBIDDEN || character.code < 0x20) '_' else character }
+        .joinToString("")
+        .trim()
         .takeIf { it.isNotBlank() && it != "." && it != ".." }
         ?.take(120)
         ?: "piece-jointe"
@@ -60,5 +74,8 @@ class AttachmentOpener(private val context: Context) {
 
     private companion object {
         const val DIRECTORY = "pieces-jointes"
+
+        /** Ce qu'un nom de fichier ne peut pas porter sans désigner autre chose que lui-même. */
+        val FORBIDDEN = charArrayOf('/', '\\', ':', '*', '?', '"', '<', '>', '|', '\u0000')
     }
 }

@@ -234,7 +234,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val saved = withContext(Dispatchers.IO) {
                         runCatching {
                             AttachmentOpener(getApplication())
-                                .save(result.value.name, result.value.bytes)
+                                .save(attachment.id, result.value.name, result.value.bytes)
                         }
                     }
                     _attachment.value = saved.getOrNull()
