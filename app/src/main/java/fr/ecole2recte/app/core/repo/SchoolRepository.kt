@@ -157,8 +157,20 @@ class SchoolRepository(
     /** Profil dont le cache est actuellement chargé — l'identifiant du compte suivi. */
     private var profile: String? = null
 
-    /** Une seule synchronisation à la fois : l'API n'aime pas les appels concurrents. */
+    /**
+     * Un seul appel réseau à la fois, synchronisation **et** chargements à la demande.
+     *
+     * `EcoleDirecteApi` porte la session : cookies, jeton et GTK forment un état partagé et
+     * mutable. Deux appels concurrents se marchent dessus — au mieux un jeton écrasé, au pire
+     * deux reconnexions rapprochées, ce qu'ÉcoleDirecte peut payer d'un blocage de compte.
+     * Ouvrir l'onglet Planning pendant la synchronisation de démarrage suffisait à déclencher
+     * le cas. Les collections [loadedDays] et [loadedWeeks] passent par la même porte, et
+     * n'ont donc pas besoin d'être protégées séparément.
+     */
     private val syncLock = Mutex()
+
+    /** Fait passer un chargement à la demande par la même porte que la synchronisation. */
+    private suspend fun <T> serialized(block: suspend () -> T): T = syncLock.withLock { block() }
 
     private val _autoAnswer = MutableStateFlow(AutoAnswerState())
     val autoAnswer: StateFlow<AutoAnswerState> = _autoAnswer.asStateFlow()
@@ -439,6 +451,9 @@ class SchoolRepository(
         profile = account.id
         loadedDays.clear()
         loadedWeeks.clear()
+        // L'état de synchronisation appartenait au profil quitté : le garder faisait
+        // annoncer « À jour » sur le cache d'un autre enfant, parfois vide.
+        _sync.value = SyncState()
         resetMessages()
         _auth.value = AuthState.SignedIn(account, state.accounts)
         _snapshot.value = withContext(io) { snapshots.read(account.id) }
@@ -559,18 +574,23 @@ class SchoolRepository(
 
         // La synchronisation ne rafraîchit que les messages reçus : les envoyés et les
         // la corbeille se chargent quand on ouvre leur onglet, et ne changent pas tout seuls.
-        DataSection.MESSAGES -> withSession { api.messages(account, page = 0) }.onOk { messages ->
-            pages[MessageFolder.RECEIVED] = 0
-            setComplete(MessageFolder.RECEIVED, messages.size < EcoleDirecteApi.MESSAGES_PER_PAGE)
+        // Les classeurs arrivent dans la même réponse que la première page : un seul appel.
+        DataSection.MESSAGES -> withSession { api.messagePage(account, page = 0) }.onOk { page ->
+            // Le curseur n'est pas remis à zéro : les pages déjà remontées sont conservées
+            // par la fusion, et repartir de la page 1 les ferait retélécharger.
+            pages.getOrPut(MessageFolder.RECEIVED) { 0 }
+            setComplete(
+                MessageFolder.RECEIVED,
+                page.messages.size < EcoleDirecteApi.MESSAGES_PER_PAGE &&
+                    pages[MessageFolder.RECEIVED] == 0,
+            )
+            _messageBoxes.value = page.folders
             _snapshot.update {
                 it.copy(
-                    messages = Merge.messages(it.messages, messages, MessageFolder.RECEIVED),
+                    messages = Merge.messages(it.messages, page.messages, MessageFolder.RECEIVED),
                     syncedAt = it.syncedAt + (section to now()),
                 )
             }
-            // Les classeurs arrivent avec la même réponse : les lire ne coûte rien de plus.
-            val boxes = withSession { api.messageFolders(account) }
-            if (boxes is ApiResult.Ok) _messageBoxes.value = boxes.value
         }
 
         DataSection.SCHOOL_LIFE -> withSession { api.schoolLife(account.id) }.onOk { events ->
@@ -616,7 +636,7 @@ class SchoolRepository(
         val folder = _messageFolder.value
         _loadingMore.value = true
         val nextPage = (pages[folder] ?: 0) + 1
-        val result = withSession { api.messages(account, page = nextPage, folder = folder) }
+        val result = serialized { withSession { api.messages(account, page = nextPage, folder = folder) } }
         if (result is ApiResult.Ok) {
             pages[folder] = nextPage
             setComplete(folder, result.value.size < EcoleDirecteApi.MESSAGES_PER_PAGE)
@@ -646,10 +666,14 @@ class SchoolRepository(
         val account = currentAccount ?: return
         if (_loadingMore.value) return
         _loadingMore.value = true
-        val result = withSession { api.messages(account, page = 0, folder = folder) }
+        val result = serialized { withSession { api.messages(account, page = 0, folder = folder) } }
         if (result is ApiResult.Ok) {
-            pages[folder] = 0
-            setComplete(folder, result.value.size < EcoleDirecteApi.MESSAGES_PER_PAGE)
+            // Même raison qu'à la synchronisation : la profondeur déjà chargée est gardée.
+            pages.getOrPut(folder) { 0 }
+            setComplete(
+                folder,
+                result.value.size < EcoleDirecteApi.MESSAGES_PER_PAGE && pages[folder] == 0,
+            )
             _snapshot.update { snapshot ->
                 snapshot.copy(messages = Merge.messages(snapshot.messages, result.value, folder))
             }
@@ -676,7 +700,7 @@ class SchoolRepository(
      * la couche Android décide où les écrire et comment les ouvrir.
      */
     suspend fun downloadAttachment(attachment: Attachment): ApiResult<DownloadedFile> =
-        withSession { api.downloadAttachment(attachment) }
+        serialized { withSession { api.downloadAttachment(attachment) } }
 
     // ── Emploi du temps ──────────────────────────────────────────────────────
 
@@ -729,21 +753,25 @@ class SchoolRepository(
         if (!force && monday in loadedWeeks) return
         _loadingWeeks.update { it + monday }
         try {
-            when (val result = fetchWeek(account, monday)) {
-                is ApiResult.Ok -> _sync.update { it.copy(errors = it.errors - DataSection.TIMETABLE) }
-                is ApiResult.Failure -> {
-                    if (result.kind != ApiErrorKind.NETWORK) {
-                        errorLog.record(DataSection.TIMETABLE.label, result.message, result.diagnostic)
-                    }
-                    _sync.update {
-                        it.copy(
-                            errors = it.errors + (DataSection.TIMETABLE to result.message),
-                            offline = it.offline || result.kind == ApiErrorKind.NETWORK,
-                        )
+            serialized {
+                when (val result = fetchWeek(account, monday)) {
+                    is ApiResult.Ok ->
+                        _sync.update { it.copy(errors = it.errors - DataSection.TIMETABLE) }
+
+                    is ApiResult.Failure -> {
+                        if (result.kind != ApiErrorKind.NETWORK) {
+                            errorLog.record(DataSection.TIMETABLE.label, result.message, result.diagnostic)
+                        }
+                        _sync.update {
+                            it.copy(
+                                errors = it.errors + (DataSection.TIMETABLE to result.message),
+                                offline = it.offline || result.kind == ApiErrorKind.NETWORK,
+                            )
+                        }
                     }
                 }
+                withContext(io) { snapshots.write(profile, _snapshot.value) }
             }
-            withContext(io) { snapshots.write(profile, _snapshot.value) }
         } finally {
             _loadingWeeks.update { it - monday }
         }
@@ -758,9 +786,12 @@ class SchoolRepository(
         // Le jour, pas les devoirs : une journée peut n'avoir aucun devoir mais un contenu
         // de séance, et l'inverse. On retient donc ce qui a été demandé, pas ce qui est revenu.
         if (!force && date in loadedDays) return
-        loadedDays += date
-        val result = withSession { api.dayContent(account.id, date) }
+        val result = serialized { withSession { api.dayContent(account.id, date) } }
         if (result is ApiResult.Ok) {
+            // Marqué seulement maintenant : un appel qui échoue dans le métro doit pouvoir
+            // être refait de retour en ligne, sinon le contenu reste vide jusqu'à la mort
+            // du processus.
+            loadedDays += date
             _snapshot.update {
                 it.copy(
                     homework = Merge.homeworkForDate(it.homework, result.value.homework, date),
@@ -776,7 +807,7 @@ class SchoolRepository(
         markMessageRead(message)
         val account = currentAccount ?: return
         if (message.hasBody) return
-        val result = withSession { api.messageBody(account, message.id, message.folder) }
+        val result = serialized { withSession { api.messageBody(account, message.id, message.folder) } }
         val loaded = (result as? ApiResult.Ok)?.value ?: return
         _snapshot.update {
             it.copy(
@@ -802,6 +833,13 @@ class SchoolRepository(
     /**
      * Coche ou décoche un devoir. L'état local est appliqué immédiatement — l'application
      * doit répondre même hors ligne — puis poussé vers le serveur au mieux.
+     *
+     * C'est la seule écriture du client, et elle reste la moins éprouvée : son aller-retour
+     * n'a jamais été confronté à un vrai compte. Deux garde-fous, donc. Un identifiant
+     * fabriqué localement n'est jamais envoyé : il ne désigne rien chez ÉcoleDirecte, et le
+     * poster revient à inventer une clé. Et le refus du serveur n'est plus jeté en silence —
+     * il part au journal de diagnostic, seul endroit où l'on pourra constater que l'écriture
+     * ne marche pas. La coche locale, elle, reste : hors ligne c'est tout ce qu'on a.
      */
     suspend fun toggleHomeworkDone(item: HomeworkItem) {
         val done = !_settings.value.isHomeworkDone(item.id, item.done)
@@ -811,7 +849,11 @@ class SchoolRepository(
         // pas changer parce que sa mère a fait le point le soir — il verrait un devoir rendu
         // qu'il n'a pas rendu, ce qui est pire que pas de coche du tout.
         if (account.viewedByFamily) return
-        withSession { api.setHomeworkDone(account.id, item.id, done) }
+        if (!item.idFromServer) return
+        val result = serialized { withSession { api.setHomeworkDone(account.id, item.id, done) } }
+        if (result is ApiResult.Failure && result.kind != ApiErrorKind.NETWORK) {
+            errorLog.record("Devoir coché", result.message, result.diagnostic)
+        }
     }
 
     // ── Réglages ─────────────────────────────────────────────────────────────
@@ -919,5 +961,10 @@ fun SyncState.statusLabel(lastSyncMillis: Long?, nowMillis: Long): String = when
     running -> "Synchronisation…"
     offline -> "Hors ligne · ${Dates.freshness(lastSyncMillis, nowMillis)}"
     errors.isNotEmpty() -> "Partiellement à jour · ${Dates.freshness(lastSyncMillis, nowMillis)}"
+    // « À jour » se déduisait de l'absence d'erreur, donc un compte jamais synchronisé
+    // s'annonçait « À jour · jamais synchronisé » devant des écrans vides — le cas arrivait
+    // au premier lancement et à chaque changement d'enfant. Sans synchronisation réussie,
+    // il n'y a rien à déclarer à jour.
+    lastSyncMillis == null -> "Pas encore synchronisé"
     else -> "À jour · ${Dates.freshness(lastSyncMillis, nowMillis)}"
 }

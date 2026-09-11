@@ -299,20 +299,49 @@ class EcoleDirecteApi(
         folder: MessageFolder = MessageFolder.RECEIVED,
         folderId: String = "0",
     ): ApiResult<List<MessageItem>> = call(
-        path = "/${mailboxSegment(account)}/${account.mailboxId}/messages.awp",
+        path = messagesPath(account),
         payload = JSONObject().put("anneeMessages", ""),
-        params = linkedMapOf(
-            "force" to "false",
-            "typeRecuperation" to folder.apiValue,
-            "idClasseur" to folderId,
-            "orderBy" to "date",
-            "order" to "desc",
-            "page" to page.toString(),
-            "itemsPerPage" to MESSAGES_PER_PAGE.toString(),
-            "onlyRead" to "",
-            "query" to "",
-        ),
+        params = messagesParams(page, folder, folderId),
     ) { Parsers.messages(it, folder) }
+
+    /** Une page de messages et les classeurs qui arrivent avec elle. */
+    data class MessagePage(
+        val messages: List<MessageItem>,
+        val folders: List<Pair<String, String>>,
+    )
+
+    /**
+     * La même page, lue en entier.
+     *
+     * Les classeurs sont dans le **même** conteneur que les messages : les demander
+     * séparément était un second aller-retour réseau complet pour des données déjà reçues.
+     * Le commentaire de [messageFolders] l'affirmait déjà ; le code ne le faisait pas.
+     */
+    fun messagePage(
+        account: Account,
+        page: Int = 0,
+        folder: MessageFolder = MessageFolder.RECEIVED,
+        folderId: String = "0",
+    ): ApiResult<MessagePage> = call(
+        path = messagesPath(account),
+        payload = JSONObject().put("anneeMessages", ""),
+        params = messagesParams(page, folder, folderId),
+    ) { MessagePage(Parsers.messages(it, folder), Parsers.messageFolders(it)) }
+
+    private fun messagesPath(account: Account): String =
+        "/${mailboxSegment(account)}/${account.mailboxId}/messages.awp"
+
+    private fun messagesParams(page: Int, folder: MessageFolder, folderId: String) = linkedMapOf(
+        "force" to "false",
+        "typeRecuperation" to folder.apiValue,
+        "idClasseur" to folderId,
+        "orderBy" to "date",
+        "order" to "desc",
+        "page" to page.toString(),
+        "itemsPerPage" to MESSAGES_PER_PAGE.toString(),
+        "onlyRead" to "",
+        "query" to "",
+    )
 
     fun messageBody(
         account: Account,

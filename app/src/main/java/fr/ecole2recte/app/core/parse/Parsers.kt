@@ -132,7 +132,8 @@ object Parsers {
 
     private fun homeworkFromSummary(entry: JSONObject, dueDate: LocalDate): HomeworkItem? {
         val subject = Text.prettySubject(entry.string("matiere", "codeMatiere").ifBlank { return null })
-        val id = entry.stringOrNull("idDevoir", "id") ?: stableId("hw", subject, dueDate.toString())
+        val id = entry.stringOrNull("idDevoir", "id")
+            ?: stableId(HomeworkItem.LOCAL_HOMEWORK_ID_PREFIX.trimEnd('-'), subject, dueDate.toString())
         return HomeworkItem(
             id = id,
             subject = subject,
@@ -156,7 +157,9 @@ object Parsers {
             val subject = Text.prettySubject(entry.string("matiere", "codeMatiere").ifBlank { return@mapNotNull null })
             val id = toDo?.stringOrNull("idDevoir")
                 ?: entry.stringOrNull("id", "idDevoir")
-                ?: stableId("hw", subject, dueDate.toString())
+                // Pas d'identifiant côté serveur : on en fabrique un, et `idFromServer`
+                // saura que celui-là ne doit jamais repartir en écriture.
+                ?: stableId(HomeworkItem.LOCAL_HOMEWORK_ID_PREFIX.trimEnd('-'), subject, dueDate.toString())
             // Sans « aFaire », l'entrée n'est qu'un contenu de séance : rien à rendre.
             if (toDo == null && !entry.bool("interrogation")) return@mapNotNull null
             HomeworkItem(

@@ -16,6 +16,13 @@ import java.nio.charset.StandardCharsets
  * Aucune bibliothèque tierce : le protocole est simple, et la seule contrainte réelle est de
  * contrôler finement les en-têtes et les cookies, ce que la classe de la plateforme fait très
  * bien. Le corps est déjà encodé par le client ; ici, on ne fait que le transmettre.
+ *
+ * Une précaution qui ne se voit pas : **ne pas** appeler `disconnect()` quand la réponse a été
+ * lue jusqu'au bout. Sur Android, `disconnect()` évince la socket du pool de connexions ;
+ * l'appeler dans un `finally` rouvrait donc une poignée de main TLS à chaque requête, soit
+ * neuf par synchronisation au lieu d'une — des secondes de radio allumée, et de la batterie,
+ * pour rien. Fermer le flux suffit : la socket retourne au pool d'elle-même. On ne coupe que
+ * sur panne, là où rien n'a été lu et où la connexion n'est plus réutilisable.
  */
 class AndroidHttpEngine(
     private val connectTimeoutMillis: Int = 20_000,
@@ -34,9 +41,9 @@ class AndroidHttpEngine(
                 bytes = stream?.use { it.readBytes() } ?: ByteArray(0),
             )
         } catch (error: IOException) {
-            throw NetworkFailure("Téléchargement interrompu.", error)
-        } finally {
+            // Une réponse jamais lue ne peut pas revenir au pool : là, il faut fermer.
             connection.disconnect()
+            throw NetworkFailure("Téléchargement interrompu.", error)
         }
     }
 
@@ -51,9 +58,8 @@ class AndroidHttpEngine(
             val body = stream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty()
             HttpResponse(status = status, headers = headers(connection), body = body)
         } catch (error: IOException) {
-            throw NetworkFailure("Connexion réseau impossible.", error)
-        } finally {
             connection.disconnect()
+            throw NetworkFailure("Connexion réseau impossible.", error)
         }
     }
 

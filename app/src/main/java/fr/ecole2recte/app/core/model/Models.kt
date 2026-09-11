@@ -112,6 +112,22 @@ data class HomeworkItem(
 ) {
     /** Vrai quand le contenu n'a pas encore été chargé par l'appel détaillé du jour. */
     val hasContent: Boolean get() = content.isNotBlank()
+
+    /**
+     * Vrai quand l'identifiant vient d'ÉcoleDirecte.
+     *
+     * Le cahier de textes ne porte pas toujours d'identifiant de devoir ; l'analyse en
+     * fabrique alors un, reproductible, pour ne pas créer de doublon d'une synchronisation à
+     * l'autre. Cet identifiant-là ne désigne **rien** côté serveur : il sert à ranger
+     * localement, jamais à écrire. Les identifiants du service sont numériques, ce préfixe
+     * ne peut donc pas en masquer un.
+     */
+    val idFromServer: Boolean get() = !id.startsWith(LOCAL_HOMEWORK_ID_PREFIX)
+
+    companion object {
+        /** Préfixe des identifiants fabriqués ici, par [fr.ecole2recte.app.core.parse.Parsers]. */
+        const val LOCAL_HOMEWORK_ID_PREFIX = "hw-"
+    }
 }
 
 /**

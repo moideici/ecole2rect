@@ -71,7 +71,7 @@ object Merge {
         // Une page de « reçus » ne dit rien des « envoyés » : les autres dossiers déjà
         // chargés restent en place, sinon changer d'onglet les rechargerait chaque fois.
         val untouched = existing.filter { it.folder != folder }
-        return (untouched + fetched.map { message ->
+        val fresh = fetched.map { message ->
             val previous = known[message.id]
             if (previous != null && !message.hasBody && previous.hasBody) {
                 message.copy(
@@ -82,7 +82,23 @@ object Merge {
             } else {
                 message
             }
-        }).sortedByDescending { it.date }
+        }
+        // La page fraîche est triée du plus récent au plus ancien et ne couvre que le haut de
+        // la liste. Ce qui est plus ancien que son dernier message a été remonté page par
+        // page, à la main, par quelqu'un qui cherchait quelque chose : une synchronisation de
+        // fond n'a aucune raison de le jeter — et le rejeter le faisait repayer en données.
+        // Une page vide, elle, dit que le dossier est vide côté serveur : là, on suit.
+        val oldestFresh = fresh.mapNotNull { it.date }.minOrNull()
+        val deeper = if (fresh.isEmpty() || oldestFresh == null) {
+            emptyList()
+        } else {
+            // Un message sans date ne peut pas être situé : le garder vaut mieux que de le
+            // perdre parce qu'on ne sait pas le comparer.
+            existing.filter { it.folder == folder && it.date?.isBefore(oldestFresh) != false }
+        }
+        return (untouched + fresh + deeper)
+            .distinctBy { it.id }
+            .sortedByDescending { it.date }
     }
 
     /** Le contenu de séance d'un jour remplace celui du même jour, et lui seul. */
