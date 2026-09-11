@@ -215,7 +215,7 @@ class DayRhythmTest {
     // ── La journée lue comme un emploi du temps ──────────────────────────────
 
     @Test
-    fun `la liste du jour porte les plages horaires et la pause`() {
+    fun `la liste du jour porte l heure de debut de chaque cours et la pause`() {
         val payload = WidgetContent.payload(
             kind = WidgetKind.DAY,
             snapshot = snapshotOf(ordinaryDay),

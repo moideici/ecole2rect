@@ -807,10 +807,17 @@ object WidgetContent {
     /**
      * Les lignes d'une journée, lues comme un emploi du temps et non comme une liste.
      *
-     * Chaque cours porte sa **plage horaire** et pas seulement son heure de début : « 8:00 »
-     * ne dit pas si le cours dure une heure ou trois. Et la pause méridienne apparaît en
-     * toutes lettres, à sa place dans la journée, au lieu de se deviner à un trou entre deux
-     * lignes — c'est ce qui manque le plus à une liste pour ressembler à un emploi du temps.
+     * Chaque cours porte son **heure de début** dans une colonne étroite, à gauche, comme sur
+     * un emploi du temps papier : c'est elle qu'on parcourt du regard, et la matière garde
+     * toute la largeur restante. Une plage complète — « 08:00 – 09:00 » — doublerait cette
+     * colonne et rognerait le nom de la matière, pour une information que la forme grille, elle,
+     * porte déjà dans la hauteur des blocs. (Cette documentation promettait la plage horaire ;
+     * le code faisait autre chose, et le test censé le vérifier validait les heures de début
+     * sous un nom qui annonçait l'inverse.)
+     *
+     * La pause méridienne, en revanche, apparaît en toutes lettres, à sa place dans la journée,
+     * au lieu de se deviner à un trou entre deux lignes — c'est ce qui manque le plus à une
+     * liste pour ressembler à un emploi du temps.
      */
     private fun dayLines(
         lessons: List<Lesson>,
