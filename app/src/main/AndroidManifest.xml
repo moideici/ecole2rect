@@ -54,8 +54,9 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Seize widgets d'écran d'accueil : six tuiles 1×1, cinq bandeaux 2×1,
-             quatre listes 2×2 et une semaine 4×2. Chacun lit le cache local, sans réseau. -->
+        <!-- Neuf widgets d'écran d'accueil : trois tuiles 1×1, quatre bandeaux 2×1, la journée
+             en horaires et la semaine en 4×2. Chacun lit le cache local, sans réseau, et sa
+             forme suit la place que le lanceur lui accorde. -->
         <receiver
             android:name=".widget.NextLessonWidget"
             android:exported="false"

@@ -38,9 +38,10 @@ import java.time.LocalDateTime
 object SnapshotCodec {
 
     /**
-     * Version 3 : compte famille, dossiers de messagerie, compétences, actualités, manuels
-     * numériques et espace de stockage. Un cache d'une version antérieure est ignoré plutôt
-     * que réinterprété — il sera reconstruit à la première synchronisation.
+     * Version 4 : compte famille, dossiers de messagerie, compétences, actualités, manuels
+     * numériques, espace de stockage, et l'historique de « ce qui a changé ». Un cache d'une
+     * version antérieure est ignoré plutôt que réinterprété — il sera reconstruit à la
+     * première synchronisation.
      */
     const val VERSION = 4
 

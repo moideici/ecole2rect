@@ -65,7 +65,9 @@ fiable.
 - **Recherche accessible depuis toutes les pages**, et navigation jour par jour de l'emploi
   du temps aux flèches autant qu'au balayage — un geste horizontal n'a pas d'équivalent au
   lecteur d'écran.
-- **Seize widgets d'écran d'accueil Android** (voir plus bas), dont un configurable à la pose.
+- **Neuf widgets d'écran d'accueil Android** (voir plus bas), chacun configurable à la pose et
+  redimensionnable : c'est la place accordée, et non un type choisi dans une liste, qui décide
+  de ce qu'il montre.
 - **Notifications** — nouvelle note, nouveau devoir, nouveau message, rappel la veille d'une
   évaluation, chaque type activable séparément et jamais deux fois la même chose.
 - **Synchronisation en arrière-plan** toutes les heures, qui alimente aussi les widgets. Elle
@@ -115,16 +117,26 @@ passe. Elles se relisent, se corrigent et s'effacent dans **Réglages → Connex
 
 ## Widgets d'écran d'accueil
 
-Seize widgets natifs, dans la même direction visuelle que l'application. Le tableau donne
-leur taille *à l'installation* — pas leur taille de vie : ils sont tous redimensionnables
-dans les deux sens, et leur contenu suit.
+Neuf widgets natifs, dans la même direction visuelle que l'application. Il y en avait seize,
+c'est-à-dire seize entrées à faire défiler dans le sélecteur du lanceur, souvent pour la même
+donnée vue autrement ; ce sont désormais neuf sujets, et c'est la **place accordée** qui
+décide de la forme. Le
+tableau donne leur taille *à l'installation* — pas leur taille de vie : ils sont tous
+redimensionnables dans les deux sens, et leur contenu suit.
 
 | À l'installation | Widgets |
 | --- | --- |
-| 1×1 | moyenne générale · devoirs à faire · messages non lus · avant le prochain cours · prochaine évaluation · absences à justifier |
-| 2×1 | **horaires du jour** · prochain cours · devoir urgent · dernière note · dernier message |
-| 2×2 | journée · prochains devoirs · dernières notes · moyennes par matière |
+| 1×1 | devoirs · notes · vie scolaire |
+| 2×1 | prochain cours · objectif · ce qui a changé · demain |
+| 2×1 horaires | journée |
 | 4×2 | semaine |
+
+Les quatre widgets qui portent un contenu horaire — prochain cours, journée, semaine,
+demain — se dessinent **à l'échelle du temps** dès qu'on leur donne deux cases sur deux : un
+cours de deux heures occupe deux fois la hauteur d'un cours d'une heure, et les six colonnes
+d'une semaine partagent la même échelle. Avant Android 12, la hauteur exacte d'une vue
+distante n'est pas réglable : ils se replient alors sur une liste, qui ne ment pas sur les
+durées.
 
 ### Le contenu suit la taille
 
@@ -233,7 +245,7 @@ app/src/main/java/fr/ecole2recte/app/
 │   ├── format/                dates et textes en français, HTML → texte
 │   └── auth/                  réponse automatique à la question de sécurité, et ses limites
 ├── data/                      implémentations Android des contrats de `core`
-├── widget/                    les seize widgets d'écran d'accueil (RemoteViews)
+├── widget/                    les neuf widgets d'écran d'accueil (RemoteViews)
 ├── sync/                      synchronisation de fond et notifications
 ├── ui/                        écrans Compose, composants et thème
 ├── MainViewModel.kt           état d'interface et actions
@@ -278,7 +290,7 @@ Une centaine de tests couvrent ce qui casse en silence :
 - les règles d'accueil (prochain cours, devoir urgent, moyennes pondérées, résumé d'une
   journée, trous, croisement devoirs ↔ cours) et la personnalisation (ordre des blocs,
   couleurs, état local des devoirs) ;
-- le contenu des seize widgets d'écran d'accueil, y compris sans aucune donnée : un widget
+- le contenu des neuf widgets d'écran d'accueil, y compris sans aucune donnée : un widget
   qui plante reste vide jusqu'au redémarrage du lanceur, c'est le pire des échecs silencieux.
 
 Aucun test n'a besoin d'un compte réel ni d'un accès réseau : c'est la condition pour qu'ils

@@ -14,6 +14,7 @@ import fr.ecole2recte.app.core.settings.AppSettings
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
 /**
  * Les questions que l'accueil pose aux données.
@@ -341,12 +342,23 @@ object Insights {
 
     // ── Notes ────────────────────────────────────────────────────────────────
 
+    /**
+     * La période en cours, au sens du bulletin.
+     *
+     * La **plus courte** de celles qui contiennent aujourd'hui, et non la première trouvée :
+     * certains établissements publient aussi une pseudo-période annuelle, dont les bornes
+     * couvrent les trois trimestres. La prendre pour la période courante vidait tout ce qui
+     * en dépend — tendance, objectif, moyennes par matière — puisque les notes portent un code
+     * de trimestre, et le symptôme était discret parce que la moyenne, elle, restait juste.
+     */
     fun currentPeriod(periods: List<Period>, today: LocalDate): Period? =
-        periods.firstOrNull { period ->
-            val start = period.start
-            val end = period.end
-            start != null && end != null && !today.isBefore(start) && !today.isAfter(end)
-        } ?: periods.firstOrNull { it.current } ?: periods.firstOrNull()
+        periods.mapNotNull { period ->
+            val start = period.start ?: return@mapNotNull null
+            val end = period.end ?: return@mapNotNull null
+            if (today.isBefore(start) || today.isAfter(end)) return@mapNotNull null
+            period to ChronoUnit.DAYS.between(start, end)
+        }.minByOrNull { it.second }?.first
+            ?: periods.firstOrNull { it.current } ?: periods.firstOrNull()
 
     /**
      * Moyenne générale à afficher : celle de l'établissement si elle existe, sinon celle

@@ -234,4 +234,33 @@ class GradeFiguresTest {
         // Et chaque point est bien la moyenne de ce qui précède, pas une somme courante brute.
         assertEquals(10.0, history.first().second, 0.0001)
     }
+
+    // ── La période en cours ──────────────────────────────────────────────────
+
+    @Test
+    fun `une pseudo periode annuelle ne passe pas pour le trimestre en cours`() {
+        // Certains établissements publient une période « Année » dont les bornes couvrent les
+        // trois trimestres, et parfois en tête de liste. La prendre pour la période courante
+        // vidait tendance, objectif et moyennes par matière, puisque les notes portent un code
+        // de trimestre — sans que la moyenne affichée, elle, devienne fausse : le symptôme
+        // était muet.
+        val periods = listOf(
+            Period(code = "ANNEE", name = "Année", start = term, end = term.plusMonths(10)),
+            Period(code = "T1", name = "Trimestre 1", start = term, end = term.plusMonths(3)),
+        )
+
+        val period = Insights.currentPeriod(periods, term.plusDays(10))
+
+        assertEquals("T1", period?.code)
+    }
+
+    @Test
+    fun `sans periode contenant aujourd hui, celle marquee courante l emporte`() {
+        val periods = listOf(
+            Period(code = "T1", name = "Trimestre 1", start = term, end = term.plusMonths(3)),
+            Period(code = "T3", name = "Trimestre 3", current = true),
+        )
+
+        assertEquals("T3", Insights.currentPeriod(periods, term.plusMonths(8))?.code)
+    }
 }

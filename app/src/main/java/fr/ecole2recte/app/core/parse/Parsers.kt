@@ -104,8 +104,11 @@ object Parsers {
                     entry.string("typeCours").contains("DEVOIR", ignoreCase = true),
                 note = entry.string("commentaire"),
                 // Le groupe distingue deux élèves de la même classe qui ne sont pas au même
-                // cours ; il ne figure pas toujours dans le libellé de la matière.
-                group = entry.string("groupeCode", "groupe", "classe")
+                // cours ; il ne figure pas toujours dans le libellé de la matière. `classe`
+                // n'en fait pas partie : pour un cours en classe entière, `groupe` est vide et
+                // le repli affichait « Terminale B » comme s'il s'agissait d'un demi-groupe —
+                // c'est-à-dire une mention de groupe sur *tous* les cours, l'inverse du but.
+                group = entry.string("groupeCode", "groupe")
                     .takeIf { it.isNotBlank() && !it.equals(entry.string("matiere"), ignoreCase = true) }
                     .orEmpty(),
                 kind = Text.prettySubject(entry.string("typeCours")),
@@ -332,9 +335,12 @@ object Parsers {
                 start = start,
                 end = parseDateTime(entry.string("dateFin")),
                 justified = entry.bool("justifie", "justifiee"),
-                reason = entry.string("motif", "libelle"),
+                // Le motif vient de `motif`, et de lui seul. Le repli sur `libelle` affichait
+                // la durée (« 2 demi-journées ») en gros, à la place du motif : mieux vaut pas
+                // de motif qu'un motif qui n'en est pas un.
+                reason = entry.string("motif"),
                 comment = entry.string("commentaire"),
-                duration = entry.string("duree", "nbHeures", "displayDuree"),
+                duration = entry.string("duree", "nbHeures", "displayDuree", "libelle"),
             )
         }.distinctBy { it.id }.sortedByDescending { it.start }
     }

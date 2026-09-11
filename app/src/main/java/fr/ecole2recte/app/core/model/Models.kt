@@ -2,6 +2,7 @@ package fr.ecole2recte.app.core.model
 
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 /**
  * Modèles applicatifs stables.
@@ -269,6 +270,15 @@ data class SchoolLifeEvent(
     val duration: String = "",
 ) {
     val date: LocalDate get() = start.toLocalDate()
+
+    /**
+     * Vrai quand l'événement porte une heure, et non seulement un jour.
+     *
+     * La vie scolaire ne donne souvent qu'une date ; l'analyse retombe alors sur le début du
+     * jour, et l'écran affichait « 19 novembre · 00:00 » pour chaque absence. Minuit n'est
+     * pas une heure d'absence plausible : c'est la marque d'une heure absente.
+     */
+    val hasTime: Boolean get() = start.toLocalTime() != LocalTime.MIDNIGHT
 }
 
 enum class SchoolLifeKind(val label: String) {

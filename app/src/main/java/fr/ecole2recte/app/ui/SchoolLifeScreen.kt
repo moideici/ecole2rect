@@ -112,11 +112,15 @@ private fun SchoolLifeRow(event: SchoolLifeEvent) {
             Text(
                 buildString {
                     append(Dates.dayAndMonth(event.date))
-                    append(" · ")
-                    append(Dates.time(event.start))
-                    event.end?.let {
-                        append(" — ")
-                        append(Dates.time(it))
+                    // Pas d'heure quand le service n'en donne pas : « · 00:00 » ne renseignait
+                    // personne et donnait à chaque absence l'air d'avoir eu lieu la nuit.
+                    if (event.hasTime) {
+                        append(" · ")
+                        append(Dates.time(event.start))
+                        event.end?.let {
+                            append(" — ")
+                            append(Dates.time(it))
+                        }
                     }
                     // La durée telle que l'établissement la compte : c'est elle qui figure
                     // sur le bulletin, pas l'écart entre les deux heures affichées.

@@ -273,4 +273,55 @@ class ParsersTest {
         assertTrue(Parsers.documents(JSONObject("""{"data":{}}""")).isEmpty())
         assertTrue(Parsers.sessionContents(JSONObject("{}"), LocalDate.of(2026, 9, 7)).isEmpty())
     }
+
+    @Test
+    fun `un cours en classe entiere ne porte pas de groupe`() {
+        val payload = JSONObject(
+            """
+            { "code": 200, "data": [
+              { "id": "1", "text": "MATHS", "matiere": "MATHEMATIQUES", "prof": "M. Petit",
+                "salle": "C011", "classe": "Terminale A", "groupe": "",
+                "start_date": "2026-09-07 08:00", "end_date": "2026-09-07 09:00",
+                "isAnnule": false },
+              { "id": "2", "text": "ANGLAIS GR1", "matiere": "ANGLAIS", "prof": "Mme Dubois",
+                "salle": "A112", "classe": "Terminale A", "groupeCode": "ANG1",
+                "start_date": "2026-09-07 09:00", "end_date": "2026-09-07 10:00",
+                "isAnnule": false } ] }
+            """.trimIndent(),
+        )
+
+        val lessons = Parsers.lessons(payload)
+
+        // Le repli sur `classe` mettait « Terminale A » en mention de groupe sur *tous* les
+        // cours : une indication de demi-groupe qui ne distinguait plus rien.
+        assertEquals("", lessons.first { it.id == "1" }.group)
+        assertEquals("ANG1", lessons.first { it.id == "2" }.group)
+    }
+
+    @Test
+    fun `une absence sans heure n affiche pas minuit, et son motif n est pas sa duree`() {
+        val payload = JSONObject(
+            """
+            { "code": 200, "data": { "absencesRetards": [
+              { "id": "9001", "typeElement": "Absence", "date": "2026-11-19",
+                "libelle": "2 demi-journées", "justifie": false },
+              { "id": "9002", "typeElement": "Retard", "dateDebut": "2026-11-20 08:05",
+                "motif": "Transport", "libelle": "10 minutes", "justifie": true } ] } }
+            """.trimIndent(),
+        )
+
+        val events = Parsers.schoolLife(payload)
+
+        val absence = events.first { it.id == "9001" }
+        // `libelle` porte la durée : le prendre pour motif affichait « 2 demi-journées » à la
+        // place du motif, en gros, sur la carte.
+        assertEquals("", absence.reason)
+        assertEquals("2 demi-journées", absence.duration)
+        // Et sans heure dans la réponse, il n'y a pas d'heure à afficher.
+        assertFalse("une absence datée du jour seul n'a pas eu lieu à minuit", absence.hasTime)
+
+        val retard = events.first { it.id == "9002" }
+        assertEquals("Transport", retard.reason)
+        assertTrue(retard.hasTime)
+    }
 }

@@ -206,9 +206,13 @@ data class AppSettings(
     val showDiagnostics: Boolean = false,
     val notifications: NotificationSettings = NotificationSettings(),
     /**
-     * Ce qui a déjà été signalé, pour ne jamais notifier deux fois la même note. La liste
-     * est bornée : au-delà, les plus anciens identifiants ne peuvent de toute façon plus
-     * revenir dans une synchronisation.
+     * Ce qui a déjà été signalé, pour ne jamais notifier deux fois la même note.
+     *
+     * La liste est bornée **par famille** — notes, devoirs, messages, rappels — et non d'un
+     * seul plafond global. Avec un plafond global, un carnet de notes d'une année entière
+     * chassait les devoirs de la mémoire, et les notes de septembre finissaient par être
+     * re-signalées en mars : elles restent candidates à chaque passage, puisque l'API les
+     * renvoie toutes.
      */
     val notified: List<String> = emptyList(),
     /** Verrouillage de l'application par empreinte ou code de l'appareil. */
@@ -282,13 +286,37 @@ data class AppSettings(
         undoneHomework = if (done) undoneHomework - id else undoneHomework + id,
     )
 
-    fun hasBeenNotified(id: String): Boolean = id in notified
+    /**
+     * Recherche en temps constant : [notified] compte des centaines d'entrées, et le plan de
+     * notification l'interroge une fois par note, par devoir et par message de l'année.
+     */
+    private val notifiedIndex: Set<String> by lazy { notified.toSet() }
 
-    /** Retient ce qui vient d'être signalé, sans laisser la liste grossir sans fin. */
+    fun hasBeenNotified(id: String): Boolean = id in notifiedIndex
+
+    /**
+     * Retient ce qui vient d'être signalé, sans laisser la liste grossir sans fin.
+     *
+     * Deux précautions, toutes deux nées d'un défaut. Un identifiant revu retourne en **queue**
+     * de liste : avec `distinct()`, qui garde la première occurrence, il conservait sa place
+     * ancienne et se faisait évincer par le bas alors qu'il restait candidat — donc re-notifié.
+     * Et le plafond s'applique famille par famille, pour qu'une famille nombreuse n'efface pas
+     * la mémoire des autres.
+     */
     fun withNotified(ids: Collection<String>): AppSettings {
         if (ids.isEmpty()) return this
-        val merged = (notified + ids).distinct()
-        return copy(notified = merged.takeLast(MAX_NOTIFIED))
+        val seen = ids.toSet()
+        val merged = notified.filterNot { it in seen } + ids
+        val counts = mutableMapOf<String, Int>()
+        val kept = merged.asReversed()
+            .filter { id ->
+                val family = id.substringBefore(':')
+                val already = counts.getOrElse(family) { 0 }
+                counts[family] = already + 1
+                already < MAX_NOTIFIED_PER_FAMILY
+            }
+            .asReversed()
+        return copy(notified = kept)
     }
 
     fun isMessageRead(id: String, remoteRead: Boolean): Boolean = remoteRead || id in readMessages
@@ -302,7 +330,14 @@ data class AppSettings(
         copy(binnedMessages = if (binned) binnedMessages + id else binnedMessages - id)
 
     private companion object {
-        const val MAX_NOTIFIED = 400
+        /**
+         * Par famille, pas au total.
+         *
+         * Assez pour couvrir une année de notes ou de messages — ce sont les deux familles
+         * qui restent candidates indéfiniment — sans faire enfler les réglages, qui sont
+         * réécrits en entier à chaque case cochée.
+         */
+        const val MAX_NOTIFIED_PER_FAMILY = 250
     }
 }
 

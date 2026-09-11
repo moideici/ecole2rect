@@ -178,13 +178,40 @@ class NotificationPlanTest {
         assertTrue("les autres restent", plan.notifications.any { it.kind == NotificationKind.GRADE })
     }
 
-    @Test
-    fun `la memoire des notifications reste bornee`() {
-        var settings = AppSettings()
-        repeat(500) { index -> settings = settings.withNotified(listOf("note:$index")) }
+    // ── Ce qui a déjà été signalé ────────────────────────────────────────────
 
-        assertEquals(400, settings.notified.size)
-        assertTrue(settings.hasBeenNotified("note:499"))
-        assertTrue("les plus anciens finissent par sortir", !settings.hasBeenNotified("note:0"))
+    @Test
+    fun `un identifiant revu ne se fait pas evincer`() {
+        // Une note de septembre reste candidate toute l'année : l'API la renvoie à chaque
+        // passage. Avec `distinct()`, qui garde la première occurrence, elle conservait sa
+        // place ancienne et finissait par sortir de la mémoire — donc par sonner en mars.
+        var settings = AppSettings().withNotified(listOf("note:septembre"))
+        repeat(400) { index -> settings = settings.withNotified(listOf("note:septembre", "note:$index")) }
+
+        assertTrue(
+            "la note revue à chaque passage doit rester connue",
+            settings.hasBeenNotified("note:septembre"),
+        )
+    }
+
+    @Test
+    fun `une famille nombreuse n efface pas la memoire des autres`() {
+        var settings = AppSettings().withNotified(listOf("devoir:901", "message:3001"))
+        // Une année de notes, largement de quoi dépasser n'importe quel plafond global.
+        repeat(600) { index -> settings = settings.withNotified(listOf("note:$index")) }
+
+        assertTrue("le devoir doit rester connu", settings.hasBeenNotified("devoir:901"))
+        assertTrue("le message doit rester connu", settings.hasBeenNotified("message:3001"))
+    }
+
+    @Test
+    fun `la memoire reste bornee`() {
+        var settings = AppSettings()
+        repeat(2_000) { index -> settings = settings.withNotified(listOf("note:$index")) }
+
+        // Bornée, mais par famille : les réglages sont réécrits en entier à chaque case
+        // cochée, une liste sans fin finirait par coûter à chaque geste.
+        assertTrue("${settings.notified.size} entrées", settings.notified.size <= 300)
+        assertTrue("les plus récents sont gardés", settings.hasBeenNotified("note:1999"))
     }
 }

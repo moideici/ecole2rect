@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Synchronisation de fond.
  *
- * Sans elle, les quinze widgets d'écran d'accueil n'affichent que ce que la dernière
+ * Sans elle, les widgets d'écran d'accueil n'affichent que ce que la dernière
  * ouverture de l'application avait ramené : un emploi du temps d'hier soir sur un écran
  * qu'on regarde le matin. Ce travail va chercher les données, décide s'il y a lieu de
  * notifier, puis repousse les widgets.
