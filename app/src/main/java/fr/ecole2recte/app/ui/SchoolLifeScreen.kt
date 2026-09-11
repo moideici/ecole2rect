@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
+import fr.ecole2recte.app.core.format.Text as Format
 import fr.ecole2recte.app.core.model.Document
 import fr.ecole2recte.app.core.model.SchoolLifeEvent
 import fr.ecole2recte.app.core.model.SchoolLifeKind
@@ -46,7 +47,7 @@ fun SchoolLifeScreen(snapshot: SchoolSnapshot, onClose: () -> Unit) {
 
     DetailScaffold(
         title = "Vie scolaire",
-        subtitle = if (events.isEmpty()) null else "${events.size} événements cette année",
+        subtitle = if (events.isEmpty()) null else "${Format.count(events.size, "événement")} cette année",
         onClose = onClose,
     ) {
         if (events.isEmpty()) {
@@ -163,7 +164,7 @@ fun DocumentsScreen(
     val documents = snapshot.documents
     DetailScaffold(
         title = "Documents",
-        subtitle = if (documents.isEmpty()) null else "${documents.size} documents",
+        subtitle = if (documents.isEmpty()) null else Format.count(documents.size, "document"),
         onClose = onClose,
     ) {
         if (documents.isEmpty()) {

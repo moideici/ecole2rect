@@ -83,4 +83,24 @@ class FormatTest {
         // Une année différente doit être écrite, sinon « 3 sept. » ment d'un an.
         assertEquals("3 sept. 2025", Dates.listStamp(LocalDate.of(2025, 9, 3).atTime(8, 0), today))
     }
+
+    @Test
+    fun `les accords se font au meme endroit, zero compris`() {
+        // Le zéro prend le singulier en français, ce qu'un `if (n > 1)` écrit à la hâte
+        // oublie — et c'est ainsi qu'on lisait « 1 non lus » et « 1 événements ».
+        assertEquals("0 note", Text.count(0, "note"))
+        assertEquals("1 note", Text.count(1, "note"))
+        assertEquals("2 notes", Text.count(2, "note"))
+        // Les pluriels irréguliers se disent explicitement plutôt que de se deviner.
+        assertEquals("3 journaux", Text.count(3, "journal", "journaux"))
+        assertEquals("1 journal", Text.count(1, "journal", "journaux"))
+    }
+
+    @Test
+    fun `une duree ne perd pas ses minutes`() {
+        // La division entière de l'accueil affichait « 5h » pour cinq heures et demie.
+        assertEquals("5 h 30", Dates.duration(330))
+        assertEquals("5 h", Dates.duration(300))
+        assertEquals("45 min", Dates.duration(45))
+    }
 }

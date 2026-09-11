@@ -44,7 +44,14 @@ private val LightScheme = lightColorScheme(
     surface = Color(0xFFFFFFFF),
     onSurface = Color(0xFF18202B),
     surfaceVariant = Color(0xFFEFF2F7),
-    onSurfaceVariant = Color(0xFF7F8998),
+    // Ce gris porte *tout* le texte secondaire de l'application : échéances, heures, aperçus,
+    // étiquettes de widgets — du 10 et du 12 sp. À #7F8998 il donnait 3,5:1 sur le blanc, sous
+    // le minimum lisible de 4,5:1 pour ce corps. Il faut d'ailleurs le mesurer sur les trois
+    // fonds clairs de l'application, pas seulement sur le blanc : #646E80 garde la teinte
+    // bleutée et donne 5,1:1 sur la surface, 4,8:1 sur le fond, 4,6:1 sur les cartes grises.
+    // Le projet sait calculer un ratio WCAG — il le faisait pour les couleurs de widgets,
+    // pas pour lui-même.
+    onSurfaceVariant = Color(0xFF646E80),
     outline = Color(0xFFCED4DE),
     outlineVariant = Color(0xFFE8EBF0),
     error = Color(0xFFB3261E),
@@ -91,9 +98,12 @@ private val LightPalette = AppPalette(
     spotlight = Color(0xFF202935),
     onSpotlight = Color(0xFFFFFFFF),
     onSpotlightMuted = Color(0xFFAAB3C1),
-    success = Color(0xFF2AA270),
+    // Même raison : 3,2:1 et 3,7:1 sur blanc pour deux couleurs qui portent des phrases
+    // courtes et importantes — la tendance d'une moyenne, « encore à justifier ». Assombries,
+    // elles passent à 5,7:1 et 5,3:1 sur les fonds clairs, sans changer de teinte.
+    success = Color(0xFF177548),
     successContainer = Color(0xFFE7F8EF),
-    warning = Color(0xFFC2701F),
+    warning = Color(0xFF9A5512),
     warningContainer = Color(0xFFFFF3E4),
 )
 

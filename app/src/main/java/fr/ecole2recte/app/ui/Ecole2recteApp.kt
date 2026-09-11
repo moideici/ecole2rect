@@ -25,9 +25,12 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,6 +84,92 @@ sealed interface Detail {
     data object Cloud : Detail
     data object Search : Detail
     data object ErrorLog : Detail
+}
+
+/**
+ * Les fiches ouvertes, empilées.
+ *
+ * Un emplacement unique suffisait tant qu'une fiche s'ouvrait depuis une page principale.
+ * Il ne suffit plus : Réglages → Couleurs des matières → Retour ramenait à l'accueil au lieu
+ * des Réglages, et Professeurs → fiche → devoir écrasait chaque niveau au passage. Une pile
+ * rend au bouton retour ce qu'il promet : un cran, pas la sortie.
+ *
+ * Elle est sauvegardée, aussi : les fiches ne portent que des chaînes, donc une rotation ou
+ * la mort du processus en arrière-plan ne referme plus le message qu'on était en train de
+ * lire — ce qui arrivait à chaque fois.
+ */
+@Stable
+class DetailStack(initial: List<Detail> = emptyList()) {
+
+    private val stack = mutableStateListOf<Detail>().apply { addAll(initial) }
+
+    val current: Detail? get() = stack.lastOrNull()
+
+    /** Ouvrir deux fois la même fiche n'ajoute pas un cran à remonter. */
+    fun push(detail: Detail) {
+        if (stack.lastOrNull() != detail) stack += detail
+    }
+
+    fun pop() {
+        if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex)
+    }
+
+    fun clear() = stack.clear()
+
+    companion object {
+        // listSaver rend un Saver<Original, Any> : l'annoter autrement ne compile pas.
+        val Saver: Saver<DetailStack, Any> = listSaver<DetailStack, String>(
+            save = { state -> state.stack.map { detail -> encode(detail) } },
+            restore = { saved -> DetailStack(saved.mapNotNull { value -> decode(value) }) },
+        )
+
+        private fun encode(detail: Detail): String = when (detail) {
+            is Detail.Homework -> "devoir|${detail.id}"
+            is Detail.Lesson -> "cours|${detail.id}"
+            is Detail.Message -> "message|${detail.id}"
+            is Detail.Teacher -> "professeur|${detail.name}"
+            Detail.Settings -> "reglages"
+            Detail.HomeEditor -> "accueil"
+            Detail.SubjectColors -> "couleurs-matieres"
+            Detail.WidgetColors -> "couleurs-widgets"
+            Detail.SchoolLife -> "vie-scolaire"
+            Detail.Teachers -> "professeurs"
+            Detail.Stats -> "chiffres"
+            Detail.Documents -> "documents"
+            Detail.News -> "actualites"
+            Detail.Textbooks -> "manuels"
+            Detail.Cloud -> "stockage"
+            Detail.Search -> "recherche"
+            Detail.ErrorLog -> "diagnostic"
+        }
+
+        private fun decode(value: String): Detail? {
+            val kind = value.substringBefore('|')
+            val argument = value.substringAfter('|', "")
+            return when (kind) {
+                "devoir" -> Detail.Homework(argument)
+                "cours" -> Detail.Lesson(argument)
+                "message" -> Detail.Message(argument)
+                "professeur" -> Detail.Teacher(argument)
+                "reglages" -> Detail.Settings
+                "accueil" -> Detail.HomeEditor
+                "couleurs-matieres" -> Detail.SubjectColors
+                "couleurs-widgets" -> Detail.WidgetColors
+                "vie-scolaire" -> Detail.SchoolLife
+                "professeurs" -> Detail.Teachers
+                "chiffres" -> Detail.Stats
+                "documents" -> Detail.Documents
+                "actualites" -> Detail.News
+                "manuels" -> Detail.Textbooks
+                "stockage" -> Detail.Cloud
+                "recherche" -> Detail.Search
+                "diagnostic" -> Detail.ErrorLog
+                // Une entrée illisible — version antérieure, état tronqué — est ignorée
+                // plutôt que de faire échouer la restauration de toute la pile.
+                else -> null
+            }
+        }
+    }
 }
 
 @Composable
@@ -152,7 +241,8 @@ private fun LoginRoute(viewModel: MainViewModel) {
 @Composable
 private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationRequest?) {
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
-    var detail by remember { mutableStateOf<Detail?>(null) }
+    val details = rememberSaveable(saver = DetailStack.Saver) { DetailStack() }
+    val detail = details.current
 
     // L'emploi du temps garde son jour ici, au-dessus de la fiche de détail : ouvrir un
     // devoir depuis mardi puis revenir doit ramener sur mardi, pas sur aujourd'hui.
@@ -196,7 +286,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     LaunchedEffect(request) {
         request?.let {
             destination = it.destination
-            detail = null
+            details.clear()
             // Un widget parle d'aujourd'hui : le toucher ramène sur aujourd'hui, même si
             // l'écran était resté sur la semaine prochaine.
             if (it.destination == Destination.TIMETABLE) timetable.showDay(LocalDate.now())
@@ -214,7 +304,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
         }
     }
 
-    BackHandler(enabled = detail != null) { detail = null }
+    BackHandler(enabled = detail != null) { details.pop() }
     BackHandler(enabled = detail == null && destination != Destination.HOME) {
         destination = Destination.HOME
     }
@@ -228,7 +318,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         selected = destination == entry && detail == null,
                         onClick = {
                             destination = entry
-                            detail = null
+                            details.clear()
                         },
                         icon = {
                             // Les messages non lus sont la seule information qui mérite de
@@ -259,7 +349,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            val openDetail: (Detail) -> Unit = { detail = it }
+            val openDetail: (Detail) -> Unit = { details.push(it) }
             // Ouvrir un devoir, c'est aussi charger son contenu : la liste ne le porte pas.
             val openHomework: (HomeworkItem) -> Unit = { item ->
                 viewModel.loadHomeworkDetails(item.dueDate)
@@ -358,7 +448,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     attachmentState = attachment,
                     onToggle = toggleHomework,
                     onOpenAttachment = viewModel::openAttachment,
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 is Detail.Lesson -> LessonDetailScreen(
@@ -380,21 +470,21 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         .orEmpty(),
                     onOpenHomework = openHomework,
                     onOpenTeacher = { openDetail(Detail.Teacher(it)) },
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 is Detail.Message -> MessageDetailScreen(
                     message = snapshot.messages.firstOrNull { it.id == current.id },
                     attachmentState = attachment,
                     onOpenAttachment = viewModel::openAttachment,
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.Stats -> StatsScreen(
                     snapshot = snapshot,
                     settings = settings,
                     today = now.toLocalDate(),
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.Teachers -> TeachersScreen(
@@ -402,7 +492,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     settings = settings,
                     today = now.toLocalDate(),
                     onOpenTeacher = { openDetail(Detail.Teacher(it)) },
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 is Detail.Teacher -> TeacherDetailScreen(
@@ -411,7 +501,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     settings = settings,
                     today = now.toLocalDate(),
                     onOpenHomework = openHomework,
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.Settings -> SettingsScreen(
@@ -420,7 +510,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     settings = settings,
                     sync = sync,
                     autoAnswer = autoAnswer,
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                     onOpenDetail = openDetail,
                     onTheme = viewModel::setTheme,
                     onSelectAccount = viewModel::selectAccount,
@@ -439,7 +529,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     settings = settings,
                     onMove = viewModel::moveWidget,
                     onToggle = viewModel::toggleWidget,
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.Search -> SearchScreen(
@@ -449,7 +539,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     onOpen = { hit ->
                         when (hit.kind) {
                             fr.ecole2recte.app.core.repo.Search.HitKind.LESSON ->
-                                detail = Detail.Lesson(hit.id)
+                                details.push(Detail.Lesson(hit.id))
 
                             fr.ecole2recte.app.core.repo.Search.HitKind.HOMEWORK -> {
                                 snapshot.homework.firstOrNull { it.id == hit.id }?.let(openHomework)
@@ -458,38 +548,38 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                             fr.ecole2recte.app.core.repo.Search.HitKind.MESSAGE -> {
                                 snapshot.messages.firstOrNull { it.id == hit.id }?.let { message ->
                                     viewModel.openMessage(message)
-                                    detail = Detail.Message(message.id)
+                                    details.push(Detail.Message(message.id))
                                 }
                             }
 
                             fr.ecole2recte.app.core.repo.Search.HitKind.GRADE -> {
-                                detail = null
+                                details.clear()
                                 destination = Destination.GRADES
                             }
 
                             fr.ecole2recte.app.core.repo.Search.HitKind.SCHOOL_LIFE ->
-                                detail = Detail.SchoolLife
+                                details.push(Detail.SchoolLife)
                         }
                     },
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.ErrorLog -> ErrorLogScreen(
                     entries = errors,
                     onClear = viewModel::clearErrorLog,
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.SchoolLife -> SchoolLifeScreen(
                     snapshot = snapshot,
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.Documents -> DocumentsScreen(
                     snapshot = snapshot,
                     attachmentState = attachment,
                     onOpen = { document -> viewModel.openAttachment(document.asAttachment()) },
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.News -> NewsScreen(
@@ -497,7 +587,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     attachmentState = attachment,
                     onOpenAttachment = viewModel::openAttachment,
                     onRefresh = { viewModel.refresh(setOf(DataSection.NEWS)) },
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.Textbooks -> TextbooksScreen(
@@ -516,7 +606,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         }
                     },
                     onRefresh = { viewModel.refresh(setOf(DataSection.TEXTBOOKS)) },
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.Cloud -> CloudScreen(
@@ -524,20 +614,20 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     attachmentState = attachment,
                     onOpen = { file -> viewModel.openAttachment(file.asAttachment()) },
                     onRefresh = { viewModel.refresh(setOf(DataSection.CLOUD)) },
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.WidgetColors -> WidgetColorsScreen(
                     settings = settings,
                     onChange = viewModel::setWidgetColors,
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
 
                 Detail.SubjectColors -> SubjectColorsScreen(
                     snapshot = snapshot,
                     settings = settings,
                     onPick = viewModel::setSubjectColor,
-                    onClose = { detail = null },
+                    onClose = { details.pop() },
                 )
             }
         }

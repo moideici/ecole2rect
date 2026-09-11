@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.core.format.Dates
+import fr.ecole2recte.app.core.format.Text as Format
 import fr.ecole2recte.app.core.format.Voice
 import fr.ecole2recte.app.core.model.Account
 import fr.ecole2recte.app.core.model.HomeworkItem
@@ -654,7 +655,7 @@ private fun MessagesWidget(snapshot: SchoolSnapshot, settings: AppSettings, onNa
     AppCard(onClick = { onNavigate(Destination.MESSAGES) }) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             WidgetLabel("MESSAGES", Modifier.weight(1f))
-            if (unread.isNotEmpty()) Tag("${unread.size} non lus")
+            if (unread.isNotEmpty()) Tag(Format.count(unread.size, "non lu"))
         }
         Spacer(Modifier.height(10.dp))
         val preview = snapshot.inbox.take(3)
@@ -856,7 +857,8 @@ private fun WeekOverviewWidget(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        if (day.isEmpty) "—" else "${day.minutes / 60}h",
+                        // La division entière affichait « 5h » pour cinq heures et demie.
+                        if (day.isEmpty) "—" else Dates.duration(day.minutes),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -933,10 +935,12 @@ private fun TomorrowWidget(
         if (homework.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             Text(
-                if (homework.size == 1) {
-                    "1 devoir à rendre demain"
+                // L'en-tête dit déjà « prochain jour d'école » quand ce n'est pas demain :
+                // écrire « à rendre demain » juste en dessous se contredisait.
+                Format.count(homework.size, "devoir") + if (tomorrow == today.plusDays(1)) {
+                    " à rendre demain"
                 } else {
-                    "${homework.size} devoirs à rendre demain"
+                    " à rendre ${Dates.dayName(tomorrow)}"
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
@@ -996,11 +1000,14 @@ private fun SchoolLifeWidget(
         val unjustified = recent.count { it.kind == SchoolLifeKind.ABSENCE && !it.justified }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "${recent.size} sur 30 jours",
+                // « 4 sur 30 jours » ne disait pas de quoi on parlait.
+                "${Format.count(recent.size, "événement")} sur 30 jours",
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f),
             )
-            if (unjustified > 0) Tag("$unjustified non justifiée(s)", MaterialTheme.colorScheme.error)
+            if (unjustified > 0) {
+                Tag(Format.count(unjustified, "non justifiée"), MaterialTheme.colorScheme.error)
+            }
         }
         Spacer(Modifier.height(8.dp))
         recent.take(3).forEach { event ->

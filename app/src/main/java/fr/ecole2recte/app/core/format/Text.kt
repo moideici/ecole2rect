@@ -120,6 +120,16 @@ object Text {
             .replace(NON_ALPHANUMERIC, " ")
             .trim()
 
+    /**
+     * « 1 note », « 3 notes », « 0 note ».
+     *
+     * Les accords se faisaient site par site, à la main, et la moitié manquaient : « 1 non
+     * lus », « 1 événements », « non justifiée(s) » avec sa parenthèse. En français le zéro
+     * prend le singulier, ce qu'un `if (n > 1)` posé à la hâte oublie aussi.
+     */
+    fun count(value: Int, singular: String, plural: String = singular + "s"): String =
+        "$value ${if (value in -1..1) singular else plural}"
+
     /** Minuscule sans accent ni ponctuation : sert de clé stable pour les matières. */
     fun normalizeKey(value: String): String =
         Normalizer.normalize(value.trim().lowercase(), Normalizer.Form.NFD)

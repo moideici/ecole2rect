@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fr.ecole2recte.app.AttachmentState
 import fr.ecole2recte.app.core.format.Dates
+import fr.ecole2recte.app.core.format.Text as Format
 import fr.ecole2recte.app.core.model.Attachment
 import fr.ecole2recte.app.core.model.CloudFile
 import fr.ecole2recte.app.core.model.NewsItem
@@ -56,7 +57,7 @@ fun NewsScreen(
     val news = snapshot.news
     DetailScaffold(
         title = "Actualités",
-        subtitle = if (news.isEmpty()) null else "${news.size} publications",
+        subtitle = if (news.isEmpty()) null else Format.count(news.size, "publication"),
         onClose = onClose,
     ) {
         if (news.isEmpty()) {
@@ -125,7 +126,7 @@ fun TextbooksScreen(
     val textbooks = snapshot.textbooks
     DetailScaffold(
         title = "Manuels numériques",
-        subtitle = if (textbooks.isEmpty()) null else "${textbooks.size} manuels",
+        subtitle = if (textbooks.isEmpty()) null else Format.count(textbooks.size, "manuel"),
         onClose = onClose,
     ) {
         if (textbooks.isEmpty()) {
@@ -190,7 +191,7 @@ fun CloudScreen(
     val files = snapshot.cloudFiles
     DetailScaffold(
         title = "Espace de stockage",
-        subtitle = if (files.isEmpty()) null else "${files.size} fichiers",
+        subtitle = if (files.isEmpty()) null else Format.count(files.size, "fichier"),
         onClose = onClose,
     ) {
         if (files.isEmpty()) {
