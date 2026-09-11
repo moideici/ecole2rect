@@ -38,15 +38,24 @@ object Simulator {
     }
 
     /**
-     * Applique une note hypothétique aux notes réelles de la période en cours.
+     * Applique une note hypothétique aux notes réelles de la période — celle qu'on consulte,
+     * ou celle en cours à défaut.
      *
      * La moyenne générale simulée est toujours recalculée depuis les notes, jamais dérivée
      * de celle de l'établissement : mélanger les deux donnerait un chiffre qui n'est ni l'un
      * ni l'autre.
      */
-    fun simulate(snapshot: SchoolSnapshot, hypothesis: Hypothesis, today: LocalDate): Outcome? {
+    fun simulate(
+        snapshot: SchoolSnapshot,
+        hypothesis: Hypothesis,
+        today: LocalDate,
+        periodCode: String? = null,
+    ): Outcome? {
         if (!hypothesis.isValid) return null
-        val period = Insights.currentPeriod(snapshot.periods, today)
+        // Même raison que pour l'objectif : le simulateur doit porter sur la période qu'on
+        // regarde, pas sur celle du jour.
+        val period = periodCode?.let { code -> snapshot.periods.firstOrNull { it.code == code } }
+            ?: Insights.currentPeriod(snapshot.periods, today)
         val grades = Insights.gradesForPeriod(snapshot.grades, period?.code)
         val subjectGrades = grades.filter { it.subject == hypothesis.subject }
 

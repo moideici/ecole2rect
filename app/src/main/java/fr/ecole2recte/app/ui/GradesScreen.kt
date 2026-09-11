@@ -210,13 +210,20 @@ fun GradesScreen(
         if (grades.isNotEmpty()) {
             item("objectif") {
                 ObjectiveCard(
-                    objective = Insights.objective(snapshot, now.toLocalDate(), settings.averageTarget),
+                    objective = Insights.objective(
+                        snapshot,
+                        now.toLocalDate(),
+                        settings.averageTarget,
+                        periodCode = selectedCode,
+                    ),
                     target = settings.averageTarget,
                     onTarget = onAverageTarget,
                 )
             }
             item("history") { HistoryCard(Insights.averageHistory(grades)) }
-            item("simulator") { SimulatorCard(snapshot, settings, subjects, now.toLocalDate()) }
+            item("simulator") {
+                SimulatorCard(snapshot, settings, subjects, now.toLocalDate(), selectedCode)
+            }
         }
 
         if (subjects.isEmpty()) {
@@ -438,6 +445,7 @@ private fun SimulatorCard(
     settings: AppSettings,
     subjects: List<String>,
     today: java.time.LocalDate,
+    periodCode: String?,
 ) {
     if (subjects.isEmpty()) return
     var open by remember { mutableStateOf(false) }
@@ -450,7 +458,7 @@ private fun SimulatorCard(
         value = value.replace(',', '.').toDoubleOrNull() ?: -1.0,
         coefficient = coefficient.replace(',', '.').toDoubleOrNull() ?: 1.0,
     )
-    val outcome = Simulator.simulate(snapshot, hypothesis, today)
+    val outcome = Simulator.simulate(snapshot, hypothesis, today, periodCode)
 
     Box(Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp)) {
         AppCard(onClick = { open = !open }) {

@@ -437,9 +437,22 @@ object Insights {
     /** « un 17 en maths (coef. 4) suffit ». */
     data class Lever(val subject: String, val coefficient: Double, val mark: Double)
 
-    fun objective(snapshot: SchoolSnapshot, today: LocalDate, target: Double?): Objective? {
+    /**
+     * [periodCode] nomme la période à considérer ; à défaut, celle en cours.
+     *
+     * L'écran Notes a un sélecteur de période, et l'objectif l'ignorait : consulter le premier
+     * trimestre en juin affichait les notes du premier et l'objectif du troisième, côte à côte,
+     * sans rien signaler.
+     */
+    fun objective(
+        snapshot: SchoolSnapshot,
+        today: LocalDate,
+        target: Double?,
+        periodCode: String? = null,
+    ): Objective? {
         if (target == null) return null
-        val period = currentPeriod(snapshot.periods, today)
+        val period = periodCode?.let { code -> snapshot.periods.firstOrNull { it.code == code } }
+            ?: currentPeriod(snapshot.periods, today)
         val grades = usableGrades(gradesForPeriod(snapshot.grades, period?.code))
         val current = weightedAverage(grades) ?: return null
         val gap = (target - current).coerceAtLeast(0.0)

@@ -263,4 +263,34 @@ class GradeFiguresTest {
 
         assertEquals("T3", Insights.currentPeriod(periods, term.plusMonths(8))?.code)
     }
+
+    @Test
+    fun `l objectif suit la periode qu on consulte`() {
+        // Deux trimestres, un creux au premier et un bon second. En juin, consulter le premier
+        // trimestre affichait ses notes et l'objectif du troisième : deux périodes côte à côte,
+        // sans rien pour prévenir.
+        val grades = listOf(
+            grade("t1", 8.0, period = "T1", day = 1),
+            grade("t2", 16.0, period = "T2", day = 120),
+        )
+        val snapshot = SchoolSnapshot(
+            grades = grades,
+            periods = listOf(
+                Period(code = "T1", name = "Trimestre 1", start = term, end = term.plusMonths(3)),
+                Period(
+                    code = "T2",
+                    name = "Trimestre 2",
+                    start = term.plusMonths(3).plusDays(1),
+                    end = term.plusMonths(6),
+                ),
+            ),
+        )
+        val inSecondTerm = term.plusMonths(4)
+
+        val current = Insights.objective(snapshot, inSecondTerm, 14.0)!!
+        val consulted = Insights.objective(snapshot, inSecondTerm, 14.0, periodCode = "T1")!!
+
+        assertEquals(16.0, current.current, 0.001)
+        assertEquals(8.0, consulted.current, 0.001)
+    }
 }
