@@ -256,6 +256,8 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     val attachment by viewModel.attachment.collectAsStateWithLifecycle()
     val messagesComplete by viewModel.messagesComplete.collectAsStateWithLifecycle()
     val loadingWeeks by viewModel.loadingWeeks.collectAsStateWithLifecycle()
+    val loadingDays by viewModel.loadingDays.collectAsStateWithLifecycle()
+    val loadedDays by viewModel.loadedDays.collectAsStateWithLifecycle()
     val loadingMore by viewModel.loadingMoreMessages.collectAsStateWithLifecycle()
     val errors by viewModel.errorLog.collectAsStateWithLifecycle()
     val autoAnswer by viewModel.autoAnswer.collectAsStateWithLifecycle()
@@ -296,10 +298,22 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     // Un module facultatif n'est demandé qu'à l'ouverture de son écran, et une seule fois :
     // s'il a déjà répondu, le cache suffit jusqu'à la prochaine synchronisation complète.
     LaunchedEffect(detail) {
-        when (detail) {
+        when (val opened = detail) {
             Detail.News -> viewModel.loadModule(DataSection.NEWS)
             Detail.Textbooks -> viewModel.loadModule(DataSection.TEXTBOOKS)
             Detail.Cloud -> viewModel.loadModule(DataSection.CLOUD)
+            // Le contenu de séance et l'énoncé d'un devoir arrivent par un appel au jour.
+            // Il part d'ici et non du geste qui ouvre la fiche : une fiche s'ouvre aussi
+            // depuis la recherche, depuis une fiche professeur, et depuis l'état restauré
+            // après une rotation — autant de portes par lesquelles le contenu n'arrivait pas.
+            is Detail.Lesson ->
+                snapshot.lessons.firstOrNull { it.id == opened.id }
+                    ?.let { viewModel.loadHomeworkDetails(it.date) }
+
+            is Detail.Homework ->
+                snapshot.homework.firstOrNull { it.id == opened.id }
+                    ?.let { viewModel.loadHomeworkDetails(it.dueDate) }
+
             else -> Unit
         }
     }
@@ -350,11 +364,9 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             val openDetail: (Detail) -> Unit = { details.push(it) }
-            // Ouvrir un devoir, c'est aussi charger son contenu : la liste ne le porte pas.
-            val openHomework: (HomeworkItem) -> Unit = { item ->
-                viewModel.loadHomeworkDetails(item.dueDate)
-                openDetail(Detail.Homework(item.id))
-            }
+            // Le chargement du jour, lui, part de l'effet plus haut : il couvre toutes les
+            // portes par lesquelles une fiche s'ouvre, y compris l'état restauré.
+            val openHomework: (HomeworkItem) -> Unit = { item -> openDetail(Detail.Homework(item.id)) }
             when (val current = detail) {
                 // Tirer vers le bas synchronise : le geste attendu partout ailleurs.
                 null -> PullToRefreshBox(
@@ -386,12 +398,7 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                         now = now,
                         loadingWeeks = loadingWeeks,
                         onLoadWeek = viewModel::loadWeek,
-                        onOpenLesson = { lesson ->
-                            // Le contenu de séance n'est pas dans la liste : il arrive avec
-                            // le détail du jour, qu'on demande à l'ouverture de la fiche.
-                            viewModel.loadHomeworkDetails(lesson.date)
-                            openDetail(Detail.Lesson(lesson.id))
-                        },
+                        onOpenLesson = { lesson -> openDetail(Detail.Lesson(lesson.id)) },
                         onOpenHomework = openHomework,
                         onRefreshWeek = viewModel::refreshWeek,
                         onSearch = { openDetail(Detail.Search) },
@@ -441,37 +448,52 @@ private fun SignedInScaffold(viewModel: MainViewModel, request: NavigationReques
                     }
                 }
 
-                is Detail.Homework -> HomeworkDetailScreen(
-                    item = snapshot.homework.firstOrNull { it.id == current.id },
-                    settings = settings,
-                    parentView = snapshot.account?.viewedByFamily == true,
-                    attachmentState = attachment,
-                    onToggle = toggleHomework,
-                    onOpenAttachment = viewModel::openAttachment,
-                    onClose = { details.pop() },
-                )
+                is Detail.Homework -> {
+                    val item = snapshot.homework.firstOrNull { it.id == current.id }
+                    HomeworkDetailScreen(
+                        item = item,
+                        settings = settings,
+                        parentView = snapshot.account?.viewedByFamily == true,
+                        attachmentState = attachment,
+                        // Tant que le jour n'a pas répondu, l'écran ne peut pas affirmer
+                        // qu'aucun énoncé n'a été publié.
+                        detailKnown = item != null && item.dueDate in loadedDays,
+                        loadingDetail = item != null && item.dueDate in loadingDays,
+                        onToggle = toggleHomework,
+                        onOpenAttachment = viewModel::openAttachment,
+                        onClose = { details.pop() },
+                    )
+                }
 
-                is Detail.Lesson -> LessonDetailScreen(
-                    lesson = snapshot.lessons.firstOrNull { it.id == current.id },
-                    settings = settings,
-                    homework = snapshot.lessons.firstOrNull { it.id == current.id }
-                        ?.let { lesson ->
-                            fr.ecole2recte.app.core.repo.Insights.homeworkForLesson(snapshot.homework, lesson)
-                        }
-                        .orEmpty(),
-                    sessions = snapshot.lessons.firstOrNull { it.id == current.id }
-                        ?.let { lesson ->
-                            snapshot.sessionContents.filter {
-                                it.date == lesson.date &&
-                                    fr.ecole2recte.app.core.format.Text.normalizeKey(it.subject) ==
-                                    fr.ecole2recte.app.core.format.Text.normalizeKey(lesson.subject)
+                is Detail.Lesson -> {
+                    val lesson = snapshot.lessons.firstOrNull { it.id == current.id }
+                    LessonDetailScreen(
+                        lesson = lesson,
+                        settings = settings,
+                        homework = lesson
+                            ?.let { fr.ecole2recte.app.core.repo.Insights.homeworkForLesson(snapshot.homework, it) }
+                            .orEmpty(),
+                        // Le contenu de séance du jour, pour cette matière. L'appariement passe
+                        // par la clé normalisée : le cahier de textes et l'emploi du temps
+                        // n'écrivent pas toujours la matière de la même façon.
+                        sessions = lesson
+                            ?.let { current ->
+                                snapshot.sessionContents.filter {
+                                    it.date == current.date &&
+                                        fr.ecole2recte.app.core.format.Text.normalizeKey(it.subject) ==
+                                        fr.ecole2recte.app.core.format.Text.normalizeKey(current.subject)
+                                }
                             }
-                        }
-                        .orEmpty(),
-                    onOpenHomework = openHomework,
-                    onOpenTeacher = { openDetail(Detail.Teacher(it)) },
-                    onClose = { details.pop() },
-                )
+                            .orEmpty(),
+                        attachmentState = attachment,
+                        detailKnown = lesson != null && lesson.date in loadedDays,
+                        loadingDetail = lesson != null && lesson.date in loadingDays,
+                        onOpenHomework = openHomework,
+                        onOpenTeacher = { openDetail(Detail.Teacher(it)) },
+                        onOpenAttachment = viewModel::openAttachment,
+                        onClose = { details.pop() },
+                    )
+                }
 
                 is Detail.Message -> MessageDetailScreen(
                     message = snapshot.messages.firstOrNull { it.id == current.id },

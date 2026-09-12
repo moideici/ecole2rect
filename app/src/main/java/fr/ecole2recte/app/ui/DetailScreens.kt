@@ -112,8 +112,14 @@ fun LessonDetailScreen(
     settings: AppSettings,
     homework: List<HomeworkItem>,
     sessions: List<SessionContent>,
+    attachmentState: AttachmentState,
+    /** Le détail du jour a répondu : on sait donc ce qui a été publié, et ce qui ne l'a pas été. */
+    detailKnown: Boolean,
+    /** Il est en route : ne rien affirmer pour l'instant. */
+    loadingDetail: Boolean,
     onOpenHomework: (HomeworkItem) -> Unit,
     onOpenTeacher: (String) -> Unit,
+    onOpenAttachment: (Attachment) -> Unit,
     onClose: () -> Unit,
 ) {
     if (lesson == null) {
@@ -173,19 +179,59 @@ fun LessonDetailScreen(
                 }
             }
         }
-        if (sessions.isNotEmpty()) {
-            Text(
-                "CONTENU DE SÉANCE",
-                modifier = Modifier.padding(start = ScreenPadding + 4.dp, top = 18.dp, bottom = 4.dp),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            sessions.forEach { session ->
-                Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
-                    AppCard {
-                        SelectionContainer {
-                            Text(session.content, style = MaterialTheme.typography.bodyMedium)
+        // La section existe toujours : c'est ce qu'on vient chercher en ouvrant un cours —
+        // « qu'est-ce qu'on a fait, et qu'est-ce qui a été dit ». La faire disparaître quand
+        // elle est vide laissait l'élève sans savoir s'il devait attendre, réessayer, ou si
+        // le professeur n'avait simplement rien écrit.
+        Text(
+            "CONTENU DE SÉANCE",
+            modifier = Modifier.padding(start = ScreenPadding + 4.dp, top = 18.dp, bottom = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (sessions.isEmpty()) {
+            Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
+                AppCard {
+                    when {
+                        loadingDetail -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "Chargement du contenu de la séance…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
+
+                        detailKnown -> Text(
+                            "Le professeur n'a rien publié pour cette séance.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        // Ni chargé ni en cours : l'appel a échoué, et c'est une troisième
+                        // chose, qui se répare en retrouvant du réseau.
+                        else -> Text(
+                            "Contenu pas encore récupéré. Il arrivera à la prochaine " +
+                                "synchronisation, ou en tirant la liste des cours vers le bas.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+        sessions.forEach { session ->
+            Box(Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp)) {
+                AppCard {
+                    SelectionContainer {
+                        Text(session.content, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    // Une séance porte parfois un document — le support du cours, un exercice
+                    // corrigé. Il arrivait dans la réponse et l'écran ne le montrait pas.
+                    if (session.attachments.isNotEmpty()) {
+                        Spacer(Modifier.height(16.dp))
+                        AttachmentList(session.attachments, attachmentState, onOpenAttachment)
                     }
                 }
             }
@@ -251,6 +297,10 @@ fun HomeworkDetailScreen(
     settings: AppSettings,
     attachmentState: AttachmentState,
     parentView: Boolean = false,
+    /** Le détail du jour a répondu : l'absence d'énoncé est alors une information, pas un vide. */
+    detailKnown: Boolean = false,
+    /** Il est en route. */
+    loadingDetail: Boolean = false,
     onToggle: (HomeworkItem) -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
     onClose: () -> Unit,
@@ -300,11 +350,24 @@ fun HomeworkDetailScreen(
                 }
                 Spacer(Modifier.height(16.dp))
                 if (item.content.isBlank()) {
-                    Text(
-                        "Aucun énoncé n'a été publié pour ce devoir.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    // Trois états, et non deux : l'énoncé arrive par un appel au jour, donc
+                    // tant qu'il n'a pas répondu, affirmer qu'il n'y a pas d'énoncé est faux.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (loadingDetail) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(12.dp))
+                        }
+                        Text(
+                            when {
+                                loadingDetail -> "Chargement de l'énoncé…"
+                                detailKnown -> "Aucun énoncé n'a été publié pour ce devoir."
+                                else -> "Énoncé pas encore récupéré. Il arrivera à la " +
+                                    "prochaine synchronisation."
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 } else {
                     SelectionContainer {
                         Text(item.content, style = MaterialTheme.typography.bodyMedium)

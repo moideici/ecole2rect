@@ -138,8 +138,25 @@ class SchoolRepository(
     private val pages = mutableMapOf<MessageFolder, Int>()
     private val completeFolders = mutableSetOf<MessageFolder>()
 
-    /** Jours dont le détail (devoirs et contenu de séance) a déjà été demandé. */
-    private val loadedDays = mutableSetOf<LocalDate>()
+    /**
+     * Jours dont le détail (devoirs et contenu de séance) a déjà répondu.
+     *
+     * Observable, et pas un simple ensemble privé : c'est ce qui autorise un écran à dire
+     * « rien n'a été publié » — une affirmation qu'il ne peut pas faire avant la réponse.
+     */
+    private val _loadedDays = MutableStateFlow<Set<LocalDate>>(emptySet())
+    val loadedDays: StateFlow<Set<LocalDate>> = _loadedDays.asStateFlow()
+
+    /**
+     * Jours dont le détail est en cours de chargement.
+     *
+     * Le contenu de séance et l'énoncé d'un devoir n'arrivent pas avec la liste : ils
+     * demandent un appel par jour, lancé à l'ouverture de la fiche. Sans cet état, l'écran
+     * n'avait aucun moyen de distinguer « pas encore arrivé » de « rien publié », et il
+     * affichait le second — c'est-à-dire qu'il affirmait une absence qu'il ne connaissait pas.
+     */
+    private val _loadingDays = MutableStateFlow<Set<LocalDate>>(emptySet())
+    val loadingDays: StateFlow<Set<LocalDate>> = _loadingDays.asStateFlow()
 
     /**
      * Semaines dont l'emploi du temps a déjà été demandé, repérées par leur lundi.
@@ -164,8 +181,8 @@ class SchoolRepository(
      * mutable. Deux appels concurrents se marchent dessus — au mieux un jeton écrasé, au pire
      * deux reconnexions rapprochées, ce qu'ÉcoleDirecte peut payer d'un blocage de compte.
      * Ouvrir l'onglet Planning pendant la synchronisation de démarrage suffisait à déclencher
-     * le cas. Les collections [loadedDays] et [loadedWeeks] passent par la même porte, et
-     * n'ont donc pas besoin d'être protégées séparément.
+     * le cas. Les jours et semaines déjà chargés passent par la même porte, et n'ont donc
+     * pas besoin d'être protégés séparément.
      */
     private val syncLock = Mutex()
 
@@ -449,7 +466,8 @@ class SchoolRepository(
         if (account.id == profile) return
         withContext(io) { snapshots.write(profile, _snapshot.value) }
         profile = account.id
-        loadedDays.clear()
+        _loadedDays.value = emptySet()
+        _loadingDays.value = emptySet()
         loadedWeeks.clear()
         // L'état de synchronisation appartenait au profil quitté : le garder faisait
         // annoncer « À jour » sur le cache d'un autre enfant, parfois vide.
@@ -475,7 +493,8 @@ class SchoolRepository(
         }
         _snapshot.value = SchoolSnapshot()
         _sync.value = SyncState()
-        loadedDays.clear()
+        _loadedDays.value = emptySet()
+        _loadingDays.value = emptySet()
         loadedWeeks.clear()
         resetMessages()
         _auth.value = AuthState.SignedOut
@@ -785,20 +804,26 @@ class SchoolRepository(
         val account = currentAccount ?: return
         // Le jour, pas les devoirs : une journée peut n'avoir aucun devoir mais un contenu
         // de séance, et l'inverse. On retient donc ce qui a été demandé, pas ce qui est revenu.
-        if (!force && date in loadedDays) return
-        val result = serialized { withSession { api.dayContent(account.id, date) } }
-        if (result is ApiResult.Ok) {
-            // Marqué seulement maintenant : un appel qui échoue dans le métro doit pouvoir
-            // être refait de retour en ligne, sinon le contenu reste vide jusqu'à la mort
-            // du processus.
-            loadedDays += date
-            _snapshot.update {
-                it.copy(
-                    homework = Merge.homeworkForDate(it.homework, result.value.homework, date),
-                    sessionContents = Merge.sessionContents(it.sessionContents, result.value.sessions, date),
-                )
+        if (!force && date in _loadedDays.value) return
+        if (date in _loadingDays.value) return
+        _loadingDays.update { it + date }
+        try {
+            val result = serialized { withSession { api.dayContent(account.id, date) } }
+            if (result is ApiResult.Ok) {
+                // Marqué seulement maintenant : un appel qui échoue dans le métro doit pouvoir
+                // être refait de retour en ligne, sinon le contenu reste vide jusqu'à la mort
+                // du processus.
+                _loadedDays.update { it + date }
+                _snapshot.update {
+                    it.copy(
+                        homework = Merge.homeworkForDate(it.homework, result.value.homework, date),
+                        sessionContents = Merge.sessionContents(it.sessionContents, result.value.sessions, date),
+                    )
+                }
+                withContext(io) { snapshots.write(profile, _snapshot.value) }
             }
-            withContext(io) { snapshots.write(profile, _snapshot.value) }
+        } finally {
+            _loadingDays.update { it - date }
         }
     }
 

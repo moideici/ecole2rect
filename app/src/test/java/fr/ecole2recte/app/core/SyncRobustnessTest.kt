@@ -201,4 +201,72 @@ class SyncRobustnessTest {
             repository.errorLog.entries.value.any { it.section == "Devoir coché" },
         )
     }
+
+    // ── Le contenu d'une séance ──────────────────────────────────────────────
+
+    @Test
+    fun `l ecran sait si le contenu du jour est arrive, en route, ou perdu`() = runTest {
+        val engine = FakeHttpEngine()
+            .on("gtk=1", body = "", headers = headers("X-GTK" to "g"), method = "GET")
+            .on("/login.awp", Payloads.LOGIN_SUCCESS)
+        val repository = SchoolRepository(
+            api = EcoleDirecteApi(engine),
+            credentials = InMemoryCredentialStore(credentials),
+            snapshots = InMemorySnapshotStore(),
+            settingsStore = InMemorySettingsStore(),
+            io = Dispatchers.Unconfined,
+            now = { 1_700_000_000_000L },
+            today = { today },
+        )
+        repository.start()
+
+        // Avant tout appel : ni chargé, ni en cours. L'écran ne doit donc affirmer ni
+        // « rien publié » ni « chargement » — il dit que le contenu n'est pas encore là.
+        assertFalse(today in repository.loadedDays.value)
+        assertFalse(today in repository.loadingDays.value)
+
+        // Un appel qui échoue ne laisse pas le jour marqué comme chargé, et ne laisse pas
+        // non plus une barre de chargement tourner indéfiniment.
+        engine.offline = true
+        repository.loadHomeworkDetails(today)
+        assertFalse("un échec ne fait pas croire que le jour a répondu", today in repository.loadedDays.value)
+        assertTrue("et ne laisse pas l'état de chargement collé", repository.loadingDays.value.isEmpty())
+
+        // Une réponse, même sans contenu de séance, autorise l'écran à dire qu'il n'y a rien.
+        engine.offline = false
+        engine.on("cahierdetexte", Payloads.HOMEWORK_DAY)
+        repository.loadHomeworkDetails(today)
+
+        assertTrue(today in repository.loadedDays.value)
+        assertTrue(repository.loadingDays.value.isEmpty())
+        assertTrue(
+            "le contenu de séance du jour doit être rangé dans l'instantané",
+            repository.snapshot.value.sessionContents.any { it.date == today },
+        )
+    }
+
+    @Test
+    fun `changer d enfant oublie ce qui avait ete charge`() = runTest {
+        val engine = FakeHttpEngine()
+            .on("gtk=1", body = "", headers = headers("X-GTK" to "g"), method = "GET")
+            .on("/login.awp", Payloads.LOGIN_SUCCESS)
+            .on("cahierdetexte", Payloads.HOMEWORK_DAY)
+        val repository = SchoolRepository(
+            api = EcoleDirecteApi(engine),
+            credentials = InMemoryCredentialStore(credentials),
+            snapshots = InMemorySnapshotStore(),
+            settingsStore = InMemorySettingsStore(),
+            io = Dispatchers.Unconfined,
+            now = { 1_700_000_000_000L },
+            today = { today },
+        )
+        repository.start()
+        repository.loadHomeworkDetails(today)
+        assertTrue(today in repository.loadedDays.value)
+
+        repository.signOut()
+
+        // Sinon l'écran du compte suivant affirmerait « rien publié » sur la foi du précédent.
+        assertTrue(repository.loadedDays.value.isEmpty())
+    }
 }

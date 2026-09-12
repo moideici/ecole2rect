@@ -69,6 +69,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val autoAnswer = repository.autoAnswer
     val messagesComplete = repository.messagesComplete
     val loadingWeeks = repository.loadingWeeks
+
+    /** Jours dont le détail arrive, et jours dont il est déjà arrivé : les écrans en ont
+     * besoin pour distinguer « pas encore » de « rien publié ». */
+    val loadingDays = repository.loadingDays
+    val loadedDays = repository.loadedDays
     val messageFolder = repository.messageFolder
     val loadingMoreMessages = repository.loadingMoreMessages
 
