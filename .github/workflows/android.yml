@@ -47,6 +47,7 @@ jobs:
           name: rapport-tests
           path: app/build/reports/tests/testDebugUnitTest
           if-no-files-found: ignore
+          retention-days: 3
 
       # Le lint attrape ce que le compilateur laisse passer : ressources manquantes,
       # accessibilité, appels d'API trop récents pour le minSdk.
@@ -67,6 +68,7 @@ jobs:
           name: ecole2recte-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 3
 
       # APK release : signé par la vraie clé si les secrets existent, par la clé de
       # débogage sinon — dans les deux cas, on vérifie que le build release passe.
@@ -84,6 +86,7 @@ jobs:
           name: ecole2recte-release-apk
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: warn
+          retention-days: 3
 
       - name: Rapport de lint
         if: failure()
@@ -92,3 +95,4 @@ jobs:
           name: rapport-lint
           path: app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
+          retention-days: 3
