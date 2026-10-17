@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Couleurs des widgets d'écran d'accueil.
+
+     Elles ne sont **pas** déclinées en `values-night`, et c'est délibéré : un widget est
+     inflaté par le lanceur, dans la configuration du lanceur. Une couleur écrite dans le
+     XML du gabarit y est donc résolue par lui, tandis qu'une couleur posée par le code l'est
+     par l'application. Les deux ne sont pas toujours d'accord — et quand elles divergent, on
+     obtient exactement ce qu'il ne faut pas : du texte clair sur un fond clair.
+
+     Les deux variantes sont donc nommées explicitement, et [WidgetPalette] choisit la bonne
+     pour le fond comme pour le texte, d'un seul tenant. -->
+<resources>
+    <color name="widget_surface_light">#FFFFFFFF</color>
+    <color name="widget_ink_light">#FF18202B</color>
+    <color name="widget_muted_light">#FF7F8998</color>
+    <color name="widget_accent_light">#FF5C62E8</color>
+
+    <color name="widget_surface_dark">#FF171D26</color>
+    <color name="widget_ink_dark">#FFEDF1F7</color>
+    <color name="widget_muted_dark">#FF98A2B3</color>
+    <color name="widget_accent_dark">#FF9AA0FF</color>
+
+    <!-- Valeurs par défaut des gabarits, avant que le code ne pose les vraies. Elles ne
+         doivent jamais rester visibles telles quelles. -->
+    <color name="widget_surface">@color/widget_surface_light</color>
+    <color name="widget_ink">@color/widget_ink_light</color>
+    <color name="widget_muted">@color/widget_muted_light</color>
+    <color name="widget_accent">@color/widget_accent_light</color>
+</resources>

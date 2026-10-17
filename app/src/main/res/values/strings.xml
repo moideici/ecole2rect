@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ecole2recte</string>
+    <string name="shortcut_timetable">Emploi du temps</string>
+    <string name="shortcut_homework">Devoirs</string>
+    <string name="shortcut_grades">Notes</string>
+
+    <string name="widget_next_lesson_label">Prochain cours</string>
+    <string name="widget_next_lesson_description">Le temps restant, la matière et la salle ; agrandi, tout ce qui reste de la journée.</string>
+    <string name="widget_day_label">Journée</string>
+    <string name="widget_day_description">Début, pause méridienne et fin ; agrandi, la journée entière à l’échelle du temps.</string>
+    <string name="widget_week_label">Semaine</string>
+    <string name="widget_week_description">La semaine en colonnes, toutes sur la même échelle horaire.</string>
+    <string name="widget_homework_label">Devoirs</string>
+    <string name="widget_homework_description">Combien il en reste ; agrandi, celui de ce soir puis la liste par échéance.</string>
+    <string name="widget_grades_label">Notes</string>
+    <string name="widget_grades_description">La moyenne ; agrandi, les dernières notes puis les moyennes par matière.</string>
+    <string name="widget_objective_label">Objectif</string>
+    <string name="widget_objective_description">Ce qu’il manque pour atteindre la moyenne visée, et la note qui suffirait.</string>
+    <string name="widget_school_life_label">Vie scolaire</string>
+    <string name="widget_school_life_description">Messages non lus, absences et retards ; agrandi, la prochaine évaluation.</string>
+    <string name="widget_changes_label">Ce qui a changé</string>
+    <string name="widget_changes_description">Cours annulé, salle déplacée, note tombée : seulement ce qui a bougé depuis hier.</string>
+    <string name="widget_tomorrow_label">Demain</string>
+    <string name="widget_tomorrow_description">Les cours de demain, les devoirs à rendre, et ce qu’il faut emporter.</string>
+</resources>

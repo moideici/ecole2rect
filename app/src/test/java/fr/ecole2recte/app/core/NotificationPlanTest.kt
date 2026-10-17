@@ -1,0 +1,217 @@
+package fr.ecole2recte.app.core
+
+import fr.ecole2recte.app.core.model.Grade
+import fr.ecole2recte.app.core.model.HomeworkItem
+import fr.ecole2recte.app.core.model.Lesson
+import fr.ecole2recte.app.core.model.MessageItem
+import fr.ecole2recte.app.core.model.SchoolSnapshot
+import fr.ecole2recte.app.core.notify.NotificationKind
+import fr.ecole2recte.app.core.notify.NotificationPlan
+import fr.ecole2recte.app.core.settings.AppSettings
+import fr.ecole2recte.app.core.settings.NotificationSettings
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.LocalDate
+
+/**
+ * Les notifications sont la fonctionnalité la plus facile à rendre insupportable : ces tests
+ * fixent les deux garde-fous — pas de rafale au premier lancement, jamais deux fois la même.
+ */
+class NotificationPlanTest {
+
+    private val monday = LocalDate.of(2026, 9, 7)
+    private val evening = monday.atTime(18, 30)
+
+    private val snapshot = SchoolSnapshot(
+        homework = listOf(
+            HomeworkItem("901", "Philosophie", monday.plusDays(2), content = "Dissertation"),
+            HomeworkItem("902", "Mathématiques", monday.plusDays(1), exam = true),
+        ),
+        grades = listOf(
+            Grade("5001", "Mathématiques", "DS n°1", 17.5, 20.0, 2.0, 13.2, monday, "A001"),
+        ),
+        messages = listOf(
+            MessageItem("3001", "Réunion", "Mme Legrand", monday.atTime(9, 42)),
+        ),
+    )
+
+    @Test
+    fun `le premier passage memorise sans rien afficher`() {
+        val plan = NotificationPlan.compute(snapshot, AppSettings(), evening)
+
+        assertTrue("aucune rafale au premier lancement", plan.notifications.isEmpty())
+        assertEquals(
+            setOf("note:5001", "devoir:901", "devoir:902", "message:3001", "rappel:902:2026-09-08"),
+            plan.seen.toSet(),
+        )
+    }
+
+    @Test
+    fun `seul le nouveau est signale`() {
+        val known = AppSettings().withNotified(
+            listOf("note:5001", "devoir:901", "devoir:902", "message:3001", "rappel:902:2026-09-08"),
+        )
+        val withNewGrade = snapshot.copy(
+            grades = snapshot.grades + Grade("5002", "Anglais", "Oral", 15.0, 20.0, 1.0, null, monday, "A001"),
+        )
+
+        val plan = NotificationPlan.compute(withNewGrade, known, evening)
+
+        assertEquals(1, plan.notifications.size)
+        val notification = plan.notifications.single()
+        assertEquals(NotificationKind.GRADE, notification.kind)
+        assertEquals("Nouvelle note en Anglais", notification.title)
+        assertTrue(notification.text.startsWith("15/20"))
+    }
+
+    @Test
+    fun `une evaluation du lendemain declenche un rappel, une seule fois`() {
+        val known = AppSettings().withNotified(listOf("note:5001", "devoir:901", "devoir:902", "message:3001"))
+
+        val plan = NotificationPlan.compute(snapshot, known, evening)
+
+        val reminder = plan.notifications.single { it.kind == NotificationKind.EXAM }
+        assertEquals("Évaluation demain en Mathématiques", reminder.title)
+        assertEquals("rappel:902:2026-09-08", reminder.id)
+
+        val after = NotificationPlan.compute(snapshot, known.withNotified(plan.seen), evening)
+        assertTrue("le rappel ne doit pas revenir", after.notifications.isEmpty())
+    }
+
+    @Test
+    fun `chaque type peut etre coupe separement`() {
+        val known = AppSettings(
+            notifications = NotificationSettings(grades = false, examReminder = false),
+        ).withNotified(listOf("initialise"))
+
+        val plan = NotificationPlan.compute(snapshot, known, evening)
+
+        assertTrue(plan.notifications.none { it.kind == NotificationKind.GRADE })
+        assertTrue(plan.notifications.none { it.kind == NotificationKind.EXAM })
+        assertTrue(plan.notifications.any { it.kind == NotificationKind.HOMEWORK })
+        assertTrue(plan.notifications.any { it.kind == NotificationKind.MESSAGE })
+    }
+
+    @Test
+    fun `tout couper ne produit plus rien mais continue de memoriser`() {
+        val known = AppSettings(notifications = NotificationSettings(enabled = false))
+            .withNotified(listOf("initialise"))
+
+        val plan = NotificationPlan.compute(snapshot, known, evening)
+
+        assertTrue(plan.notifications.isEmpty())
+        assertTrue("mémoriser évite une rafale à la réactivation", plan.seen.isNotEmpty())
+    }
+
+    // ── Rappel du soir ───────────────────────────────────────────────────────
+
+    private val tuesday = monday.plusDays(1)
+    private val friday = monday.plusDays(4)
+
+    private val withLessons = snapshot.copy(
+        lessons = listOf(
+            Lesson("1", "SVT", room = "B14", start = tuesday.atTime(8, 5), end = tuesday.atTime(9, 0)),
+            Lesson("2", "Mathématiques", room = "801", start = tuesday.atTime(9, 0), end = tuesday.atTime(10, 0)),
+        ),
+    )
+
+    private val known = AppSettings().withNotified(listOf("initialise"))
+
+    @Test
+    fun `le rappel du soir dit demain, ses horaires et ce qu il faut prendre`() {
+        val plan = NotificationPlan.compute(withLessons, known, evening)
+
+        val reminder = plan.notifications.single { it.kind == NotificationKind.TOMORROW }
+        assertEquals("demain:2026-09-08", reminder.id)
+        assertEquals("Demain · mardi", reminder.title)
+        assertTrue(reminder.text, reminder.text.contains("08:05 – 10:00"))
+        assertTrue(reminder.text, reminder.text.contains("2 cours"))
+        // Les matières, pas un inventaire de fournitures que l'application ne connaît pas.
+        assertTrue(reminder.text, reminder.text.contains("à prendre : SVT, Mathématiques"))
+    }
+
+    @Test
+    fun `le rappel du soir n arrive que le soir`() {
+        val afternoon = monday.atTime(14, 0)
+
+        val plan = NotificationPlan.compute(withLessons, known, afternoon)
+
+        // Un rappel de préparation de sac à quatorze heures n'est pas un rappel, c'est du bruit.
+        assertTrue(plan.notifications.none { it.kind == NotificationKind.TOMORROW })
+    }
+
+    @Test
+    fun `le vendredi soir, le rappel parle de lundi`() {
+        val nextMonday = monday.plusWeeks(1)
+        val weekend = withLessons.copy(
+            lessons = listOf(
+                Lesson("9", "Histoire-géo", start = nextMonday.atTime(8, 5), end = nextMonday.atTime(9, 0)),
+            ),
+        )
+
+        val reminder = NotificationPlan.compute(weekend, known, friday.atTime(19, 0))
+            .notifications.single { it.kind == NotificationKind.TOMORROW }
+
+        // Ce qui compte un vendredi soir n'est pas le samedi vide, mais le lundi.
+        assertEquals("demain:2026-09-14", reminder.id)
+        assertEquals("Demain · lundi", reminder.title)
+    }
+
+    @Test
+    fun `le rappel du soir ne tombe qu une fois par veille`() {
+        val plan = NotificationPlan.compute(withLessons, known, evening)
+
+        val after = NotificationPlan.compute(withLessons, known.withNotified(plan.seen), monday.atTime(21, 0))
+
+        assertTrue(after.notifications.none { it.kind == NotificationKind.TOMORROW })
+    }
+
+    @Test
+    fun `le rappel du soir se coupe seul`() {
+        val muted = AppSettings(notifications = NotificationSettings(tomorrow = false))
+            .withNotified(listOf("initialise"))
+
+        val plan = NotificationPlan.compute(withLessons, muted, evening)
+
+        assertTrue(plan.notifications.none { it.kind == NotificationKind.TOMORROW })
+        assertTrue("les autres restent", plan.notifications.any { it.kind == NotificationKind.GRADE })
+    }
+
+    // ── Ce qui a déjà été signalé ────────────────────────────────────────────
+
+    @Test
+    fun `un identifiant revu ne se fait pas evincer`() {
+        // Une note de septembre reste candidate toute l'année : l'API la renvoie à chaque
+        // passage. Avec `distinct()`, qui garde la première occurrence, elle conservait sa
+        // place ancienne et finissait par sortir de la mémoire — donc par sonner en mars.
+        var settings = AppSettings().withNotified(listOf("note:septembre"))
+        repeat(400) { index -> settings = settings.withNotified(listOf("note:septembre", "note:$index")) }
+
+        assertTrue(
+            "la note revue à chaque passage doit rester connue",
+            settings.hasBeenNotified("note:septembre"),
+        )
+    }
+
+    @Test
+    fun `une famille nombreuse n efface pas la memoire des autres`() {
+        var settings = AppSettings().withNotified(listOf("devoir:901", "message:3001"))
+        // Une année de notes, largement de quoi dépasser n'importe quel plafond global.
+        repeat(600) { index -> settings = settings.withNotified(listOf("note:$index")) }
+
+        assertTrue("le devoir doit rester connu", settings.hasBeenNotified("devoir:901"))
+        assertTrue("le message doit rester connu", settings.hasBeenNotified("message:3001"))
+    }
+
+    @Test
+    fun `la memoire reste bornee`() {
+        var settings = AppSettings()
+        repeat(2_000) { index -> settings = settings.withNotified(listOf("note:$index")) }
+
+        // Bornée, mais par famille : les réglages sont réécrits en entier à chaque case
+        // cochée, une liste sans fin finirait par coûter à chaque geste.
+        assertTrue("${settings.notified.size} entrées", settings.notified.size <= 300)
+        assertTrue("les plus récents sont gardés", settings.hasBeenNotified("note:1999"))
+    }
+}

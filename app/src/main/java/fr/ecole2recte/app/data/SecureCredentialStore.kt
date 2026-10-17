@@ -1,8 +1,12 @@
 package fr.ecole2recte.app.data
 
 import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
-import org.json.JSONObject
+import fr.ecole2recte.app.core.store.CredentialStore
+import fr.ecole2recte.app.core.store.CredentialsCodec
+import fr.ecole2recte.app.core.store.SavedCredentials
 import java.nio.charset.StandardCharsets
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -10,70 +14,79 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-data class SavedLogin(
-    val identifier: String,
-    val password: String,
-    val trustedAnswer: TrustedAnswer? = null,
-)
+/**
+ * Stockage chiffré des identifiants, clé matérielle du Keystore Android.
+ *
+ * L'API ne délivre pas de jeton de rafraîchissement : reconnecter en silence impose de
+ * conserver le mot de passe. Il est donc chiffré en AES/GCM avec une clé qui ne quitte
+ * jamais le Keystore, et n'est jamais recopié dans un journal, un diagnostic ou une
+ * sauvegarde (`allowBackup=false` dans le manifeste).
+ */
+class SecureCredentialStore(context: Context) : CredentialStore {
 
-class SecureCredentialStore(context: Context) {
-    private val preferences = context.getSharedPreferences("ecole2recte_secure", Context.MODE_PRIVATE)
-    private val keyAlias = "ecole2recte_credentials"
+    private val preferences = context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
 
-    fun read(): SavedLogin? = preferences.getString("login", null)?.let { encrypted ->
-        runCatching {
-            val json = JSONObject(decrypt(encrypted))
-            SavedLogin(
-                identifier = json.getString("identifier"),
-                password = json.getString("password"),
-                trustedAnswer = json.optJSONObject("trustedAnswer")?.let {
-                    TrustedAnswer(it.getString("cn"), it.getString("cv"))
-                },
-            )
-        }.getOrNull()
-    }
-
-    fun save(login: SavedLogin) {
-        val json = JSONObject()
-            .put("identifier", login.identifier)
-            .put("password", login.password)
-        login.trustedAnswer?.let {
-            json.put("trustedAnswer", JSONObject().put("cn", it.cn).put("cv", it.cv))
+    override fun read(): SavedCredentials? {
+        val encrypted = preferences.getString(KEY_LOGIN, null) ?: return null
+        return runCatching { CredentialsCodec.decode(decrypt(encrypted)) }.getOrElse {
+            // Clé invalidée (restauration d'appareil, réinitialisation biométrique) : le
+            // contenu est illisible pour toujours, autant repartir proprement.
+            clear()
+            null
         }
-        preferences.edit().putString("login", encrypt(json.toString())).apply()
     }
 
-    fun clear() {
+    override fun save(credentials: SavedCredentials) {
+        runCatching { encrypt(CredentialsCodec.encode(credentials)) }
+            .onSuccess { preferences.edit().putString(KEY_LOGIN, it).apply() }
+    }
+
+    override fun clear() {
         preferences.edit().clear().apply()
     }
 
     private fun secretKey(): SecretKey {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (keyStore.getKey(keyAlias, null) as? SecretKey)?.let { return it }
-        return KeyGenerator.getInstance("AES", "AndroidKeyStore").apply {
-            init(android.security.keystore.KeyGenParameterSpec.Builder(
-                keyAlias,
-                android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or
-                    android.security.keystore.KeyProperties.PURPOSE_DECRYPT,
+        val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
+        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE).apply {
+            init(
+                KeyGenParameterSpec.Builder(
+                    KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setUserAuthenticationRequired(false)
+                    .build(),
             )
-                .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setUserAuthenticationRequired(false)
-                .build())
         }.generateKey()
     }
 
     private fun encrypt(value: String): String {
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, secretKey())
-        val encrypted = cipher.iv + cipher.doFinal(value.toByteArray(StandardCharsets.UTF_8))
-        return Base64.encodeToString(encrypted, Base64.NO_WRAP)
+        val payload = cipher.iv + cipher.doFinal(value.toByteArray(StandardCharsets.UTF_8))
+        return Base64.encodeToString(payload, Base64.NO_WRAP)
     }
 
     private fun decrypt(value: String): String {
         val bytes = Base64.decode(value, Base64.NO_WRAP)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
-        return String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), StandardCharsets.UTF_8)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            secretKey(),
+            GCMParameterSpec(TAG_LENGTH_BITS, bytes.copyOfRange(0, IV_LENGTH)),
+        )
+        return String(cipher.doFinal(bytes.copyOfRange(IV_LENGTH, bytes.size)), StandardCharsets.UTF_8)
+    }
+
+    private companion object {
+        const val FILE_NAME = "ecole2recte_secure"
+        const val KEY_LOGIN = "login"
+        const val KEY_ALIAS = "ecole2recte_credentials"
+        const val KEYSTORE = "AndroidKeyStore"
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val IV_LENGTH = 12
+        const val TAG_LENGTH_BITS = 128
     }
 }
