@@ -93,11 +93,26 @@ class EcoleDirecteRepositoryTest {
         val home = repository(openStudent()).home()
         assertEquals("Bonjour Jean", home.greeting)
         assertEquals("Jeudi 5 novembre 2026", home.dateLabel)
-        assertEquals("PHILOSOPHIE", home.nextClass?.subject?.name)
+        assertEquals("Philosophie", home.nextClass?.subject?.name)
         assertEquals("10:15  ·  dans 25 min", home.nextClass?.startLabel)
+        assertEquals("Ensuite : Anglais vendredi à 08:00", home.nextClass?.afterLabel)
         assertEquals(listOf("10:15"), home.today.map { it.time })
-        assertEquals("MATHS", home.reminder?.subject)
+        assertEquals("Maths", home.reminder?.subject)
         assertEquals("15,8", home.grades.average)
+    }
+
+    @Test
+    fun `l'accueil resume ce qu'il faut savoir`() = runTest {
+        val titles = repository(openStudent()).home().highlights.map { it.title }
+        assertEquals(
+            listOf(
+                "Cours annulé : Maths",
+                "Évaluation en Maths",
+                "Nouvelle note en Maths",
+                "1 message non lu",
+            ),
+            titles,
+        )
     }
 
     @Test
@@ -112,7 +127,7 @@ class EcoleDirecteRepositoryTest {
     @Test
     fun `les devoirs faits ou passes sont ecartes`() = runTest {
         val tasks = repository(openStudent()).homework()
-        assertEquals(listOf("MATHS"), tasks.map { it.subject })
+        assertEquals(listOf("Maths"), tasks.map { it.subject })
         assertEquals("Vendredi 6 novembre", tasks.single().due)
         assertEquals(true, tasks.single().exam)
     }
@@ -122,7 +137,7 @@ class EcoleDirecteRepositoryTest {
         val overview = repository(openStudent()).grades()
         assertEquals("15,8", overview.average)
         assertEquals("↗ +1,6", overview.trend)
-        assertEquals(listOf("MATHS"), overview.bySubject.map { it.subject.name })
+        assertEquals(listOf("Maths"), overview.bySubject.map { it.subject.name })
         assertEquals("17,5", overview.bySubject.single().average)
     }
 
@@ -214,7 +229,7 @@ class EcoleDirecteRepositoryTest {
 
         val offline = repository(offlineSession())
         val tasks = offline.homework()
-        assertEquals(listOf("MATHS"), tasks.map { it.subject })
+        assertEquals(listOf("Maths"), tasks.map { it.subject })
         assertEquals(true, offline.freshness.value.stale)
         assertEquals(clock.millis(), offline.freshness.value.lastSyncMillis)
     }
@@ -229,7 +244,7 @@ class EcoleDirecteRepositoryTest {
     fun `l'accueil hors ligne s'affiche depuis l'enregistrement`() = runTest {
         repository(openStudent()).home()
         val home = repository(offlineSession()).home()
-        assertEquals("PHILOSOPHIE", home.nextClass?.subject?.name)
+        assertEquals("Philosophie", home.nextClass?.subject?.name)
         assertEquals("15,8", home.grades.average)
     }
 

@@ -3,6 +3,8 @@ package fr.ecole2recte.app.data.demo
 import fr.ecole2recte.app.domain.Badges
 import fr.ecole2recte.app.domain.Freshness
 import fr.ecole2recte.app.domain.GradeOverview
+import fr.ecole2recte.app.domain.Highlight
+import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.MessagePreview
@@ -51,6 +53,10 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
             ScheduleSlot(listOf("08:00", "10:15", "13:30")[index], subject)
         },
         reminder = homework.first(),
+        highlights = listOf(
+            Highlight(HighlightKind.Grade, "Nouvelle note en Mathématiques", "17,5 / 20"),
+            Highlight(HighlightKind.Message, "2 messages non lus", "Vie scolaire · Réunion parents-professeurs"),
+        ),
         grades = grades,
         allSubjects = subjects,
     )

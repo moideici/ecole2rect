@@ -13,6 +13,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.EventBusy
+import androidx.compose.material.icons.outlined.MarkEmailUnread
+import androidx.compose.material3.Icon
+import fr.ecole2recte.app.domain.Highlight
+import fr.ecole2recte.app.domain.HighlightKind
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -50,7 +58,12 @@ import fr.ecole2recte.app.ui.personalization.ColorEditor
 import fr.ecole2recte.app.ui.theme.AppTheme
 
 @Composable
-fun HomeRoute(onOpenSchedule: () -> Unit, onOpenHomework: () -> Unit, onOpenGrades: () -> Unit) {
+fun HomeRoute(
+    onOpenSchedule: () -> Unit,
+    onOpenHomework: () -> Unit,
+    onOpenGrades: () -> Unit,
+    onOpenMessages: () -> Unit,
+) {
     val repository = rememberSchoolRepository()
     val viewModel = appViewModel { HomeViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -63,6 +76,7 @@ fun HomeRoute(onOpenSchedule: () -> Unit, onOpenHomework: () -> Unit, onOpenGrad
             onOpenSchedule = onOpenSchedule,
             onOpenHomework = onOpenHomework,
             onOpenGrades = onOpenGrades,
+            onOpenMessages = onOpenMessages,
         )
         if (showColorEditor) {
             ColorEditor(subjects = data.allSubjects, onDismiss = { showColorEditor = false })
@@ -77,6 +91,7 @@ private fun HomeScreen(
     onOpenSchedule: () -> Unit,
     onOpenHomework: () -> Unit,
     onOpenGrades: () -> Unit,
+    onOpenMessages: () -> Unit,
 ) {
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("accueil", listState)
@@ -99,6 +114,24 @@ private fun HomeScreen(
                 ScheduleSummary(data.today, Modifier.entrance(1))
             }
         }
+        if (data.highlights.isNotEmpty()) {
+            item { SectionTitle("À savoir", "", onClick = {}) }
+            item {
+                Column {
+                    data.highlights.forEachIndexed { index, highlight ->
+                        HighlightCard(
+                            highlight,
+                            Modifier.entrance(index + 2),
+                            onClick = when (highlight.kind) {
+                                HighlightKind.Canceled, HighlightKind.Exam -> onOpenSchedule
+                                HighlightKind.Grade -> onOpenGrades
+                                HighlightKind.Message -> onOpenMessages
+                            },
+                        )
+                    }
+                }
+            }
+        }
         data.reminder?.let { reminder ->
             item { SectionTitle("À ne pas oublier", "Tout voir", onClick = onOpenHomework) }
             item { ReminderCard(reminder, Modifier.entrance(2)) }
@@ -113,6 +146,31 @@ private fun HomeScreen(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
+        }
+    }
+}
+
+@Composable
+private fun HighlightCard(highlight: Highlight, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val (icon, tint) = when (highlight.kind) {
+        HighlightKind.Canceled -> Icons.Outlined.EventBusy to AppTheme.colors.error
+        HighlightKind.Exam -> Icons.Outlined.EditNote to AppTheme.colors.accent
+        HighlightKind.Grade -> Icons.AutoMirrored.Outlined.TrendingUp to AppTheme.colors.positive
+        HighlightKind.Message -> Icons.Outlined.MarkEmailUnread to AppTheme.colors.accent
+    }
+    Card(
+        modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp).clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(AppTheme.colors.surface),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = tint)
+            Column(Modifier.padding(start = 14.dp)) {
+                Text(highlight.title, color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                if (highlight.detail.isNotBlank()) {
+                    Text(highlight.detail, color = AppTheme.colors.muted, fontSize = 13.sp)
+                }
+            }
         }
     }
 }
@@ -152,7 +210,16 @@ private fun NextClassCard(next: NextClass, modifier: Modifier = Modifier) {
                 Column {
                     Text(next.startLabel, color = Color.White.copy(alpha = .8f), fontSize = 12.sp)
                     Text(subject.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                    Text("Salle ${subject.room}  ·  ${subject.teacher}", color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
+                    Text(
+                        listOf(subject.room.takeIf { it.isNotBlank() }?.let { "Salle $it" }, subject.teacher.takeIf { it.isNotBlank() })
+                            .filterNotNull().joinToString("  ·  "),
+                        color = Color.White.copy(alpha = .7f),
+                        fontSize = 12.sp,
+                    )
+                    next.afterLabel?.let {
+                        Spacer(Modifier.height(6.dp))
+                        Text(it, color = Color.White.copy(alpha = .85f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
                 ProgressRing(next.progress, size = 68.dp) { SubjectChip(subject) }
             }

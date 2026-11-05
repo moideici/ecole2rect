@@ -12,6 +12,8 @@ import fr.ecole2recte.app.data.cache.ResponseCache
 import fr.ecole2recte.app.domain.Badges
 import fr.ecole2recte.app.domain.Freshness
 import fr.ecole2recte.app.domain.GradeOverview
+import fr.ecole2recte.app.domain.Highlight
+import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.MessagePreview
@@ -206,7 +208,8 @@ class EcoleDirecteRepository(
         val lessons = optional(errors, emptyList()) { lessons() }
         val homework = optional(errors, emptyList()) { homeworkItems() }
         val grades = optional(errors, null) { gradesPayload() }
-        if (errors.size == 3) throw errors.first()
+        val inbox = optional(errors, emptyList()) { inbox() }
+        if (errors.size == 4) throw errors.first()
 
         val current = now()
         val todays = lessons.filter { it.start.startsWith(today().toString()) && !it.canceled }
@@ -214,9 +217,12 @@ class EcoleDirecteRepository(
         return HomeData(
             greeting = "Bonjour ${profile.firstName}",
             dateLabel = today().format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", french)).capitalized(),
-            nextClass = upcoming?.let { NextClass(it.toSubject(), startLabel(it, current), progress(it, current)) },
+            nextClass = upcoming?.let {
+                NextClass(it.toSubject(), startLabel(it, current), progress(it, current), afterLabel(lessons, it))
+            },
             today = todays.map { ScheduleSlot(it.start.substring(11, 16), it.toSubject()) },
             reminder = pendingHomework(homework).firstOrNull()?.toHomework(),
+            highlights = highlights(lessons, homework, grades, inbox),
             grades = grades?.let(::overview) ?: GradeOverview("–", "", emptyList()),
             allSubjects = lessons.map { it.toSubject() }.distinctBy { it.name },
         )
@@ -270,9 +276,61 @@ class EcoleDirecteRepository(
         return items.filter { !it.done && it.dueDate >= today }.sortedBy { it.dueDate }
     }
 
+    /** Ce qui mérite un coup d'œil dès l'ouverture, du plus urgent au moins urgent. */
+    private fun highlights(
+        lessons: List<ApiLesson>,
+        homework: List<ApiHomework>,
+        grades: ApiGrades?,
+        inbox: List<ApiMessage>,
+    ): List<Highlight> {
+        val today = today()
+        val list = mutableListOf<Highlight>()
+        lessons.filter { it.canceled }.forEach { lesson ->
+            val day = LocalDate.parse(lesson.start.substring(0, 10))
+            if (day == today || day == today.plusDays(1)) {
+                val when_ = if (day == today) "aujourd'hui" else "demain"
+                list += Highlight(
+                    HighlightKind.Canceled,
+                    "Cours annulé : ${lesson.subject.prettySubject()}",
+                    "$when_ à ${lesson.start.substring(11, 16)}",
+                )
+            }
+        }
+        pendingHomework(homework).filter { it.exam && LocalDate.parse(it.dueDate) <= today.plusDays(3) }.forEach { task ->
+            val day = LocalDate.parse(task.dueDate).format(DateTimeFormatter.ofPattern("EEEE d MMMM", french))
+            list += Highlight(HighlightKind.Exam, "Évaluation en ${task.subject.prettySubject()}", day.capitalized())
+        }
+        grades?.grades
+            ?.filter { it.counted && it.value != null && (it.date ?: "") >= today.minusDays(7).toString() }
+            ?.take(2)
+            ?.forEach { grade ->
+                list += Highlight(
+                    HighlightKind.Grade,
+                    "Nouvelle note en ${grade.subject.prettySubject()}",
+                    "${decimal(grade.value!!)} / ${grade.scale.toInt()}" + grade.label.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
+                )
+            }
+        val unread = inbox.count { !it.read }
+        if (unread > 0) {
+            list += Highlight(
+                HighlightKind.Message,
+                if (unread == 1) "1 message non lu" else "$unread messages non lus",
+                inbox.firstOrNull { !it.read }?.let { "${it.sender} · ${it.subject}" }.orEmpty(),
+            )
+        }
+        return list.take(5)
+    }
+
+    private fun afterLabel(lessons: List<ApiLesson>, current: ApiLesson): String? {
+        val following = lessons.filter { !it.canceled && it.start >= current.end }.minByOrNull { it.start } ?: return null
+        val sameDay = following.start.substring(0, 10) == current.start.substring(0, 10)
+        val time = following.start.substring(11, 16)
+        return "Ensuite : ${following.subject.prettySubject()} " + if (sameDay) "à $time" else "${dayName(following.start).lowercase(french)} à $time"
+    }
+
     private fun ApiHomework.toHomework() = Homework(
         title = content.lineSequence().firstOrNull { it.isNotBlank() } ?: if (exam) "Évaluation prévue" else "Travail à faire",
-        subject = subject,
+        subject = subject.prettySubject(),
         due = LocalDate.parse(dueDate).format(DateTimeFormatter.ofPattern("EEEE d MMMM", french)).capitalized(),
         colorIndex = colorFor(subject),
         id = id,
@@ -281,7 +339,7 @@ class EcoleDirecteRepository(
         exam = exam,
     )
 
-    private fun ApiLesson.toSubject() = Subject(subject, teacher, room, colorFor(subject))
+    private fun ApiLesson.toSubject() = Subject(subject.prettySubject(), teacher, room, colorFor(subject))
 
     private fun overview(payload: ApiGrades): GradeOverview {
         val periods = payload.periods
@@ -292,7 +350,7 @@ class EcoleDirecteRepository(
         val delta = if (current?.average != null && previous?.average != null) current.average - previous.average else null
         val bySubject = payload.subjectAverages
             .filter { current != null && it.periodCode == current.code && it.average != null }
-            .map { SubjectAverage(Subject(it.subject, it.teacher, "", colorFor(it.subject)), decimal(it.average!!)) }
+            .map { SubjectAverage(Subject(it.subject.prettySubject(), it.teacher, "", colorFor(it.subject)), decimal(it.average!!)) }
         return GradeOverview(
             average = current?.average?.let(::decimal) ?: "–",
             trend = when {
@@ -334,6 +392,9 @@ class EcoleDirecteRepository(
     private fun colorFor(subject: String): Int = abs(subject.trim().lowercase(french).hashCode()) % PALETTE_SIZE
 
     private fun String.capitalized() = replaceFirstChar { it.titlecase(french) }
+
+    /** ÉcoleDirecte écrit les matières en majuscules : « PHILOSOPHIE » devient « Philosophie ». */
+    private fun String.prettySubject() = trim().lowercase(french).capitalized()
 
     private companion object {
         const val PALETTE_SIZE = 4

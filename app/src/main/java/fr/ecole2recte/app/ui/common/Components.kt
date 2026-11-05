@@ -171,7 +171,7 @@ fun SectionTitle(title: String, action: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, color = AppTheme.colors.ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Text(action, modifier = Modifier.clickable(onClick = onClick).padding(8.dp), color = AppTheme.colors.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        if (action.isNotBlank()) Text(action, modifier = Modifier.clickable(onClick = onClick).padding(8.dp), color = AppTheme.colors.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }
 

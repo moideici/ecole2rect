@@ -25,7 +25,18 @@ data class ScheduleEntry(val subject: Subject, val whenLabel: String, val cancel
 
 data class ScheduleWeek(val label: String, val entries: List<ScheduleEntry>)
 
-data class NextClass(val subject: Subject, val startLabel: String, val progress: Float)
+data class NextClass(
+    val subject: Subject,
+    val startLabel: String,
+    val progress: Float,
+    /** Le cours d'après, pour répondre à « et ensuite ? » sans changer d'écran. */
+    val afterLabel: String? = null,
+)
+
+enum class HighlightKind { Canceled, Exam, Grade, Message }
+
+/** Une chose à savoir dès l'ouverture : cours annulé, évaluation proche, nouvelle note, message. */
+data class Highlight(val kind: HighlightKind, val title: String, val detail: String)
 
 data class SubjectAverage(val subject: Subject, val average: String)
 
@@ -49,6 +60,7 @@ data class HomeData(
     val nextClass: NextClass?,
     val today: List<ScheduleSlot>,
     val reminder: Homework?,
+    val highlights: List<Highlight> = emptyList(),
     val grades: GradeOverview,
     val allSubjects: List<Subject>,
 )
