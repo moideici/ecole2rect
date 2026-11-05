@@ -40,10 +40,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.ChildSummary
 import fr.ecole2recte.app.domain.GradeOverview
-import fr.ecole2recte.app.sync.WidgetLesson
-import fr.ecole2recte.app.sync.WidgetSnapshot
-import fr.ecole2recte.app.sync.WidgetTask
 import fr.ecole2recte.app.ui.accounts.Avatar
+import fr.ecole2recte.app.widget.WidgetLogic
 import fr.ecole2recte.app.widget.WidgetUpdater
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
@@ -100,15 +98,12 @@ fun HomeRoute(
 private fun PublishWidgets(data: HomeData, repository: fr.ecole2recte.app.domain.SchoolRepository) {
     val context = LocalContext.current.applicationContext
     LaunchedEffect(data) {
-        val tasks = runCatching { repository.homework() }.getOrDefault(emptyList()).filter { !it.done }.take(5)
+        // Tout est déjà en mémoire : ces appels ne coûtent pas de nouvelle requête.
+        val week = runCatching { repository.schedule() }.getOrNull()
+        val homework = runCatching { repository.homework() }.getOrDefault(emptyList())
+        val inbox = runCatching { repository.messagesPage(0).items }.getOrDefault(emptyList())
         WidgetUpdater(context).publish(
-            WidgetSnapshot(
-                updatedAt = System.currentTimeMillis(),
-                nextClass = data.nextClass?.let {
-                    WidgetLesson(it.subject.name, it.startLabel, it.subject.room.takeIf { room -> room.isNotBlank() }?.let { room -> "Salle $room" }.orEmpty())
-                },
-                tasks = tasks.map { WidgetTask(it.subject, it.title, it.due) },
-            ),
+            WidgetLogic.snapshot(System.currentTimeMillis(), java.time.LocalDate.now(), data, week, homework, data.grades, inbox),
         )
     }
 }

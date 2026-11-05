@@ -39,6 +39,17 @@ class AppColors(
     val isDark: Boolean,
 )
 
+/** Les dix couleurs de matière, claires puis sombres : partagées avec les widgets. */
+val LightSubjectColors = listOf(
+        Color(0xFF7779E8), Color(0xFF63A6E9), Color(0xFFEFA36A), Color(0xFF5CBD92), Color(0xFFE07A8F),
+        Color(0xFF9B7BD8), Color(0xFF3FB6B2), Color(0xFFD9B44A), Color(0xFF8AA0B5), Color(0xFFD9825B),
+)
+
+val DarkSubjectColors = listOf(
+        Color(0xFF9A9CF5), Color(0xFF82BDF0), Color(0xFFF3B98C), Color(0xFF7FD3AD), Color(0xFFF09BAC),
+        Color(0xFFB9A0EC), Color(0xFF6FD3CF), Color(0xFFE8CB78), Color(0xFFADBFD0), Color(0xFFEBA37F),
+)
+
 private val LightColors = AppColors(
     ink = Color(0xFF18202B),
     muted = Color(0xFF5B6675),
@@ -52,10 +63,7 @@ private val LightColors = AppColors(
     warningSurface = Color(0xFFFFF7ED),
     warningTitle = Color(0xFF8A4F12),
     warningText = Color(0xFF5F4A32),
-    subject = listOf(
-        Color(0xFF7779E8), Color(0xFF63A6E9), Color(0xFFEFA36A), Color(0xFF5CBD92), Color(0xFFE07A8F),
-        Color(0xFF9B7BD8), Color(0xFF3FB6B2), Color(0xFFD9B44A), Color(0xFF8AA0B5), Color(0xFFD9825B),
-    ),
+    subject = LightSubjectColors,
     isDark = false,
 )
 
@@ -72,10 +80,7 @@ private val DarkColors = AppColors(
     warningSurface = Color(0xFF33281A),
     warningTitle = Color(0xFFFFC27A),
     warningText = Color(0xFFE9D6BE),
-    subject = listOf(
-        Color(0xFF9A9CF5), Color(0xFF82BDF0), Color(0xFFF3B98C), Color(0xFF7FD3AD), Color(0xFFF09BAC),
-        Color(0xFFB9A0EC), Color(0xFF6FD3CF), Color(0xFFE8CB78), Color(0xFFADBFD0), Color(0xFFEBA37F),
-    ),
+    subject = DarkSubjectColors,
     isDark = true,
 )
 

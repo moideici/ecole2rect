@@ -128,11 +128,65 @@ class NotificationState(context: Context) : NotificationStateStore {
 /** Ce que les widgets affichent : un instantané écrit à chaque synchronisation. */
 data class WidgetLesson(val subject: String, val timeLabel: String, val place: String)
 
-data class WidgetTask(val subject: String, val title: String, val due: String)
+data class WidgetTask(
+    val subject: String,
+    val title: String,
+    val due: String,
+    val colorIndex: Int = 0,
+    val dueDate: String = "",
+    val exam: Boolean = false,
+)
 
-data class WidgetSnapshot(val updatedAt: Long, val nextClass: WidgetLesson?, val tasks: List<WidgetTask>) {
+/** Un cours des prochains jours, avec ses heures absolues : le widget calcule « dans 25 min » à l'affichage. */
+data class WidgetSlot(
+    val date: String,
+    val start: String,
+    val end: String,
+    val subject: String,
+    val room: String,
+    val teacher: String,
+    val canceled: Boolean,
+    val colorIndex: Int,
+)
+
+data class WidgetGradeItem(val subject: String, val value: String, val coefficient: String, val label: String, val colorIndex: Int)
+
+data class WidgetMail(val sender: String, val subject: String)
+
+data class WidgetSnapshot(
+    val updatedAt: Long,
+    val nextClass: WidgetLesson?,
+    val tasks: List<WidgetTask>,
+    /** Les cours d'aujourd'hui et des jours suivants. */
+    val lessons: List<WidgetSlot> = emptyList(),
+    val grades: List<WidgetGradeItem> = emptyList(),
+    val average: String = "",
+    val unread: Int = 0,
+    val mails: List<WidgetMail> = emptyList(),
+) {
     fun toJson(): String = JSONObject()
         .put("updatedAt", updatedAt)
+        .put("average", average)
+        .put("unread", unread)
+        .put(
+            "lessons",
+            JSONArray(
+                lessons.map {
+                    JSONObject().put("date", it.date).put("start", it.start).put("end", it.end).put("subject", it.subject)
+                        .put("room", it.room).put("teacher", it.teacher).put("canceled", it.canceled).put("color", it.colorIndex)
+                },
+            ),
+        )
+        .put(
+            "grades",
+            JSONArray(
+                grades.map {
+                    JSONObject().put("subject", it.subject).put("value", it.value).put("coef", it.coefficient)
+                        .put("label", it.label).put("color", it.colorIndex)
+                },
+            ),
+        )
+        .put("mails", JSONArray(mails.map { JSONObject().put("sender", it.sender).put("subject", it.subject) }))
         .put(
             "nextClass",
             nextClass?.let { JSONObject().put("subject", it.subject).put("time", it.timeLabel).put("place", it.place) }
@@ -140,7 +194,12 @@ data class WidgetSnapshot(val updatedAt: Long, val nextClass: WidgetLesson?, val
         )
         .put(
             "tasks",
-            JSONArray(tasks.map { JSONObject().put("subject", it.subject).put("title", it.title).put("due", it.due) }),
+            JSONArray(
+                tasks.map {
+                    JSONObject().put("subject", it.subject).put("title", it.title).put("due", it.due)
+                        .put("color", it.colorIndex).put("dueDate", it.dueDate).put("exam", it.exam)
+                },
+            ),
         )
         .toString()
 
@@ -153,10 +212,32 @@ data class WidgetSnapshot(val updatedAt: Long, val nextClass: WidgetLesson?, val
                 updatedAt = root.optLong("updatedAt"),
                 nextClass = next?.let { WidgetLesson(it.optString("subject"), it.optString("time"), it.optString("place")) },
                 tasks = (0 until tasks.length()).mapNotNull { tasks.optJSONObject(it) }
-                    .map { WidgetTask(it.optString("subject"), it.optString("title"), it.optString("due")) },
+                    .map {
+                        WidgetTask(
+                            it.optString("subject"), it.optString("title"), it.optString("due"),
+                            it.optInt("color"), it.optString("dueDate"), it.optBoolean("exam"),
+                        )
+                    },
+                lessons = root.objects("lessons").map {
+                    WidgetSlot(
+                        it.optString("date"), it.optString("start"), it.optString("end"), it.optString("subject"),
+                        it.optString("room"), it.optString("teacher"), it.optBoolean("canceled"), it.optInt("color"),
+                    )
+                },
+                grades = root.objects("grades").map {
+                    WidgetGradeItem(it.optString("subject"), it.optString("value"), it.optString("coef"), it.optString("label"), it.optInt("color"))
+                },
+                average = root.optString("average"),
+                unread = root.optInt("unread"),
+                mails = root.objects("mails").map { WidgetMail(it.optString("sender"), it.optString("subject")) },
             )
         }.getOrNull()
     }
+}
+
+private fun JSONObject.objects(key: String): List<JSONObject> {
+    val array = optJSONArray(key) ?: return emptyList()
+    return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
 }
 
 class WidgetSnapshotStore(context: Context) {

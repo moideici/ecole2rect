@@ -118,13 +118,7 @@ class SyncService(
             }
 
             widgets.publish(
-                WidgetSnapshot(
-                    updatedAt = clock.millis(),
-                    nextClass = home.nextClass?.let {
-                        WidgetLesson(it.subject.name, it.startLabel, it.subject.room.takeIf { room -> room.isNotBlank() }?.let { room -> "Salle $room" }.orEmpty())
-                    },
-                    tasks = homework.filter { !it.done }.take(5).map { WidgetTask(it.subject, it.title, it.due) },
-                ),
+                fr.ecole2recte.app.widget.WidgetLogic.snapshot(clock.millis(), today, home, week, homework, home.grades, inbox.items),
             )
             prefs.recordSync(clock.millis())
             return SyncOutcome.Done

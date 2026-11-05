@@ -35,6 +35,28 @@
                 android:resource="@xml/next_class_widget_info" />
         </receiver>
         <receiver
+            android:name=".widget.DayWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_day_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/day_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.WeekWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_week_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/week_widget_info" />
+        </receiver>
+        <receiver
             android:name=".widget.HomeworkWidgetReceiver"
             android:exported="true"
             android:label="@string/sync_widget_homework_label">
@@ -44,6 +66,28 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/homework_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.GradesWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_grades_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/grades_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.MessagesWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_messages_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/messages_widget_info" />
         </receiver>
     </application>
 </manifest>
