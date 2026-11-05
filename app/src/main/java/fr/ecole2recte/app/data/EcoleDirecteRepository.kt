@@ -309,6 +309,13 @@ class EcoleDirecteRepository(
         )
     }
 
+    override suspend fun nextClass(): NextClass? {
+        val lessons = lessons()
+        val current = now()
+        val upcoming = lessons.filter { !it.canceled && parse(it.end) > current }.minByOrNull { it.start } ?: return null
+        return NextClass(upcoming.toSubject(), startLabel(upcoming, current), progress(upcoming, current), afterLabel(lessons, upcoming))
+    }
+
     override suspend fun schedule(): ScheduleWeek {
         val monday = today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val sunday = monday.plusDays(6)
@@ -667,6 +674,7 @@ class EcoleDirecteRepository(
             },
             bySubject = bySubject,
             recent = payload.grades.filter { it.value != null }.take(6).map { it.toEntry() },
+            all = payload.grades.filter { it.value != null }.map { it.toEntry() },
             evolution = periods.mapNotNull { p -> p.average?.let { PeriodAverage(p.name, it) } },
             classAverage = current?.classAverage?.let(::decimal),
             periodName = current?.name.orEmpty(),

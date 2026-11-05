@@ -16,6 +16,9 @@ interface SchoolRepository {
     fun invalidate()
 
     suspend fun home(): HomeData
+
+    /** Le prochain cours, sans le reste de l'accueil (la synchro et les widgets n'ont pas besoin de la vue famille). */
+    suspend fun nextClass(): NextClass? = home().nextClass
     suspend fun schedule(): ScheduleWeek
     /** Les devoirs à venir, faits ou non (les faits sont marqués). */
     suspend fun homework(): List<Homework>

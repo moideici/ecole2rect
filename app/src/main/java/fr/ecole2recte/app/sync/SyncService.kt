@@ -15,6 +15,9 @@ import fr.ecole2recte.app.data.TokenReplayPolicy
 import fr.ecole2recte.app.data.USER_AGENT
 import fr.ecole2recte.app.data.active
 import fr.ecole2recte.app.data.cache.ResponseCache
+import fr.ecole2recte.app.domain.GradeOverview
+import fr.ecole2recte.app.domain.ScheduleWeek
+import fr.ecole2recte.app.session.ActiveProfile
 import fr.ecole2recte.app.session.ApiSession
 import fr.ecole2recte.app.session.ApiSessionState
 import fr.ecole2recte.app.session.findBirthAnswer
@@ -22,6 +25,7 @@ import fr.ecole2recte.app.session.toActiveProfile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.time.Clock
@@ -77,6 +81,8 @@ class SyncService(
     private val clock: Clock = Clock.systemDefaultZone(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val tokenLog: TokenLifetimeLog = InMemoryTokenLog(),
+    /** Pause entre deux enfants d'un compte famille : les lectures ne partent jamais en rafale. */
+    private val pauseBetweenChildrenMs: Long = 2_000,
 ) {
     private sealed interface Opened {
         class Ready(val client: EcoleDirecteClient, val accounts: List<Account>) : Opened
@@ -115,33 +121,48 @@ class SyncService(
             }
         }
 
-        val profile = saved.toActiveProfile()
-        val repository = EcoleDirecteRepository(session, profile, cache, homeworkStatus, clock = clock)
+        val activeProfile = saved.toActiveProfile()
+        val family = saved.profile?.students.orEmpty().isNotEmpty()
+        val profiles = syncProfiles(saved, activeProfile)
+        val today = LocalDate.now(clock)
+        val rules = prefs.rules
+        val quiet = rules.isQuiet(java.time.LocalTime.now(clock).hour)
+        val toPost = mutableListOf<NotificationEvent>()
+        var widgetSnapshot: WidgetSnapshot? = null
+
+        // Un passage par enfant du compte, l'un après l'autre et avec une pause : jamais en rafale.
+        // Le premier est l'enfant affiché (les widgets le montrent) ; la boîte de réception est celle
+        // de la famille, lue une seule fois et suivie à part pour ne pas notifier chaque enfant.
         try {
-            val home = repository.home()
-            val week = repository.schedule()
-            val homework = repository.homework()
-            val inbox = repository.messagesPage(0)
-            // Une reconnexion refusée pendant la lecture (identifiants, blocage…) arrête tout, même si
-            // le cache a permis de répondre.
-            stoppedByReconnect?.let { return it }
+            for ((index, profile) in profiles.withIndex()) {
+                if (index > 0 && pauseBetweenChildrenMs > 0) delay(pauseBetweenChildrenMs)
+                val repository = EcoleDirecteRepository(session, profile, cache, homeworkStatus, clock = clock)
+                val main = index == 0
+                val nextClass = if (main) repository.nextClass() else null
+                val week = repository.schedule()
+                val homework = repository.homework()
+                val grades = repository.grades()
+                val inbox = if (main) repository.messagesPage(0) else null
+                // Une reconnexion refusée pendant la lecture (identifiants, blocage…) arrête tout, même si
+                // le cache a permis de répondre.
+                stoppedByReconnect?.let { return it }
 
-            val today = LocalDate.now(clock)
-            val owner = "${saved.identifier.lowercase()}|${profile.studentId.orEmpty()}"
-            val snapshot = NotificationPlanner.snapshot(home.grades, inbox.items, week, homework, today)
-            val rules = prefs.rules
-            val plan = NotificationPlanner.plan(state.load(owner), snapshot, today, rules)
-            val hour = java.time.LocalTime.now(clock).hour
-            if (plan.events.isNotEmpty() && rules.isQuiet(hour)) {
-                // De nuit : on ne dérange pas et on ne retient rien, les nouveautés partiront au matin.
-            } else {
-                if (plan.events.isNotEmpty()) notifier.post(plan.events)
-                state.save(owner, plan.next)
+                val label = profile.firstName.takeIf { family }.orEmpty()
+                val ownerKey = "${saved.identifier.lowercase()}|${profile.studentId.orEmpty()}"
+                val ownMessages = if (family) emptyList() else inbox?.items.orEmpty()
+                plan(ownerKey, NotificationPlanner.snapshot(grades, ownMessages, week, homework, today), today, rules, label, quiet, toPost)
+                if (main && family) {
+                    val mailbox = NotificationPlanner.snapshot(GradeOverview("–", "", emptyList()), inbox?.items.orEmpty(), ScheduleWeek("", emptyList(), "", ""), emptyList(), today)
+                    plan("${saved.identifier.lowercase()}|mailbox", mailbox, today, rules, "", quiet, toPost)
+                }
+                if (main && inbox != null) {
+                    widgetSnapshot = fr.ecole2recte.app.widget.WidgetLogic.snapshot(
+                        clock.millis(), today, nextClass, week, homework, grades, inbox.items,
+                    )
+                }
             }
-
-            widgets.publish(
-                fr.ecole2recte.app.widget.WidgetLogic.snapshot(clock.millis(), today, home, week, homework, home.grades, inbox.items),
-            )
+            if (toPost.isNotEmpty() && !quiet) notifier.post(toPost)
+            widgetSnapshot?.let { widgets.publish(it) }
             keepSession(saved, session)
             prefs.recordSync(clock.millis())
             prefs.resetFailures()
@@ -151,6 +172,31 @@ class SyncService(
             if (error.kind == FailureKind.StaleVersion) return stop(stopReason(FailureKind.StaleVersion))
             return failed()
         }
+    }
+
+    /** L'enfant affiché d'abord, puis les autres ; un seul profil pour un compte élève. */
+    private fun syncProfiles(saved: SavedLogin, active: ActiveProfile): List<ActiveProfile> {
+        val students = saved.profile?.students.orEmpty()
+        if (students.isEmpty()) return listOf(active)
+        return students.map { saved.copy(activeStudentId = it.id).toActiveProfile() }
+            .sortedBy { if (it.studentId == active.studentId) 0 else 1 }
+    }
+
+    /** Décide quoi notifier pour un propriétaire (enfant ou boîte de réception) et retient ce qui l'a été. */
+    private fun plan(
+        owner: String,
+        snapshot: SyncSnapshot,
+        today: LocalDate,
+        rules: NotificationRules,
+        label: String,
+        quiet: Boolean,
+        out: MutableList<NotificationEvent>,
+    ) {
+        val plan = NotificationPlanner.plan(state.load(owner), snapshot, today, rules)
+        // De nuit : on ne dérange pas et on ne retient rien, les nouveautés partiront au matin.
+        if (plan.events.isNotEmpty() && quiet) return
+        out += plan.events.map { it.copy(owner = label) }
+        state.save(owner, plan.next)
     }
 
     /** Une vraie connexion (avec la réponse de confiance ou la date de naissance mémorisées). */

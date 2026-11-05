@@ -103,6 +103,8 @@ data class GradeOverview(
     val bySubject: List<SubjectAverage>,
     /** Les notes les plus récentes, toutes périodes confondues. */
     val recent: List<GradeEntry> = emptyList(),
+    /** Toutes les notes chiffrées de l'année : la synchro repère les nouvelles sur l'ensemble, pas sur les six dernières. */
+    val all: List<GradeEntry> = emptyList(),
     /** Moyenne générale de chaque période, pour la courbe d'évolution. */
     val evolution: List<PeriodAverage> = emptyList(),
     val classAverage: String? = null,

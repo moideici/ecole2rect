@@ -1,6 +1,8 @@
 package fr.ecole2recte.app.sync
 
 import fr.ecole2recte.app.data.Account
+import fr.ecole2recte.app.data.AccountProfile
+import fr.ecole2recte.app.data.Student
 import fr.ecole2recte.app.data.BirthDate
 import fr.ecole2recte.app.data.InMemoryTokenLog
 import fr.ecole2recte.app.data.SavedSession
@@ -76,6 +78,7 @@ private class MemoryPrefs(var enabled: Boolean = true) : SyncPrefs {
 
 private class MemoryState : NotificationStateStore {
     private val values = HashMap<String, NotifiedIds>()
+    val owners: Set<String> get() = values.keys
     override fun load(owner: String) = values[owner]
     override fun save(owner: String, ids: NotifiedIds) {
         values[owner] = ids
@@ -100,6 +103,7 @@ class SyncServiceTest {
     private val paths = mutableListOf<String>()
     private val loginBodies = ArrayDeque<String>()
     private val timetableCodes = ArrayDeque<String>()
+    private var inbox = """{"code":200,"data":{"messages":{"received":[]}}}"""
     private val dataTokens = mutableListOf<String?>()
     private var notes = """[{"id":1,"libelleMatiere":"MATHS","devoir":"DS 1","valeur":"16","noteSur":"20","codePeriode":"A1","date":"2026-11-04"}]"""
 
@@ -133,7 +137,7 @@ class SyncServiceTest {
                     path.endsWith("/notes.awp") -> """{"code":200,"data":{"periodes":[
                         {"idPeriode":"A1","periode":"T1","cloture":false,"isCurrent":true,"moyenneGenerale":"15","ensembleMatieres":{"disciplines":[]}}],
                         "notes":$notes}}"""
-                    path.endsWith("/messages.awp") -> """{"code":200,"data":{"messages":{"received":[]}}}"""
+                    path.endsWith("/messages.awp") -> inbox
                     else -> """{"code":404}"""
                 }
                 return response.setBody(body)
@@ -168,6 +172,7 @@ class SyncServiceTest {
         clientFactory = { EcoleDirecteClient(apiBase = server.url("/v3").toString().trimEnd('/')) },
         clock = clock,
         tokenLog = tokenLog,
+        pauseBetweenChildrenMs = 0,
     )
 
     private fun keptSession(idleMs: Long, ageMs: Long = 3_600_000) = SavedSession(
@@ -354,6 +359,67 @@ class SyncServiceTest {
         assertEquals(TrustedAnswer("nouveau", "nouveau"), kept.trustedAnswer)
         assertEquals("20", kept.activeStudentId)
         assertEquals("nouveau", kept.password)
+    }
+
+    private val family = saved.copy(
+        profile = AccountProfile("Marie", "DUPONT", "1", listOf(Student("20", "Léa", "DUPONT"), Student("21", "Tom", "DUPONT"))),
+        activeStudentId = "21",
+    )
+    private val familyBody = """{"code":200,"token":"t","data":{"accounts":[{"id":"1","typeCompte":"1","prenom":"Marie","nom":"DUPONT",
+        "profile":{"eleves":[{"id":20,"prenom":"Léa","nom":"DUPONT"},{"id":21,"prenom":"Tom","nom":"DUPONT"}]}}]}}"""
+    private fun unread(subject: String) =
+        """{"code":200,"data":{"messages":{"received":[{"id":7,"from":{"nom":"VIE SCOLAIRE"},"subject":"$subject","read":false}]}}}"""
+
+    @Test
+    fun `un compte famille a un passage par enfant, la boite de reception n'est lue qu'une fois`() = runTest {
+        loginBodies += familyBody
+        val recorder = Recorder()
+        assertEquals(SyncOutcome.Done, service(MemoryStore(family), MemoryPrefs(), MemoryState(), recorder).run())
+        assertEquals(1, paths.count { it.endsWith("/emploidutemps.awp") && "/E/20/" in it })
+        assertEquals(1, paths.count { it.endsWith("/emploidutemps.awp") && "/E/21/" in it })
+        assertEquals(1, paths.count { it.endsWith("/messages.awp") })
+        // L'enfant affiché (Tom) est lu en premier.
+        assertTrue(paths.indexOfFirst { "/E/21/" in it } < paths.indexOfFirst { "/E/20/" in it })
+    }
+
+    @Test
+    fun `chaque enfant a ses propres nouveautes et la famille ses messages, une seule fois`() = runTest {
+        val store = MemoryStore(family)
+        val state = MemoryState()
+        val recorder = Recorder()
+        loginBodies += familyBody
+        service(store, MemoryPrefs(), state, recorder).run()
+        assertEquals(setOf("jdupont|21", "jdupont|20", "jdupont|mailbox"), state.owners)
+
+        notes = """[{"id":2,"libelleMatiere":"ANGLAIS","devoir":"Oral","valeur":"14","noteSur":"20","codePeriode":"A1","date":"2026-11-05"}]"""
+        inbox = unread("Réunion")
+        loginBodies += familyBody
+        service(store, MemoryPrefs(), state, recorder).run()
+
+        val grades = recorder.posted.filter { it.kind == EventKind.Grade }
+        assertEquals(listOf("Léa", "Tom"), grades.map { it.owner }.sorted())
+        val messages = recorder.posted.filter { it.kind == EventKind.Message }
+        assertEquals(1, messages.size)
+        assertEquals("", messages.single().owner)
+        // Troisième passage sans rien de neuf : plus rien.
+        val before = recorder.posted.size
+        loginBodies += familyBody
+        service(store, MemoryPrefs(), state, recorder).run()
+        assertEquals(before, recorder.posted.size)
+    }
+
+    @Test
+    fun `un compte eleve ne montre aucun sous-titre`() = runTest {
+        val store = MemoryStore(saved)
+        val state = MemoryState()
+        val recorder = Recorder()
+        loginBodies += accountBody
+        service(store, MemoryPrefs(), state, recorder).run()
+        notes = """[{"id":2,"libelleMatiere":"ANGLAIS","devoir":"Oral","valeur":"14","noteSur":"20","codePeriode":"A1","date":"2026-11-05"}]"""
+        loginBodies += accountBody
+        service(store, MemoryPrefs(), state, recorder).run()
+        assertEquals(listOf(""), recorder.posted.map { it.owner })
+        assertEquals(setOf("jdupont|"), state.owners)
     }
 
     @Test

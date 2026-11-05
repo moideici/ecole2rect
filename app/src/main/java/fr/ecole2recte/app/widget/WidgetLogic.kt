@@ -4,6 +4,7 @@ import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.MessagePreview
+import fr.ecole2recte.app.domain.NextClass
 import fr.ecole2recte.app.domain.ScheduleWeek
 import fr.ecole2recte.app.sync.WidgetGradeItem
 import fr.ecole2recte.app.sync.WidgetLesson
@@ -81,11 +82,21 @@ object WidgetLogic {
         homework: List<Homework>,
         grades: GradeOverview?,
         inbox: List<MessagePreview>,
+    ): WidgetSnapshot = snapshot(updatedAt, today, home?.nextClass, week, homework, grades, inbox)
+
+    fun snapshot(
+        updatedAt: Long,
+        today: LocalDate,
+        nextClass: NextClass?,
+        week: ScheduleWeek?,
+        homework: List<Homework>,
+        grades: GradeOverview?,
+        inbox: List<MessagePreview>,
     ): WidgetSnapshot {
         val limit = today.plusDays(6).toString()
         return WidgetSnapshot(
             updatedAt = updatedAt,
-            nextClass = home?.nextClass?.let {
+            nextClass = nextClass?.let {
                 WidgetLesson(it.subject.name, it.startLabel, it.subject.room.takeIf { room -> room.isNotBlank() }?.let { room -> "Salle $room" }.orEmpty())
             },
             tasks = homework.filter { !it.done }.take(8).map {

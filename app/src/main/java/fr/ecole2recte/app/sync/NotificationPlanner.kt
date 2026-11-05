@@ -10,15 +10,42 @@ import java.time.LocalDate
 import java.util.Locale
 
 /** Les familles de notifications ; [tab] est l'onglet que le toucher ouvre. */
-enum class EventKind(val channelId: String, val channelName: String, val tab: String) {
-    Canceled("canceled", "Cours annulés", "agenda"),
-    Changed("changed", "Cours modifiés", "agenda"),
-    Homework("homework", "Devoirs pour demain", "agenda_homework"),
-    Grade("grades", "Nouvelles notes", "notes"),
-    Message("messages", "Messages", "messages"),
+enum class EventKind(
+    val channelId: String,
+    val channelName: String,
+    val tab: String,
+    /** Titre affiché sur l'écran verrouillé, sans aucun détail. */
+    val publicTitle: String,
+    /** Cours et devoirs sont discrets ; notes et messages se remarquent. */
+    val quiet: Boolean,
+) {
+    Canceled("canceled2", "Cours annulés", "agenda", "Cours annulé", quiet = true),
+    Changed("changed2", "Cours modifiés", "agenda", "Cours modifié", quiet = true),
+    Homework("homework2", "Devoirs pour demain", "agenda_homework", "Devoir pour demain", quiet = true),
+    Grade("grades", "Nouvelles notes", "notes", "Nouvelle note", quiet = false),
+    Message("messages", "Messages", "messages", "Nouveau message", quiet = false),
+    ;
+
+    companion object {
+        /** Anciens canaux (importance normale pour tout) : supprimés au profit des nouveaux. */
+        val legacyChannelIds = listOf("canceled", "changed", "homework")
+    }
 }
 
-data class NotificationEvent(val kind: EventKind, val id: String, val title: String, val text: String)
+/** Une nouvelle note n'est annoncée que si elle date de moins de deux semaines : l'historique d'avant n'est pas « nouveau ». */
+const val NEW_GRADE_DAYS = 14L
+
+/** Au-delà, les nouvelles notes sont regroupées en une seule notification. */
+const val MAX_GRADE_EVENTS = 4
+
+data class NotificationEvent(
+    val kind: EventKind,
+    val id: String,
+    val title: String,
+    val text: String,
+    /** L'enfant concerné pour un compte famille (sous-titre de la notification) ; vide pour un compte élève. */
+    val owner: String = "",
+)
 
 /** Ce que l'utilisateur veut recevoir. Chaque famille se règle à part dans Plus. */
 data class NotificationRules(
@@ -87,7 +114,7 @@ object NotificationPlanner {
         val tomorrow = today.plusDays(1).toString()
         val soon = setOf(today.toString(), tomorrow)
         return SyncSnapshot(
-            grades = grades.recent.filter { it.value != null },
+            grades = grades.all.ifEmpty { grades.recent }.filter { it.value != null },
             unreadMessages = messages.filter { it.unread },
             canceledLessons = week.entries.filter { it.canceled && it.date in soon },
             homeworkTomorrow = homework.filter { !it.done && it.dueDate == tomorrow },
@@ -125,15 +152,23 @@ object NotificationPlanner {
                     ),
                 )
             }
-            gradeIds.filterKeys { it !in previous.grades }.forEach { (key, grade) ->
-                add(
-                    NotificationEvent(
-                        EventKind.Grade,
-                        key,
-                        "Nouvelle note en ${grade.subject}",
-                        "${number(grade.value!!)} / ${number(grade.scale)}" + grade.label.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
-                    ),
-                )
+            // Toutes les notes sont suivies, mais seules les récentes sont annoncées : à la première mise à jour
+            // qui élargit le suivi, l'historique de l'année ne déclenche pas une rafale de notifications.
+            val since = today.minusDays(NEW_GRADE_DAYS).toString()
+            val fresh = gradeIds.filterKeys { it !in previous.grades }.filterValues { grade -> grade.date == null || grade.date.take(10) >= since }
+            if (fresh.size > MAX_GRADE_EVENTS) {
+                add(NotificationEvent(EventKind.Grade, "grades|${fresh.keys.sorted().joinToString(",")}", "${fresh.size} nouvelles notes", fresh.values.map { it.subject }.distinct().joinToString(", ")))
+            } else {
+                fresh.forEach { (key, grade) ->
+                    add(
+                        NotificationEvent(
+                            EventKind.Grade,
+                            key,
+                            "Nouvelle note en ${grade.subject}",
+                            "${number(grade.value!!)} / ${number(grade.scale)}" + grade.label.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
+                        ),
+                    )
+                }
             }
             messageIds.filterKeys { it !in previous.messages }.forEach { (key, message) ->
                 add(NotificationEvent(EventKind.Message, key, message.sender.ifBlank { "Nouveau message" }, message.preview))

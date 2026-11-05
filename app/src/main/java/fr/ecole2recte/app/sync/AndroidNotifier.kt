@@ -23,10 +23,11 @@ class AndroidNotifier(private val context: Context) : NotificationSink {
     fun ensureChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
+        // Les anciens canaux (tout en importance normale) sont retirés : cours et devoirs passent en discret.
+        EventKind.legacyChannelIds.forEach { manager.deleteNotificationChannel(it) }
         EventKind.entries.forEach { kind ->
-            manager.createNotificationChannel(
-                NotificationChannel(kind.channelId, kind.channelName, NotificationManager.IMPORTANCE_DEFAULT),
-            )
+            val importance = if (kind.quiet) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_DEFAULT
+            manager.createNotificationChannel(NotificationChannel(kind.channelId, kind.channelName, importance))
         }
     }
 
@@ -47,8 +48,13 @@ class AndroidNotifier(private val context: Context) : NotificationSink {
                 .setContentIntent(openTab(event.kind.tab))
                 .setAutoCancel(true)
                 .setGroup(GROUP)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                // Écran verrouillé : ni note, ni nom d'enseignant, ni message ; seulement la famille de la nouveauté.
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion(event.kind.channelId, event.kind.publicTitle))
+                .apply { event.owner.takeIf { it.isNotBlank() }?.let { setSubText(it) } }
                 .build()
-            runCatching { manager.notify(event.id.hashCode(), notification) }
+            runCatching { manager.notify((event.owner + "|" + event.id).hashCode(), notification) }
         }
         if (events.size > 1) {
             val summary = NotificationCompat.Builder(context, events.first().kind.channelId)
@@ -59,10 +65,20 @@ class AndroidNotifier(private val context: Context) : NotificationSink {
                 .setAutoCancel(true)
                 .setGroup(GROUP)
                 .setGroupSummary(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion(events.first().kind.channelId, "${events.size} nouveautés"))
                 .build()
             runCatching { manager.notify(SUMMARY_ID, summary) }
         }
     }
+
+    /** Ce qu'on voit sans déverrouiller le téléphone : un titre générique, jamais le contenu. */
+    private fun publicVersion(channelId: String, title: String) =
+        NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_stat_ecole2recte)
+            .setContentTitle(title)
+            .setContentText("Déverrouille ton téléphone pour voir le détail.")
+            .build()
 
     private fun openTab(tab: String): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
