@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".Ecole2recteApplication"
         android:allowBackup="false"
         android:label="ecole2recte"
         android:supportsRtl="true"
