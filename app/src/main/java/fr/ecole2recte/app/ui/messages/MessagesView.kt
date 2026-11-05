@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.MessageDetail
 import fr.ecole2recte.app.domain.MessagePreview
+import fr.ecole2recte.app.ui.common.AttachmentList
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.MessagesViewModel
@@ -211,12 +212,7 @@ private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel) 
                     SelectionContainer {
                         Text(linkified(content.body), color = AppTheme.colors.ink, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 8.dp))
                     }
-                    content.attachments.forEach { name ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.AttachFile, contentDescription = null, tint = AppTheme.colors.muted)
-                            Text(name, color = AppTheme.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
-                        }
-                    }
+                    AttachmentList(content.files, viewModel::download)
                 },
                 onFailure = {
                     Text("Impossible d'ouvrir ce message pour le moment.", color = AppTheme.colors.error, fontSize = 14.sp)

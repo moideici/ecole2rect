@@ -18,6 +18,9 @@ import fr.ecole2recte.app.domain.SchoolLifeEvent
 import fr.ecole2recte.app.domain.SchoolLifeKind
 import fr.ecole2recte.app.domain.SchoolLifeSummary
 import fr.ecole2recte.app.data.api.ParseReport
+import fr.ecole2recte.app.domain.Attachment
+import fr.ecole2recte.app.domain.AttachmentFile
+import fr.ecole2recte.app.domain.AttachmentSource
 import fr.ecole2recte.app.domain.Freshness
 import fr.ecole2recte.app.domain.StaleCause
 import fr.ecole2recte.app.domain.GradeEntry
@@ -335,6 +338,7 @@ class EcoleDirecteRepository(
         return HomeworkDetail(
             content = match?.content.orEmpty(),
             attachments = match?.attachments?.map { it.name }.orEmpty(),
+            files = match?.attachments?.map { Attachment(it.id, it.name, it.type, AttachmentSource.Homework) }.orEmpty(),
             lessonContent = lesson?.content.orEmpty(),
         )
     }
@@ -377,7 +381,13 @@ class EcoleDirecteRepository(
             body = detail.body.ifBlank { "(message vide)" },
             recipients = detail.recipients,
             attachments = detail.attachments.map { it.name },
+            files = detail.attachments.map { Attachment(it.id, it.name, it.type, AttachmentSource.Message) },
         )
+    }
+
+    override suspend fun downloadAttachment(attachment: Attachment): AttachmentFile {
+        val download = withApi { api, _ -> api.attachment(attachment.id, attachment.type, attachment.source) }
+        return AttachmentFile(download.bytes, download.contentType?.substringBefore(';')?.trim(), download.fileName ?: attachment.name)
     }
 
     /** « 10:15 » pour aujourd'hui, « 4 nov. » sinon ; la forme longue ajoute le jour et l'heure. */

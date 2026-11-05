@@ -67,6 +67,8 @@ class HomeworkViewModel(private val repository: SchoolRepository) :
     }
 
     suspend fun detail(task: Homework): HomeworkDetail = repository.homeworkDetail(task)
+
+    suspend fun download(attachment: fr.ecole2recte.app.domain.Attachment) = repository.downloadAttachment(attachment)
 }
 
 class GradesViewModel(repository: SchoolRepository) : LoadingViewModel<GradeOverview>(repository::grades, repository::invalidate)
@@ -112,4 +114,6 @@ class MessagesViewModel(private val repository: SchoolRepository) :
         mutableRead.value = mutableRead.value + message.id
         return detail
     }
+
+    suspend fun download(attachment: fr.ecole2recte.app.domain.Attachment) = repository.downloadAttachment(attachment)
 }

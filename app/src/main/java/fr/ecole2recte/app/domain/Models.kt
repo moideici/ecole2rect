@@ -22,9 +22,20 @@ data class Homework(
 data class HomeworkDetail(
     val content: String,
     val attachments: List<String> = emptyList(),
+    /** Les mêmes pièces jointes, avec de quoi les télécharger. */
+    val files: List<Attachment> = emptyList(),
     /** Ce qui a été vu en cours ce jour-là dans la même matière. */
     val lessonContent: String = "",
 )
+
+/** D'où vient une pièce jointe : ÉcoleDirecte ne les range pas au même endroit. */
+enum class AttachmentSource { Homework, Message }
+
+/** Une pièce jointe, téléchargeable seulement après confirmation de l'utilisateur. */
+data class Attachment(val id: String, val name: String, val type: String, val source: AttachmentSource)
+
+/** Un fichier téléchargé, en mémoire (25 Mo au plus). */
+class AttachmentFile(val bytes: ByteArray, val mimeType: String?, val fileName: String)
 
 /** Un cours dans le résumé de la journée. */
 data class ScheduleSlot(val time: String, val subject: Subject)
@@ -117,6 +128,7 @@ data class MessageDetail(
     val body: String,
     val recipients: List<String>,
     val attachments: List<String>,
+    val files: List<Attachment> = emptyList(),
 )
 
 /**

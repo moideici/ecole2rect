@@ -265,6 +265,72 @@ class EcoleDirecteClient(
         }
     }
 
+    /** Un fichier téléchargé : ses octets, son type et le nom annoncé par le serveur. */
+    class Download(val bytes: ByteArray, val contentType: String?, val fileName: String?)
+
+    /**
+     * Télécharge un fichier (lecture seule, verbe `get`). Même courtoisie que les autres appels :
+     * jeton, cookies, au plus deux appels à la fois. La réponse est refusée au-delà de [maxBytes].
+     */
+    fun download(path: String, query: Map<String, String>, maxBytes: Int = MAX_DOWNLOAD_BYTES): Download {
+        dataGate.acquireUninterruptibly()
+        try {
+            val extra = query.entries.joinToString("") { (name, value) -> "&" + formEncode(name) + "=" + formEncode(value) }
+            val connection = openConnection("$path?verbe=get&v=$apiVersion$extra", "POST")
+            try {
+                connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                dataHeaders().forEach { (name, value) -> connection.setRequestProperty(name, value) }
+                currentGtk.takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("X-GTK", it) }
+                cookieHeader().takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("Cookie", it) }
+                connection.outputStream.use { it.write("data=%7B%7D".toByteArray(Charsets.UTF_8)) }
+                val status = connection.responseCode
+                captureCookies(connection.headerFields)
+                headerValue(connection.headerFields, "X-Token").takeIf { it.isNotBlank() }?.let { token = it }
+                val contentType = connection.contentType
+                val stream = if (status in 200..399) connection.inputStream else connection.errorStream
+                val bytes = stream?.use { readAtMost(it, maxBytes) } ?: ByteArray(0)
+                if (contentType == null || contentType.startsWith("application/json") || contentType.startsWith("text/")) {
+                    // Une réponse JSON à la place du fichier : c'est une erreur d'ÉcoleDirecte (jeton expiré, accès refusé…).
+                    val code = runCatching { JSONObject(String(bytes, Charsets.UTF_8)).optInt("code", 0) }.getOrDefault(0)
+                    when (code) {
+                        ApiCode.TOKEN_INVALID, ApiCode.TOKEN_EXPIRED_ALT, ApiCode.TOKEN_EXPIRED -> throw SessionExpiredException()
+                        ApiCode.STALE_VERSION -> throw EcoleDirecteException("La version d'API utilisée n'est plus acceptée par ÉcoleDirecte (517).", kind = FailureKind.StaleVersion)
+                        ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> throw EcoleDirecteException("ÉcoleDirecte est momentanément indisponible pour ce compte.", kind = FailureKind.Blocked)
+                    }
+                    throw EcoleDirecteException("Ce fichier n'est pas disponible pour le moment.", kind = FailureKind.Other)
+                }
+                if (status !in 200..299 || bytes.isEmpty()) {
+                    throw EcoleDirecteException(
+                        "Ce fichier n'est pas disponible pour le moment (HTTP $status).",
+                        kind = if (status >= 500) FailureKind.Service else FailureKind.Other,
+                    )
+                }
+                markOk()
+                return Download(bytes, contentType, fileNameFrom(headerValue(connection.headerFields, "Content-Disposition")))
+            } catch (error: IOException) {
+                throw EcoleDirecteException("Connexion réseau impossible.", error, FailureKind.Network)
+            } finally {
+                connection.disconnect()
+            }
+        } finally {
+            dataGate.release()
+        }
+    }
+
+    private fun readAtMost(stream: java.io.InputStream, maxBytes: Int): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(16 * 1024)
+        while (true) {
+            val read = stream.read(buffer)
+            if (read < 0) break
+            if (out.size() + read > maxBytes) {
+                throw EcoleDirecteException("Ce fichier est trop volumineux (plus de ${maxBytes / (1024 * 1024)} Mo).", kind = FailureKind.Other)
+            }
+            out.write(buffer, 0, read)
+        }
+        return out.toByteArray()
+    }
+
     private fun execute(path: String, verb: String, query: Map<String, String>, body: JSONObject): ApiReply {
         val response = post(path, verb, body, dataHeaders(), query = query)
         val code = response.body.optInt("code", 0)
@@ -589,6 +655,22 @@ private fun requestSummary(payload: JSONObject, headers: Map<String, String>, en
 }
 
 private const val MAX_PARALLEL_CALLS = 2
+
+/** Taille maximale d'une pièce jointe téléchargée (elle est lue en mémoire puis écrite dans le cache privé). */
+internal const val MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
+
+private val encodedFileName = Regex("filename\\*\\s*=\\s*[^']*'[^']*'([^;]+)", RegexOption.IGNORE_CASE)
+private val plainFileName = Regex("filename\\s*=\\s*\"?([^\";]+)\"?", RegexOption.IGNORE_CASE)
+
+/** Le nom de fichier d'un en-tête `Content-Disposition`, ou null. Gère `filename*=UTF-8''…` et `filename="…"`. */
+internal fun fileNameFrom(disposition: String?): String? {
+    if (disposition.isNullOrBlank()) return null
+    encodedFileName.find(disposition)?.let { match ->
+        runCatching { java.net.URLDecoder.decode(match.groupValues[1].trim().replace("+", "%2B"), "UTF-8") }
+            .getOrNull()?.takeIf { it.isNotEmpty() }?.let { return it }
+    }
+    return plainFileName.find(disposition)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+}
 
 /** Une seule empreinte réseau, jamais aléatoire : une session gardée n'est rejouée qu'avec la même. */
 internal const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +

@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.HomeworkDetail
+import fr.ecole2recte.app.ui.common.AttachmentList
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.HomeworkViewModel
 import fr.ecole2recte.app.ui.common.ListCard
@@ -181,12 +182,7 @@ private fun HomeworkSheet(task: Homework, viewModel: HomeworkViewModel, onToggle
                             lineHeight = 22.sp,
                         )
                     }
-                    content.attachments.forEach { name ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.AttachFile, contentDescription = null, tint = AppTheme.colors.muted)
-                            Text(name, color = AppTheme.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
-                        }
-                    }
+                    AttachmentList(content.files, viewModel::download)
                     if (content.lessonContent.isNotBlank()) {
                         Text("Vu en cours", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
                         SelectionContainer {

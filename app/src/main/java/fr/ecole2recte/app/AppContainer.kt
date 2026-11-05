@@ -55,4 +55,10 @@ class AppContainer(context: Context) {
 
 class Ecole2recteApplication : Application() {
     val container: AppContainer by lazy { AppContainer(this) }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Les pièces jointes ouvertes lors d'un lancement précédent ne restent pas sur le téléphone.
+        fr.ecole2recte.app.ui.common.AttachmentFiles.at(this).clear()
+    }
 }

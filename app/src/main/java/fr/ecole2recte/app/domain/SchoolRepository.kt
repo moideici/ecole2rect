@@ -37,4 +37,8 @@ interface SchoolRepository {
 
     /** Le message ouvert. Côté ÉcoleDirecte, l'ouvrir le marque lu. */
     suspend fun messageDetail(id: String): MessageDetail
+
+    /** Télécharge une pièce jointe (lecture seule). Appelé seulement après confirmation de l'utilisateur. */
+    suspend fun downloadAttachment(attachment: Attachment): AttachmentFile =
+        throw UnsupportedOperationException("Le téléchargement n'est pas disponible ici.")
 }
