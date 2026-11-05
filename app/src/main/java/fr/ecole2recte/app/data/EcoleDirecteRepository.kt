@@ -231,19 +231,27 @@ class EcoleDirecteRepository(
     override suspend fun schedule(): ScheduleWeek {
         val monday = today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val sunday = monday.plusDays(6)
-        val week = lessons().filter { lesson ->
+        // La semaine en cours et la suivante : de quoi regarder vendredi soir ce qui attend lundi.
+        val window = lessons().filter { lesson ->
             val day = LocalDate.parse(lesson.start.substring(0, 10))
-            day in monday..sunday
+            day in monday..sunday.plusDays(7)
         }
         return ScheduleWeek(
             label = "Semaine du ${monday.format(DateTimeFormatter.ofPattern("d MMMM", french))}",
-            entries = week.map { lesson ->
+            entries = window.map { lesson ->
                 ScheduleEntry(
                     subject = lesson.toSubject(),
                     whenLabel = "${dayName(lesson.start)} · ${lesson.start.substring(11, 16)} — ${lesson.end.substring(11, 16)}",
                     canceled = lesson.canceled,
+                    date = lesson.start.substring(0, 10),
+                    start = lesson.start.substring(11, 16),
+                    end = lesson.end.substring(11, 16),
+                    exam = lesson.exam,
+                    note = lesson.note,
                 )
             },
+            weekStart = monday.toString(),
+            today = today().toString(),
         )
     }
 

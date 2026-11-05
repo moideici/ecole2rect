@@ -79,15 +79,24 @@ fun ConnectionBanner(message: String?, onRetry: () -> Unit) {
     }
 }
 
-/** Carte de liste standard : même marge, même arrondi, même couleur partout. */
+/**
+ * Carte de liste standard : même marge, même arrondi, même couleur partout.
+ * [padded] retire la marge extérieure quand la carte est déjà dans une ligne qui la porte.
+ */
 @Composable
-fun ListCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier.fillMaxWidth().padding(horizontal = Dimens.screenPadding, vertical = 5.dp),
-        colors = CardDefaults.cardColors(AppTheme.colors.surface),
-        shape = RoundedCornerShape(Dimens.cardRadius),
-        content = content,
-    )
+fun ListCard(
+    modifier: Modifier = Modifier,
+    padded: Boolean = true,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val outer = modifier.fillMaxWidth().let {
+        if (padded) it.padding(horizontal = Dimens.screenPadding, vertical = 5.dp) else it
+    }
+    val colors = CardDefaults.cardColors(AppTheme.colors.surface)
+    val shape = RoundedCornerShape(Dimens.cardRadius)
+    if (onClick == null) Card(outer, colors = colors, shape = shape, content = content)
+    else Card(onClick, outer, colors = colors, shape = shape, content = content)
 }
 
 /** Pastille de couleur d'une matière. */

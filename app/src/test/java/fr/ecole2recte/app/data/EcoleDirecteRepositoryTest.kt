@@ -120,6 +120,9 @@ class EcoleDirecteRepositoryTest {
         val week = repository(openStudent()).schedule()
         assertEquals("Semaine du 2 novembre", week.label)
         assertEquals(3, week.entries.size)
+        assertEquals("2026-11-02", week.weekStart)
+        assertEquals("2026-11-05", week.today)
+        assertEquals(Triple("2026-11-05", "10:15", "12:00"), Triple(week.entries[0].date, week.entries[0].start, week.entries[0].end))
         assertEquals("Jeudi · 10:15 — 12:00", week.entries[0].whenLabel)
         assertEquals(true, week.entries[1].canceled)
     }

@@ -21,9 +21,29 @@ data class Homework(
 data class ScheduleSlot(val time: String, val subject: Subject)
 
 /** Un cours de l'emploi du temps, avec son créneau déjà formaté. */
-data class ScheduleEntry(val subject: Subject, val whenLabel: String, val canceled: Boolean = false)
+data class ScheduleEntry(
+    val subject: Subject,
+    val whenLabel: String,
+    val canceled: Boolean = false,
+    /** Jour du cours, `2026-11-05`. */
+    val date: String = "",
+    /** Heures locales `10:15`. */
+    val start: String = "",
+    val end: String = "",
+    val exam: Boolean = false,
+    val note: String = "",
+)
 
-data class ScheduleWeek(val label: String, val entries: List<ScheduleEntry>)
+/**
+ * Les cours de la semaine en cours et de la suivante. [weekStart] est le lundi de la première,
+ * [today] le jour affiché par défaut ; les deux sont des dates ISO.
+ */
+data class ScheduleWeek(
+    val label: String,
+    val entries: List<ScheduleEntry>,
+    val weekStart: String = "",
+    val today: String = "",
+)
 
 data class NextClass(
     val subject: Subject,

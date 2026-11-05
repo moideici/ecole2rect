@@ -61,10 +61,18 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
         allSubjects = subjects,
     )
 
-    override suspend fun schedule(): ScheduleWeek = ScheduleWeek(
-        label = "Semaine du 5 septembre",
-        entries = subjects.map { ScheduleEntry(it, "Lundi · 10:15 — 12:00") },
-    )
+    override suspend fun schedule(): ScheduleWeek {
+        val today = java.time.LocalDate.now()
+        val monday = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+        val slots = listOf("08:00" to "09:00", "10:15" to "12:00", "13:30" to "15:30", "15:45" to "16:45")
+        val entries = (0L..4L).flatMap { day ->
+            subjects.mapIndexed { index, subject ->
+                val (start, end) = slots[(index + day.toInt()) % slots.size]
+                ScheduleEntry(subject, "$start — $end", date = monday.plusDays(day).toString(), start = start, end = end)
+            }.sortedBy { it.start }.distinctBy { it.start }
+        }
+        return ScheduleWeek("Semaine du ${monday.dayOfMonth}", entries, monday.toString(), today.toString())
+    }
 
     override suspend fun homework(): List<Homework> = homework
 
