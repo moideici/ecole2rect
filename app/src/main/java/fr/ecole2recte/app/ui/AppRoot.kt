@@ -12,7 +12,10 @@ import fr.ecole2recte.app.session.AuthStatus
 import fr.ecole2recte.app.session.SessionViewModel
 import fr.ecole2recte.app.ui.accounts.AccountActions
 import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.login.LoginScreen
+import fr.ecole2recte.app.ui.login.NoticeScreen
+import fr.ecole2recte.app.ui.login.needsNotice
 import fr.ecole2recte.app.ui.navigation.MainScaffold
 
 /** Racine de l'interface : connexion ou application selon la session, sans écran d'attente. */
@@ -34,7 +37,11 @@ fun AppRoot() {
     // Le jeton renouvelé est gardé (chiffré) pour éviter une connexion au prochain lancement.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { session.saveSession() }
     Crossfade(targetState = state.status == AuthStatus.SignedOut || state.adding, animationSpec = tween(300), label = "root") { showLogin ->
-    if (showLogin) {
+    val container = rememberAppContainer()
+    val noticeAccepted by container.settings.noticeAccepted.collectAsStateWithLifecycle()
+    if (showLogin && needsNotice(noticeAccepted, loginVisible = true)) {
+        NoticeScreen(onAccept = container.settings::acceptNotice)
+    } else if (showLogin) {
         val other = state.accounts.firstOrNull { !it.isActive }
         // Sortie de secours de l'écran de connexion : annuler un ajout, ou revenir à un autre compte.
         val (cancelLabel, onCancel) = when {

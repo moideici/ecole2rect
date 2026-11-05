@@ -40,6 +40,15 @@ class AppSettings(context: Context) {
         mutableAppLock.value = enabled
     }
 
+    /** L'avis du premier lancement (application non officielle, usage des identifiants) a été accepté. */
+    private val mutableNoticeAccepted = MutableStateFlow(preferences.getBoolean("notice_accepted", false))
+    val noticeAccepted: StateFlow<Boolean> = mutableNoticeAccepted.asStateFlow()
+
+    fun acceptNotice() {
+        preferences.edit().putBoolean("notice_accepted", true).apply()
+        mutableNoticeAccepted.value = true
+    }
+
     /**
      * Masque l'aperçu de l'application dans la liste des applications récentes (et bloque les
      * captures d'écran) quand le verrou est actif. Éteint par défaut : il empêche aussi les captures.

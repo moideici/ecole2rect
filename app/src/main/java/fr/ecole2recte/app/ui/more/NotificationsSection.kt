@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.sync.AndroidNotifier
+import fr.ecole2recte.app.sync.SyncIntervals
 import fr.ecole2recte.app.sync.SyncScheduler
 import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.rememberAppContainer
@@ -102,7 +103,7 @@ fun NotificationsSection() {
                     RuleRow("Pas de notification la nuit", "De 22 h à 7 h : elles arrivent au matin", rules.quietNight) { prefs.setRules(rules.copy(quietNight = it)) }
                     Text("Vérifier toutes les", color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(2, 4, 8).forEach { hours ->
+                        SyncIntervals.choices.forEach { hours ->
                             FilterChip(
                                 selected = interval == hours,
                                 onClick = {

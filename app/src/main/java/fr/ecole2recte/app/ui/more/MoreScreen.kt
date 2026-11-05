@@ -107,6 +107,8 @@ fun MoreScreen(
             }
         }
         item { NotificationsSection() }
+        item { Section("À propos") }
+        item { AboutCard() }
         item { Section("Diagnostic") }
         item { DiagnosticCard(profile) }
         item {

@@ -64,13 +64,14 @@ class SyncPreferences(context: Context) : SyncPrefs {
         mutableRules.value = value
     }
 
-    /** Intervalle entre deux vérifications, en heures : 2, 4 ou 8. */
-    private val mutableInterval = MutableStateFlow(preferences.getInt("interval_hours", 4))
+    /** Intervalle entre deux vérifications, en heures : 4, 8 ou 12 (jamais moins de 4, même si une ancienne version a gardé 2). */
+    private val mutableInterval = MutableStateFlow(SyncIntervals.clamp(preferences.getInt("interval_hours", SyncIntervals.DEFAULT_HOURS)))
     val intervalHours: StateFlow<Int> = mutableInterval.asStateFlow()
 
     fun setIntervalHours(hours: Int) {
-        preferences.edit().putInt("interval_hours", hours).apply()
-        mutableInterval.value = hours
+        val allowed = SyncIntervals.clamp(hours)
+        preferences.edit().putInt("interval_hours", allowed).apply()
+        mutableInterval.value = allowed
     }
 
     fun setEnabled(value: Boolean) {
