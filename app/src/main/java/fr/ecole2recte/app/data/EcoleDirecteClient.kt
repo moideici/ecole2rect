@@ -173,26 +173,37 @@ class EcoleDirecteClient(
         )
     }
 
-    fun getLessons(studentId: String, dateFrom: String, dateTo: String): List<Lesson> {
-        val response = post(
-            path = "/E/$studentId/emploidutemps.awp",
-            verb = "get",
-            payload = JSONObject()
-                .put("dateDebut", dateFrom)
-                .put("dateFin", dateTo)
-                .put("avecTrous", false),
-            headers = authHeaders(),
-        )
-        if (response.body.optInt("code", ApiCode.OK) !in listOf(0, ApiCode.OK)) {
-            throw EcoleDirecteException("Impossible de récupérer l'emploi du temps.")
-        }
-        return response.body.lessonArray().mapNotNull { lesson ->
-            Lesson(
-                subject = lesson.optString("matiere").ifBlank { lesson.optString("text", "Cours") },
-                room = lesson.optString("salle"),
-                teacher = lesson.optString("prof"),
-                start = lesson.optString("start_date").ifBlank { lesson.optString("date_debut") },
-                end = lesson.optString("end_date").ifBlank { lesson.optString("date_fin") },
+    /**
+     * Un appel métier authentifié. Le vrai statut est dans le champ `code` du corps JSON :
+     * un HTTP 200 ne veut pas dire que ça a marché.
+     */
+    fun call(
+        path: String,
+        verb: String,
+        query: Map<String, String> = emptyMap(),
+        body: JSONObject = JSONObject(),
+    ): ApiReply {
+        val response = post(path, verb, body, dataHeaders(), query = query)
+        val code = response.body.optInt("code", 0)
+        return when (code) {
+            ApiCode.OK -> ApiReply(response.body.opt("data"))
+            ApiCode.TOKEN_INVALID, ApiCode.TOKEN_EXPIRED_ALT, ApiCode.TOKEN_EXPIRED ->
+                throw SessionExpiredException()
+            ApiCode.ACCESS_DENIED -> throw EcoleDirecteException(
+                "Ce compte n'a pas accès à cette ressource.",
+                kind = FailureKind.Other,
+            )
+            ApiCode.STALE_VERSION -> throw EcoleDirecteException(
+                "La version d'API utilisée n'est plus acceptée par ÉcoleDirecte.",
+                kind = FailureKind.Service,
+            )
+            ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> throw EcoleDirecteException(
+                "ÉcoleDirecte est momentanément indisponible pour ce compte.",
+                kind = FailureKind.Blocked,
+            )
+            else -> throw EcoleDirecteException(
+                response.body.optString("message").ifBlank { "ÉcoleDirecte a répondu de façon inattendue." },
+                kind = if (response.rawBody.isBlank() || response.httpStatus >= 500) FailureKind.Service else FailureKind.Other,
             )
         }
     }
@@ -226,13 +237,15 @@ class EcoleDirecteClient(
         payload: JSONObject,
         headers: Map<String, String> = emptyMap(),
         includeVersion: Boolean = true,
+        query: Map<String, String> = emptyMap(),
     ): Response {
-        val query = when {
+        val base = when {
             verb != null -> "?verbe=$verb&v=$apiVersion"
             includeVersion -> "?v=$apiVersion"
             else -> ""
         }
-        val connection = openConnection("$path$query", "POST")
+        val extra = query.entries.joinToString("") { (name, value) -> "&" + formEncode(name) + "=" + formEncode(value) }
+        val connection = openConnection("$path$base$extra", "POST")
         return try {
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
@@ -319,6 +332,9 @@ class EcoleDirecteClient(
             ?.firstOrNull()
             .orEmpty()
 
+    /** Les appels métier n'envoient que le jeton ; le jeton de double authentification ne sert qu'au défi. */
+    private fun dataHeaders(): Map<String, String> = token?.let { mapOf("X-Token" to it) } ?: emptyMap()
+
     private fun authHeaders(): Map<String, String> = buildMap {
         token?.let { put("X-Token", it) }
         twoFactorToken?.let { put("2FA-Token", it) }
@@ -341,7 +357,8 @@ class EcoleDirecteClient(
                                 id = student.optString("id"),
                                 firstName = student.optString("prenom"),
                                 lastName = student.optString("nom"),
-                                className = student.optString("classe"),
+                                className = student.optJSONObject("classe")?.let { it.optString("libelle").ifBlank { it.optString("code") } }
+                                    ?: student.optString("classe"),
                             )
                         },
                     ),
@@ -381,14 +398,6 @@ class EcoleDirecteClient(
 data class TrustedAnswer(val cn: String, val cv: String) {
     fun toJson(): JSONObject = JSONObject().put("cn", cn).put("cv", cv)
 }
-
-data class Lesson(
-    val subject: String,
-    val room: String,
-    val teacher: String,
-    val start: String,
-    val end: String,
-)
 
 /** Nature d'un échec de connexion : décide si on peut réessayer et ce qu'on affiche. */
 enum class FailureKind {
@@ -430,6 +439,12 @@ data class Account(
     val lastName: String,
     val students: List<Student> = emptyList(),
 )
+
+/** Résultat d'un appel métier réussi : le contenu de `data`. */
+class ApiReply(val data: Any?)
+
+/** Le jeton a expiré : il faut rouvrir la session une fois, puis rejouer l'appel. */
+class SessionExpiredException : RuntimeException("La session ÉcoleDirecte a expiré.")
 
 class EcoleDirecteException(
     message: String,
@@ -482,7 +497,11 @@ private object ApiCode {
     const val AUTH_2FA = 250
     const val INVALID_CREDENTIALS = 505
     const val BLOCKED = 516
-    const val TOKEN_INVALID = 520
+    const val ACCESS_DENIED = 403
+    const val STALE_VERSION = 517
+    const val TOKEN_EXPIRED = 520
+    const val TOKEN_INVALID = 525
+    const val TOKEN_EXPIRED_ALT = 526
     const val BLOCKED_ALT = 535
 }
 
@@ -497,16 +516,8 @@ private fun JSONArray?.decodeChoices(): List<String> = buildList {
     }
 }
 
-private fun JSONObject.lessonArray(): List<JSONObject> {
-    val direct = optJSONArray("lessons") ?: optJSONArray("data")
-    if (direct != null) return direct.objects()
-    val nested = optJSONObject("data") ?: return emptyList()
-    return (nested.optJSONArray("lessons") ?: nested.optJSONArray("cours")).objects()
-}
-
 private fun JSONArray?.objects(): List<JSONObject> = buildList {
     if (this@objects == null) return@buildList
     for (index in 0 until length()) optJSONObject(index)?.let(::add)
 }
 
-private fun JSONObject?.objects(): List<JSONObject> = this?.let { listOf(it) } ?: emptyList()

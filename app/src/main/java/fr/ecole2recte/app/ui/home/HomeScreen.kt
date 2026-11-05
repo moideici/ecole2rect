@@ -83,11 +83,21 @@ private fun HomeScreen(
         item {
             Column {
                 PageHeader(data.greeting, data.dateLabel)
-                NextClassCard(data.nextClass, Modifier.entrance(0))
+                if (data.nextClass != null) {
+                    NextClassCard(data.nextClass, Modifier.entrance(0))
+                } else {
+                    NoClassCard(Modifier.entrance(0))
+                }
             }
         }
         item { SectionTitle("Aujourd'hui", "Voir le planning", onClick = onOpenSchedule) }
-        item { ScheduleSummary(data.today, Modifier.entrance(1)) }
+        item {
+            if (data.today.isEmpty()) {
+                Text("Pas de cours aujourd'hui.", color = AppTheme.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 22.dp))
+            } else {
+                ScheduleSummary(data.today, Modifier.entrance(1))
+            }
+        }
         data.reminder?.let { reminder ->
             item { SectionTitle("À ne pas oublier", "Tout voir", onClick = onOpenHomework) }
             item { ReminderCard(reminder, Modifier.entrance(2)) }
@@ -102,6 +112,22 @@ private fun HomeScreen(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
+        }
+    }
+}
+
+@Composable
+private fun NoClassCard(modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface),
+    ) {
+        Column(Modifier.padding(22.dp)) {
+            Text("PROCHAIN COURS", color = AppTheme.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            Text("Plus de cours à venir", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Profite de ta soirée.", color = AppTheme.colors.muted, fontSize = 14.sp)
         }
     }
 }
@@ -187,7 +213,9 @@ private fun GradesSummary(grades: GradeOverview, modifier: Modifier = Modifier) 
             Text(rememberAnimatedDecimal(grades.average), color = AppTheme.colors.ink, fontSize = 36.sp, fontWeight = FontWeight.Bold)
             Text(" / 20\nMoyenne générale", color = AppTheme.colors.muted, fontSize = 12.sp)
             Spacer(Modifier.weight(1f))
-            Text(grades.trend, color = AppTheme.colors.positive, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            if (grades.trend.isNotBlank()) {
+                Text(grades.trend, color = AppTheme.colors.positive, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

@@ -75,6 +75,7 @@ class SessionViewModel(
     private val clientFactory: () -> AuthClient = { EcoleDirecteClient() },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val retryDelaysMs: List<Long> = listOf(5_000L, 20_000L),
+    private val apiSession: ApiSession? = null,
 ) : ViewModel() {
     private class Pending(
         val client: AuthClient,
@@ -98,6 +99,7 @@ class SessionViewModel(
     val state: StateFlow<SessionState> = mutableState.asStateFlow()
 
     init {
+        apiSession?.reauthenticator = ::reauthenticate
         store.active()?.let(::restore)
     }
 
@@ -128,10 +130,12 @@ class SessionViewModel(
             var attempt = 0
             while (true) {
                 setConnection(ConnectionStatus.Connecting)
+                apiSession?.opening(saved.identifier)
                 val outcome = authenticate(saved.identifier, saved.password, saved)
                 when (val result = outcome.result) {
                     is LoginResult.Success -> {
                         persist(outcome.client, saved.identifier, saved.password, saved, null, result.accounts, false)
+                        openApi(saved.identifier, outcome.client, result.accounts)
                         mutableState.update {
                             build(AuthStatus.SignedIn, ConnectionStatus.Connected, adding = it.adding, login = it.login)
                         }
@@ -151,6 +155,7 @@ class SessionViewModel(
                     is LoginResult.Failure -> when (result.kind) {
                         FailureKind.Network, FailureKind.Service -> {
                             setConnection(ConnectionStatus.Offline, result.message)
+                            apiSession?.fail(saved.identifier, result.message, result.kind)
                             if (attempt >= retryDelaysMs.size) return@launch
                             delay(retryDelaysMs[attempt++])
                         }
@@ -182,6 +187,7 @@ class SessionViewModel(
                         }
                         FailureKind.Other -> {
                             setConnection(ConnectionStatus.Offline, result.message)
+                            apiSession?.fail(saved.identifier, result.message, result.kind)
                             return@launch
                         }
                     }
@@ -275,6 +281,7 @@ class SessionViewModel(
             when (val result = outcome.result) {
                 is LoginResult.Success -> {
                     persist(outcome.client, id, password, existing, null, result.accounts, true)
+                    openApi(id, outcome.client, result.accounts)
                     signIn()
                 }
                 is LoginResult.SecurityQuestionRequired -> {
@@ -318,6 +325,7 @@ class SessionViewModel(
                 is LoginResult.Success -> {
                     pending = null
                     persist(current.client, current.identifier, current.password, current.saved, birthDate, result.accounts, true)
+                    openApi(current.identifier, current.client, result.accounts)
                     signIn()
                 }
                 is LoginResult.SecurityQuestionRequired -> {
@@ -414,7 +422,25 @@ class SessionViewModel(
         mutableState.value = build(AuthStatus.SignedIn, ConnectionStatus.Connected)
     }
 
+    private fun openApi(identifier: String, client: AuthClient, accounts: List<Account>) {
+        (client as? EcoleDirecteClient)?.let { apiSession?.open(identifier, it, accounts) }
+    }
+
+    /**
+     * Rouvre la session quand un appel de données a trouvé le jeton expiré. Un seul essai,
+     * sans toucher à l'écran : si ça échoue, l'appel remonte son erreur et c'est tout.
+     */
+    private suspend fun reauthenticate(): Boolean {
+        val saved = store.active() ?: return false
+        val outcome = authenticate(saved.identifier, saved.password, saved)
+        val result = outcome.result as? LoginResult.Success ?: return false
+        persist(outcome.client, saved.identifier, saved.password, saved, null, result.accounts, false)
+        openApi(saved.identifier, outcome.client, result.accounts)
+        return true
+    }
+
     private fun signOut(login: LoginUiState) {
+        apiSession?.close()
         mutableState.value = build(AuthStatus.SignedOut, ConnectionStatus.Connected, login = login)
     }
 

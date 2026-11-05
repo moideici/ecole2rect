@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.ScheduleEntry
+import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.ScheduleViewModel
 import fr.ecole2recte.app.ui.common.StateHost
@@ -40,6 +41,7 @@ fun ScheduleList(listState: LazyListState) {
             item {
                 Text(week.label, color = AppTheme.colors.muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
             }
+            if (week.entries.isEmpty()) item { EmptyState("Pas de cours", "Aucun cours n'est prévu cette semaine.") }
             itemsIndexed(week.entries) { index, entry -> ScheduleRow(entry, Modifier.entrance(index)) }
         }
     }
@@ -53,7 +55,15 @@ private fun ScheduleRow(entry: ScheduleEntry, modifier: Modifier = Modifier) {
             Box(Modifier.size(8.dp, 42.dp).background(AppTheme.colors.subject[subject.colorIndex], RoundedCornerShape(4.dp)))
             Column(Modifier.padding(start = 13.dp)) {
                 Text(subject.name, color = AppTheme.colors.ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text("${entry.whenLabel}  ·  Salle ${subject.room}", color = AppTheme.colors.muted, fontSize = 12.sp)
+                Text(
+                    buildString {
+                        append(entry.whenLabel)
+                        if (subject.room.isNotBlank()) append("  ·  Salle ${subject.room}")
+                        if (entry.canceled) append("  ·  Annulé")
+                    },
+                    color = if (entry.canceled) AppTheme.colors.error else AppTheme.colors.muted,
+                    fontSize = 12.sp,
+                )
                 Text(subject.teacher, color = AppTheme.colors.muted, fontSize = 12.sp)
             }
         }
