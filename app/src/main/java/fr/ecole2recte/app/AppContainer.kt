@@ -2,7 +2,10 @@ package fr.ecole2recte.app
 
 import android.app.Application
 import android.content.Context
+import java.io.File
 import fr.ecole2recte.app.data.CredentialStore
+import fr.ecole2recte.app.data.cache.FileResponseCache
+import fr.ecole2recte.app.data.cache.ResponseCache
 import fr.ecole2recte.app.settings.AppSettings
 import fr.ecole2recte.app.data.SecureCredentialStore
 import fr.ecole2recte.app.data.EcoleDirecteRepository
@@ -18,9 +21,10 @@ class AppContainer(context: Context) {
 
     /** Les données du profil actif. */
     val apiSession = ApiSession()
+    val responseCache: ResponseCache = FileResponseCache(File(context.filesDir, "cache"))
 
     fun schoolRepositoryFor(profile: ActiveProfile?): SchoolRepository =
-        if (profile == null) DemoSchoolRepository() else EcoleDirecteRepository(apiSession, profile)
+        if (profile == null) DemoSchoolRepository() else EcoleDirecteRepository(apiSession, profile, responseCache)
 }
 
 class Ecole2recteApplication : Application() {

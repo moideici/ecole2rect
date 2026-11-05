@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.data
 
+import fr.ecole2recte.app.data.cache.InMemoryResponseCache
 import fr.ecole2recte.app.session.ActiveProfile
 import fr.ecole2recte.app.session.ApiSession
 import kotlinx.coroutines.test.runTest
@@ -77,8 +78,10 @@ class EcoleDirecteRepositoryTest {
     private fun profile(studentId: String? = null) =
         ActiveProfile("jdupont", studentId, "Jean", "Jean Dupont", "JD")
 
+    private val cache = InMemoryResponseCache()
+
     private fun repository(session: ApiSession, profile: ActiveProfile = profile()) =
-        EcoleDirecteRepository(session, profile, clock)
+        EcoleDirecteRepository(session, profile, cache, clock)
 
     private fun openStudent(session: ApiSession = ApiSession()): ApiSession {
         session.open("jdupont", client(), listOf(Account("10", "E", "Jean", "DUPONT")))
@@ -195,5 +198,59 @@ class EcoleDirecteRepositoryTest {
         val error = runCatching { repository(session).homework() }.exceptionOrNull()
         assertTrue(error is EcoleDirecteException)
         assertTrue(paths.isEmpty())
+    }
+
+    // --- Mode hors ligne ---------------------------------------------------------------------
+
+    private fun offlineSession(): ApiSession =
+        ApiSession().also { it.fail("jdupont", "Pas de connexion à ÉcoleDirecte.", FailureKind.Network) }
+
+    @Test
+    fun `sans reseau la derniere reponse enregistree s'affiche et est marquee perimee`() = runTest {
+        val online = repository(openStudent())
+        online.homework()
+        assertEquals(false, online.freshness.value.stale)
+        assertEquals(clock.millis(), online.freshness.value.lastSyncMillis)
+
+        val offline = repository(offlineSession())
+        val tasks = offline.homework()
+        assertEquals(listOf("MATHS"), tasks.map { it.subject })
+        assertEquals(true, offline.freshness.value.stale)
+        assertEquals(clock.millis(), offline.freshness.value.lastSyncMillis)
+    }
+
+    @Test
+    fun `sans reseau ni enregistrement l'erreur remonte`() = runTest {
+        val error = runCatching { repository(offlineSession()).homework() }.exceptionOrNull()
+        assertTrue(error is EcoleDirecteException)
+    }
+
+    @Test
+    fun `l'accueil hors ligne s'affiche depuis l'enregistrement`() = runTest {
+        repository(openStudent()).home()
+        val home = repository(offlineSession()).home()
+        assertEquals("PHILOSOPHIE", home.nextClass?.subject?.name)
+        assertEquals("15,8", home.grades.average)
+    }
+
+    @Test
+    fun `invalider force un nouveau chargement`() = runTest {
+        val repository = repository(openStudent())
+        repository.homework()
+        repository.homework()
+        assertEquals(1, paths.count { it.endsWith("/cahierdetexte.awp") })
+        repository.invalidate()
+        repository.homework()
+        assertEquals(2, paths.count { it.endsWith("/cahierdetexte.awp") })
+    }
+
+    @Test
+    fun `chaque eleve a son propre enregistrement`() = runTest {
+        val session = ApiSession()
+        val children = listOf(Student("10", "Paul", "DUPONT"), Student("11", "Zoé", "DUPONT"))
+        session.open("jdupont", client(), listOf(Account("1", "1", "Marie", "DUPONT", children)))
+        repository(session, profile(studentId = "10")).homework()
+        val other = repository(offlineSession(), profile(studentId = "11"))
+        assertTrue(runCatching { other.homework() }.isFailure)
     }
 }

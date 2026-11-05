@@ -29,7 +29,8 @@ fun HomeworkList(listState: LazyListState) {
     val repository = rememberSchoolRepository()
     val viewModel = appViewModel { HomeworkViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    StateHost(state, onRetry = viewModel::refresh) { tasks ->
+    val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { tasks ->
         if (tasks.isEmpty()) {
             EmptyState("Rien à faire", "Aucun devoir à venir pour le moment.")
         } else {

@@ -55,7 +55,8 @@ fun HomeRoute(onOpenSchedule: () -> Unit, onOpenHomework: () -> Unit, onOpenGrad
     val viewModel = appViewModel { HomeViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showColorEditor by rememberSaveable { mutableStateOf(false) }
-    StateHost(state, onRetry = viewModel::refresh) { data ->
+    val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { data ->
         HomeScreen(
             data = data,
             onOpenColors = { showColorEditor = true },

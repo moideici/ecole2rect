@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +38,22 @@ import fr.ecole2recte.app.domain.Subject
 import kotlinx.coroutines.flow.SharedFlow
 import fr.ecole2recte.app.ui.theme.AppTheme
 import fr.ecole2recte.app.ui.theme.Dimens
+
+/** Bandeau affiché quand l'écran montre la dernière réponse enregistrée faute de réseau. */
+@Composable
+fun StaleDataBar(lastSyncMillis: Long?) {
+    val label = lastSyncMillis?.let {
+        val moment = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault())
+        moment.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM 'à' HH:mm", java.util.Locale.FRENCH))
+    }
+    Text(
+        if (label != null) "Hors ligne · données enregistrées $label" else "Hors ligne · données enregistrées",
+        modifier = Modifier.fillMaxWidth().background(AppTheme.colors.warningSurface).padding(horizontal = 18.dp, vertical = 8.dp),
+        color = AppTheme.colors.warningTitle,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+    )
+}
 
 /** Bandeau discret affiché quand la reconnexion à ÉcoleDirecte a échoué. */
 @Composable
@@ -93,7 +111,14 @@ fun EmptyState(title: String, message: String) {
 
 /** Affiche le chargement, l'erreur (avec « Réessayer ») ou le contenu d'un [UiState]. */
 @Composable
-fun <T> StateHost(state: UiState<T>, onRetry: () -> Unit, content: @Composable (T) -> Unit) {
+@OptIn(ExperimentalMaterial3Api::class)
+fun <T> StateHost(
+    state: UiState<T>,
+    onRetry: () -> Unit,
+    refreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
+    content: @Composable (T) -> Unit,
+) {
     when (state) {
         UiState.Loading -> SkeletonPage()
         is UiState.Error -> Column(
@@ -110,7 +135,14 @@ fun <T> StateHost(state: UiState<T>, onRetry: () -> Unit, content: @Composable (
                 fontSize = 13.sp,
             )
         }
-        is UiState.Content -> content(state.value)
+        is UiState.Content ->
+            if (onRefresh == null) {
+                content(state.value)
+            } else {
+                PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+                    content(state.value)
+                }
+            }
     }
 }
 

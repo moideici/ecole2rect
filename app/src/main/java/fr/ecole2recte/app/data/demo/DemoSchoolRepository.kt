@@ -1,6 +1,7 @@
 package fr.ecole2recte.app.data.demo
 
 import fr.ecole2recte.app.domain.Badges
+import fr.ecole2recte.app.domain.Freshness
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
@@ -12,9 +13,15 @@ import fr.ecole2recte.app.domain.ScheduleWeek
 import fr.ecole2recte.app.domain.SchoolRepository
 import fr.ecole2recte.app.domain.Subject
 import fr.ecole2recte.app.domain.SubjectAverage
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /** Données de démonstration issues de la maquette. À remplacer au lot 7. */
 class DemoSchoolRepository(private val firstName: String? = null) : SchoolRepository {
+    override val freshness: StateFlow<Freshness> = MutableStateFlow(Freshness())
+
+    override fun invalidate() = Unit
+
     private val subjects = listOf(
         Subject("Philosophie", "Mme Laurent", "B204", 2),
         Subject("Mathématiques", "M. Petit", "C011", 0),

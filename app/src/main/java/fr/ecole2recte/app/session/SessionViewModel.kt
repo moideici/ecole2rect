@@ -76,6 +76,8 @@ class SessionViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val retryDelaysMs: List<Long> = listOf(5_000L, 20_000L),
     private val apiSession: ApiSession? = null,
+    /** Appelé quand un compte est retiré : efface ses données enregistrées. */
+    private val onAccountRemoved: (identifier: String) -> Unit = {},
 ) : ViewModel() {
     private class Pending(
         val client: AuthClient,
@@ -235,6 +237,7 @@ class SessionViewModel(
     fun removeAccount(identifier: String) {
         val wasActive = store.active()?.identifier.equals(identifier, ignoreCase = true)
         store.remove(identifier)
+        onAccountRemoved(identifier)
         val next = store.active()
         when {
             next == null -> {

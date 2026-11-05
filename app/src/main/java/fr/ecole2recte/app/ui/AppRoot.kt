@@ -15,7 +15,11 @@ import fr.ecole2recte.app.ui.navigation.MainScaffold
 /** Racine de l'interface : connexion ou application selon la session, sans écran d'attente. */
 @Composable
 fun AppRoot() {
-    val session = appViewModel { SessionViewModel(it.credentialStore, apiSession = it.apiSession) }
+    val session = appViewModel { SessionViewModel(
+            it.credentialStore,
+            apiSession = it.apiSession,
+            onAccountRemoved = it.responseCache::clear,
+        ) }
     val state by session.state.collectAsStateWithLifecycle()
     Crossfade(targetState = state.status == AuthStatus.SignedOut || state.adding, animationSpec = tween(300), label = "root") { showLogin ->
     if (showLogin) {

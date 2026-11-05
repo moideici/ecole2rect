@@ -33,6 +33,12 @@ data class GradeOverview(val average: String, val trend: String, val bySubject: 
 
 data class MessagePreview(val sender: String, val preview: String, val unread: Boolean = true)
 
+/**
+ * Ce que l'on sait de l'âge des données affichées. [stale] est vrai quand le réseau a échoué
+ * et que l'écran montre la dernière réponse enregistrée, datée de [lastSyncMillis].
+ */
+data class Freshness(val lastSyncMillis: Long? = null, val stale: Boolean = false)
+
 /** Compteurs affichés en pastille sur les onglets. */
 data class Badges(val newGrades: Int = 0, val urgentHomework: Int = 0, val unreadMessages: Int = 0)
 

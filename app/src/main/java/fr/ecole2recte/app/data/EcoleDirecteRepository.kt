@@ -5,7 +5,12 @@ import fr.ecole2recte.app.data.api.ApiHomework
 import fr.ecole2recte.app.data.api.ApiLesson
 import fr.ecole2recte.app.data.api.ApiMessage
 import fr.ecole2recte.app.data.api.EcoleDirecteApi
+import fr.ecole2recte.app.data.api.Parsers
+import fr.ecole2recte.app.data.cache.CacheOwner
+import fr.ecole2recte.app.data.cache.InMemoryResponseCache
+import fr.ecole2recte.app.data.cache.ResponseCache
 import fr.ecole2recte.app.domain.Badges
+import fr.ecole2recte.app.domain.Freshness
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
@@ -22,9 +27,13 @@ import fr.ecole2recte.app.session.ApiSession
 import fr.ecole2recte.app.session.ApiSessionState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONTokener
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Duration
@@ -46,6 +55,7 @@ import kotlin.math.abs
 class EcoleDirecteRepository(
     private val session: ApiSession,
     private val profile: ActiveProfile,
+    private val responseCache: ResponseCache = InMemoryResponseCache(),
     private val clock: Clock = Clock.systemDefaultZone(),
     private val ttlMs: Long = 90_000,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -59,6 +69,16 @@ class EcoleDirecteRepository(
     private val lockGuard = Mutex()
 
     private val french = Locale.FRENCH
+
+    private val owner = CacheOwner(profile.identifier, profile.studentId)
+    private val staleResources = HashMap<String, Long>()
+    private var lastFetchAt: Long? = null
+    private val mutableFreshness = MutableStateFlow(Freshness())
+    override val freshness: StateFlow<Freshness> = mutableFreshness.asStateFlow()
+
+    override fun invalidate() {
+        synchronized(cache) { cache.clear() }
+    }
 
     // --- Accès réseau ------------------------------------------------------------------------
 
@@ -101,22 +121,68 @@ class EcoleDirecteRepository(
         }
     }
 
-    private suspend fun lessons(): List<ApiLesson> = memo("lessons") {
-        val monday = today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        withApi { api, target -> api.timetable(target.studentId, monday, monday.plusDays(13)) }
+    /**
+     * Charge une ressource : le réseau d'abord ; s'il échoue, la dernière réponse enregistrée,
+     * et l'écran sait qu'elle est périmée. Sans réseau ni enregistrement, l'erreur remonte.
+     */
+    private suspend fun <T> resource(
+        name: String,
+        fetch: (EcoleDirecteApi, Target) -> String,
+        parse: (Any?) -> T,
+    ): T = memo(name) {
+        try {
+            val raw = withApi(fetch)
+            responseCache.put(owner, name, raw, clock.millis())
+            markFresh(name)
+            parse(JSONTokener(raw).nextValue())
+        } catch (error: EcoleDirecteException) {
+            val stored = responseCache.get(owner, name) ?: throw error
+            markStale(name, stored.at)
+            parse(JSONTokener(stored.json).nextValue())
+        }
     }
 
-    private suspend fun homeworkItems(): List<ApiHomework> = memo("homework") {
-        withApi { api, target -> api.homework(target.studentId) }
+    private fun markFresh(name: String) {
+        synchronized(staleResources) {
+            staleResources.remove(name)
+            lastFetchAt = clock.millis()
+            publishFreshness()
+        }
     }
 
-    private suspend fun gradesPayload(): ApiGrades = memo("grades") {
-        withApi { api, target -> api.grades(target.studentId) }
+    private fun markStale(name: String, at: Long) {
+        synchronized(staleResources) {
+            staleResources[name] = at
+            publishFreshness()
+        }
     }
 
-    private suspend fun inbox(): List<ApiMessage> = memo("messages") {
-        withApi { api, target -> api.messages(target.mailboxSegment, target.mailboxId) }
+    private fun publishFreshness() {
+        mutableFreshness.value =
+            if (staleResources.isEmpty()) Freshness(lastFetchAt, stale = false)
+            else Freshness(staleResources.values.min(), stale = true)
     }
+
+    private suspend fun lessons(): List<ApiLesson> = resource(
+        "lessons",
+        fetch = { api, target ->
+            val monday = today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            api.timetable(target.studentId, monday, monday.plusDays(13))
+        },
+        parse = Parsers::timetable,
+    )
+
+    private suspend fun homeworkItems(): List<ApiHomework> =
+        resource("homework", { api, target -> api.homework(target.studentId) }, Parsers::homeworkSummary)
+
+    private suspend fun gradesPayload(): ApiGrades =
+        resource("grades", { api, target -> api.grades(target.studentId) }, Parsers::grades)
+
+    private suspend fun inbox(): List<ApiMessage> = resource(
+        "messages",
+        { api, target -> api.messages(target.mailboxSegment, target.mailboxId) },
+        Parsers::messages,
+    )
 
     private fun today(): LocalDate = LocalDate.now(clock)
     private fun now(): LocalDateTime = LocalDateTime.now(clock)

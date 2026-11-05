@@ -35,7 +35,8 @@ fun GradesRoute() {
     val repository = rememberSchoolRepository()
     val viewModel = appViewModel { GradesViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    StateHost(state, onRetry = viewModel::refresh) { grades ->
+    val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { grades ->
         PageScaffold("notes", "Notes", "Moyenne générale · ${grades.average} / 20") {
             if (grades.bySubject.isEmpty()) EmptyState("Pas encore de notes", "Tes notes apparaîtront ici dès qu'elles seront saisies.")
             grades.bySubject.forEachIndexed { index, line ->

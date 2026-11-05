@@ -16,12 +16,46 @@ sealed interface UiState<out T> {
 }
 
 /** ViewModel de base pour un écran alimenté par un seul chargement relançable. */
-abstract class LoadingViewModel<T>(private val load: suspend () -> T) : ViewModel() {
+abstract class LoadingViewModel<T>(
+    private val load: suspend () -> T,
+    /** Oublie la mémoire à court terme de la source avant un rechargement demandé par l'utilisateur. */
+    private val invalidate: () -> Unit = {},
+) : ViewModel() {
     private val mutableState = MutableStateFlow<UiState<T>>(UiState.Loading)
     val state: StateFlow<UiState<T>> = mutableState.asStateFlow()
 
+    private val mutableRefreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = mutableRefreshing.asStateFlow()
+
     init {
         refresh()
+    }
+
+    /** « Réessayer » après une erreur : interroge de nouveau la source. */
+    fun retry() {
+        invalidate()
+        mutableState.value = UiState.Loading
+        refresh()
+    }
+
+    /** Tirer pour rafraîchir : le contenu reste affiché ; s'il échoue, on garde ce qu'on montrait. */
+    fun pullToRefresh() {
+        if (mutableRefreshing.value) return
+        mutableRefreshing.value = true
+        invalidate()
+        viewModelScope.launch {
+            try {
+                mutableState.value = UiState.Content(load())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (mutableState.value !is UiState.Content) {
+                    mutableState.value = UiState.Error(error.message ?: "Chargement impossible. Réessaie dans un instant.")
+                }
+            } finally {
+                mutableRefreshing.value = false
+            }
+        }
     }
 
     fun refresh() {

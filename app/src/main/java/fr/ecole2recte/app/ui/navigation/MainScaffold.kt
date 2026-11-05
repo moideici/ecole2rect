@@ -58,6 +58,7 @@ import fr.ecole2recte.app.ui.common.BadgesViewModel
 import fr.ecole2recte.app.ui.common.ConnectionBanner
 import fr.ecole2recte.app.ui.common.LocalActiveProfile
 import fr.ecole2recte.app.ui.common.LocalScrollEvents
+import fr.ecole2recte.app.ui.common.StaleDataBar
 import fr.ecole2recte.app.ui.common.UiState
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
@@ -133,6 +134,7 @@ private fun MainContent(
     val badgesViewModel = appViewModel { BadgesViewModel(repository) }
     val badgesState by badgesViewModel.state.collectAsStateWithLifecycle()
     val badges = (badgesState as? UiState.Content)?.value ?: Badges()
+    val freshness by repository.freshness.collectAsStateWithLifecycle()
 
     CompositionLocalProvider(LocalScrollEvents provides scrollEvents) {
         Scaffold(
@@ -163,6 +165,7 @@ private fun MainContent(
                 if (connection == ConnectionStatus.Offline) {
                     ConnectionBanner(connectionMessage, onRetryConnection)
                 }
+                if (freshness.stale) StaleDataBar(freshness.lastSyncMillis)
                 Box(Modifier.fillMaxSize()) {
                     Surface(modifier = Modifier.fillMaxSize(), color = AppTheme.colors.background) {
                         NavHost(

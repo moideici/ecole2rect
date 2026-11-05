@@ -36,7 +36,8 @@ fun ScheduleList(listState: LazyListState) {
     val repository = rememberSchoolRepository()
     val viewModel = appViewModel { ScheduleViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    StateHost(state, onRetry = viewModel::refresh) { week ->
+    val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { week ->
         LazyColumn(state = listState, contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp)) {
             item {
                 Text(week.label, color = AppTheme.colors.muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))

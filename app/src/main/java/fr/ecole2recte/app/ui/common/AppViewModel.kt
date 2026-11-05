@@ -42,14 +42,14 @@ inline fun <reified VM : ViewModel> appViewModel(crossinline create: (AppContain
     return viewModel(factory = viewModelFactory { initializer { create(application.container) } })
 }
 
-class BadgesViewModel(repository: SchoolRepository) : LoadingViewModel<Badges>(repository::badges)
+class BadgesViewModel(repository: SchoolRepository) : LoadingViewModel<Badges>(repository::badges, repository::invalidate)
 
-class HomeViewModel(repository: SchoolRepository) : LoadingViewModel<HomeData>(repository::home)
+class HomeViewModel(repository: SchoolRepository) : LoadingViewModel<HomeData>(repository::home, repository::invalidate)
 
-class ScheduleViewModel(repository: SchoolRepository) : LoadingViewModel<ScheduleWeek>(repository::schedule)
+class ScheduleViewModel(repository: SchoolRepository) : LoadingViewModel<ScheduleWeek>(repository::schedule, repository::invalidate)
 
-class HomeworkViewModel(repository: SchoolRepository) : LoadingViewModel<List<Homework>>(repository::homework)
+class HomeworkViewModel(repository: SchoolRepository) : LoadingViewModel<List<Homework>>(repository::homework, repository::invalidate)
 
-class GradesViewModel(repository: SchoolRepository) : LoadingViewModel<GradeOverview>(repository::grades)
+class GradesViewModel(repository: SchoolRepository) : LoadingViewModel<GradeOverview>(repository::grades, repository::invalidate)
 
-class MessagesViewModel(repository: SchoolRepository) : LoadingViewModel<List<MessagePreview>>(repository::messages)
+class MessagesViewModel(repository: SchoolRepository) : LoadingViewModel<List<MessagePreview>>(repository::messages, repository::invalidate)
