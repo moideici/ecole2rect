@@ -48,8 +48,7 @@ import fr.ecole2recte.app.ui.home.HomeRoute
 import fr.ecole2recte.app.ui.homework.HomeworkRoute
 import fr.ecole2recte.app.ui.messages.MessagesRoute
 import fr.ecole2recte.app.ui.schedule.ScheduleRoute
-import fr.ecole2recte.app.ui.theme.Background
-import fr.ecole2recte.app.ui.theme.CardWhite
+import fr.ecole2recte.app.ui.theme.AppTheme
 
 /** Onglets de la barre du bas. Le lot 4 redistribuera leur contenu. */
 internal enum class AppTab(val route: String, val label: String, val icon: ImageVector) {
@@ -99,15 +98,15 @@ private fun MainContent(
     val currentDestination = backStackEntry?.destination
     var showAccounts by rememberSaveable { mutableStateOf(false) }
     Scaffold(
-        containerColor = Background,
+        containerColor = AppTheme.colors.background,
         bottomBar = {
-            NavigationBar(containerColor = CardWhite) {
+            NavigationBar(containerColor = AppTheme.colors.surface) {
                 AppTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true,
                         onClick = { navController.navigateToTab(tab) },
                         icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label, fontSize = 10.sp) },
+                        label = { Text(tab.label, fontSize = 12.sp) },
                     )
                 }
             }
@@ -118,7 +117,7 @@ private fun MainContent(
                 ConnectionBanner(connectionMessage, onRetryConnection)
             }
             Box(Modifier.fillMaxSize()) {
-                Surface(modifier = Modifier.fillMaxSize(), color = Background) {
+                Surface(modifier = Modifier.fillMaxSize(), color = AppTheme.colors.background) {
                     NavHost(navController = navController, startDestination = AppTab.Home.route) {
                         composable(AppTab.Home.route) {
                             HomeRoute(

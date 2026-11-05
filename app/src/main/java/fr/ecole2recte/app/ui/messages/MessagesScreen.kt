@@ -15,13 +15,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.ui.common.MessagesViewModel
+import fr.ecole2recte.app.ui.common.EmptyState
+import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
-import fr.ecole2recte.app.ui.theme.CardWhite
-import fr.ecole2recte.app.ui.theme.Ink
-import fr.ecole2recte.app.ui.theme.Muted
+import fr.ecole2recte.app.ui.theme.AppTheme
 
 @Composable
 fun MessagesRoute() {
@@ -30,15 +30,12 @@ fun MessagesRoute() {
     val state by viewModel.state.collectAsStateWithLifecycle()
     StateHost(state, onRetry = viewModel::refresh) { messages ->
         PageScaffold("Messages", "${messages.count { it.unread }} messages non lus") {
+            if (messages.isEmpty()) EmptyState("Aucun message", "Ta boîte de réception est vide.")
             messages.forEach { message ->
-                Card(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 5.dp),
-                    colors = CardDefaults.cardColors(CardWhite),
-                    shape = RoundedCornerShape(15.dp),
-                ) {
+                ListCard {
                     Column(Modifier.padding(17.dp)) {
-                        Text(message.sender, color = Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(message.preview, color = Muted, fontSize = 11.sp)
+                        Text(message.sender, color = AppTheme.colors.ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(message.preview, color = AppTheme.colors.muted, fontSize = 12.sp)
                     }
                 }
             }

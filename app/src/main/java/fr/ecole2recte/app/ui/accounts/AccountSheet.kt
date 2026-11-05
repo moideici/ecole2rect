@@ -39,11 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ecole2recte.app.session.AccountSummary
 import fr.ecole2recte.app.session.ActiveProfile
-import fr.ecole2recte.app.ui.theme.CardWhite
-import fr.ecole2recte.app.ui.theme.ErrorRed
-import fr.ecole2recte.app.ui.theme.Indigo
-import fr.ecole2recte.app.ui.theme.Ink
-import fr.ecole2recte.app.ui.theme.Muted
+import fr.ecole2recte.app.ui.theme.AppTheme
 
 /** Actions possibles sur les comptes, fournies par la session. */
 class AccountActions(
@@ -56,12 +52,12 @@ class AccountActions(
 @Composable
 fun Avatar(initials: String, active: Boolean = true, size: Int = 40) {
     Box(
-        Modifier.size(size.dp).background(if (active) Indigo else Indigo.copy(alpha = .14f), CircleShape),
+        Modifier.size(size.dp).background(if (active) AppTheme.colors.accentFill else AppTheme.colors.accent.copy(alpha = .14f), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             initials,
-            color = if (active) Color.White else Indigo,
+            color = if (active) Color.White else AppTheme.colors.accent,
             fontWeight = FontWeight.Bold,
             fontSize = (size * 0.36f).sp,
         )
@@ -92,10 +88,10 @@ fun AccountSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = CardWhite,
+        containerColor = AppTheme.colors.surface,
     ) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
-            Text("Comptes", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Comptes", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             accounts.forEach { account ->
                 Row(
@@ -107,15 +103,15 @@ fun AccountSheet(
                 ) {
                     Avatar(account.initials, active = account.isActive)
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                        Text(account.displayName, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Text(account.typeLabel, color = Muted, fontSize = 12.sp)
+                        Text(account.displayName, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text(account.typeLabel, color = AppTheme.colors.muted, fontSize = 12.sp)
                     }
-                    if (account.isActive) Icon(Icons.Outlined.Check, contentDescription = "Compte actif", tint = Indigo)
+                    if (account.isActive) Icon(Icons.Outlined.Check, contentDescription = "Compte actif", tint = AppTheme.colors.accent)
                 }
             }
             if (active != null && active.students.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
-                Text("Élève affiché", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("Élève affiché", color = AppTheme.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 active.students.forEach { student ->
                     Row(
                         Modifier.fillMaxWidth().clickable {
@@ -126,19 +122,19 @@ fun AccountSheet(
                     ) {
                         RadioButton(selected = student.id == active.activeStudentId, onClick = null, modifier = Modifier.padding(end = 12.dp, top = 10.dp, bottom = 10.dp))
                         Column {
-                            Text("${student.firstName} ${student.lastName}".trim(), color = Ink, fontSize = 14.sp)
-                            if (student.className.isNotBlank()) Text(student.className, color = Muted, fontSize = 12.sp)
+                            Text("${student.firstName} ${student.lastName}".trim(), color = AppTheme.colors.ink, fontSize = 14.sp)
+                            if (student.className.isNotBlank()) Text(student.className, color = AppTheme.colors.muted, fontSize = 12.sp)
                         }
                     }
                 }
             }
             Spacer(Modifier.height(10.dp))
-            ActionRow(Icons.Outlined.PersonAdd, "Ajouter un compte", Indigo) {
+            ActionRow(Icons.Outlined.PersonAdd, "Ajouter un compte", AppTheme.colors.accent) {
                 onDismiss()
                 actions.onAdd()
             }
             if (active != null) {
-                ActionRow(Icons.AutoMirrored.Outlined.Logout, "Retirer ce compte de l'appareil", ErrorRed) {
+                ActionRow(Icons.AutoMirrored.Outlined.Logout, "Retirer ce compte de l'appareil", AppTheme.colors.error) {
                     confirmRemoval = active
                 }
             }
@@ -154,7 +150,7 @@ fun AccountSheet(
                     confirmRemoval = null
                     onDismiss()
                     actions.onRemove(account.identifier)
-                }) { Text("Retirer", color = ErrorRed) }
+                }) { Text("Retirer", color = AppTheme.colors.error) }
             },
             dismissButton = { TextButton(onClick = { confirmRemoval = null }) { Text("Annuler") } },
         )

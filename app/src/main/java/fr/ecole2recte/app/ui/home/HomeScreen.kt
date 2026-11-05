@@ -42,13 +42,7 @@ import fr.ecole2recte.app.ui.common.SubjectChip
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.personalization.ColorEditor
-import fr.ecole2recte.app.ui.theme.CardWhite
-import fr.ecole2recte.app.ui.theme.Indigo
-import fr.ecole2recte.app.ui.theme.Ink
-import fr.ecole2recte.app.ui.theme.Muted
-import fr.ecole2recte.app.ui.theme.Positive
-import fr.ecole2recte.app.ui.theme.ReminderSurface
-import fr.ecole2recte.app.ui.theme.SubjectColors
+import fr.ecole2recte.app.ui.theme.AppTheme
 
 @Composable
 fun HomeRoute(onOpenSchedule: () -> Unit, onOpenHomework: () -> Unit, onOpenGrades: () -> Unit) {
@@ -96,8 +90,8 @@ private fun HomeScreen(
         item {
             Text(
                 "Couleurs par matière",
-                modifier = Modifier.padding(start = 22.dp, top = 18.dp, bottom = 6.dp).clickable(onClick = onOpenColors),
-                color = Indigo,
+                modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 6.dp).clickable(onClick = onOpenColors).padding(8.dp),
+                color = AppTheme.colors.accent,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -111,10 +105,10 @@ private fun NextClassCard(next: NextClass) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Indigo),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.accentFill),
     ) {
         Column(Modifier.padding(22.dp)) {
-            Text("PROCHAIN COURS", color = Color.White.copy(alpha = .65f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("PROCHAIN COURS", color = Color.White.copy(alpha = .65f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(25.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -140,16 +134,16 @@ private fun NextClassCard(next: NextClass) {
 private fun ScheduleSummary(slots: List<ScheduleSlot>) {
     Card(
         Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-        colors = CardDefaults.cardColors(CardWhite),
+        colors = CardDefaults.cardColors(AppTheme.colors.surface),
         shape = RoundedCornerShape(18.dp),
     ) {
         Column(Modifier.padding(18.dp)) {
             slots.forEach { slot ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(slot.time, color = Muted, fontSize = 11.sp, modifier = Modifier.size(45.dp, 20.dp))
-                    Box(Modifier.size(8.dp).background(SubjectColors[slot.subject.colorIndex], RoundedCornerShape(4.dp)))
-                    Text(slot.subject.name, color = Ink, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
-                    Text(slot.subject.room, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
+                    Text(slot.time, color = AppTheme.colors.muted, fontSize = 12.sp, modifier = Modifier.size(45.dp, 20.dp))
+                    Box(Modifier.size(8.dp).background(AppTheme.colors.subject[slot.subject.colorIndex], RoundedCornerShape(4.dp)))
+                    Text(slot.subject.name, color = AppTheme.colors.ink, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
+                    Text(slot.subject.room, color = AppTheme.colors.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
                 }
             }
         }
@@ -160,20 +154,20 @@ private fun ScheduleSummary(slots: List<ScheduleSlot>) {
 private fun ReminderCard(task: Homework) {
     Card(
         Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-        colors = CardDefaults.cardColors(ReminderSurface),
+        colors = CardDefaults.cardColors(AppTheme.colors.inverseSurface),
         shape = RoundedCornerShape(18.dp),
     ) {
         Row(Modifier.padding(19.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(34.dp).background(SubjectColors[task.colorIndex].copy(alpha = .2f), RoundedCornerShape(10.dp)),
+                Modifier.size(34.dp).background(AppTheme.colors.subject[task.colorIndex].copy(alpha = .2f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("!", color = SubjectColors[task.colorIndex], fontWeight = FontWeight.Bold)
+                Text("!", color = AppTheme.colors.subject[task.colorIndex], fontWeight = FontWeight.Bold)
             }
             Column(Modifier.padding(start = 13.dp)) {
-                Text("À NE PAS OUBLIER", color = Color.White.copy(alpha = .6f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("À NE PAS OUBLIER", color = Color.White.copy(alpha = .6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Text(task.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text("À rendre ${task.due}", color = Color.White.copy(alpha = .65f), fontSize = 11.sp)
+                Text("À rendre ${task.due}", color = Color.White.copy(alpha = .65f), fontSize = 12.sp)
             }
         }
     }
@@ -183,14 +177,14 @@ private fun ReminderCard(task: Homework) {
 private fun GradesSummary(grades: GradeOverview) {
     Card(
         Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-        colors = CardDefaults.cardColors(CardWhite),
+        colors = CardDefaults.cardColors(AppTheme.colors.surface),
         shape = RoundedCornerShape(18.dp),
     ) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(grades.average, color = Ink, fontSize = 36.sp, fontWeight = FontWeight.Bold)
-            Text(" / 20\nMoyenne générale", color = Muted, fontSize = 11.sp)
+            Text(grades.average, color = AppTheme.colors.ink, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+            Text(" / 20\nMoyenne générale", color = AppTheme.colors.muted, fontSize = 12.sp)
             Spacer(Modifier.weight(1f))
-            Text(grades.trend, color = Positive, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(grades.trend, color = AppTheme.colors.positive, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

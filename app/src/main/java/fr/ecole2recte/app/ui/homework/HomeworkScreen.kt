@@ -15,14 +15,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.ui.common.HomeworkViewModel
+import fr.ecole2recte.app.ui.common.EmptyState
+import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
-import fr.ecole2recte.app.ui.theme.CardWhite
-import fr.ecole2recte.app.ui.theme.Ink
-import fr.ecole2recte.app.ui.theme.Muted
-import fr.ecole2recte.app.ui.theme.SubjectColors
+import fr.ecole2recte.app.ui.theme.AppTheme
 
 @Composable
 fun HomeworkRoute() {
@@ -31,16 +30,13 @@ fun HomeworkRoute() {
     val state by viewModel.state.collectAsStateWithLifecycle()
     StateHost(state, onRetry = viewModel::refresh) { tasks ->
         PageScaffold("Devoirs", "${tasks.size} devoirs à venir") {
+            if (tasks.isEmpty()) EmptyState("Rien à faire", "Aucun devoir à venir pour le moment.")
             tasks.forEach { task ->
-                Card(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 5.dp),
-                    colors = CardDefaults.cardColors(CardWhite),
-                    shape = RoundedCornerShape(15.dp),
-                ) {
+                ListCard {
                     Column(Modifier.padding(17.dp)) {
-                        Text(task.subject, color = SubjectColors[task.colorIndex], fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text(task.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Text("Pour ${task.due}", color = Muted, fontSize = 11.sp)
+                        Text(task.subject, color = AppTheme.colors.subject[task.colorIndex], fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(task.title, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text("Pour ${task.due}", color = AppTheme.colors.muted, fontSize = 12.sp)
                     }
                 }
             }

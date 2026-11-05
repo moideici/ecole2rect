@@ -20,40 +20,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import fr.ecole2recte.app.domain.Subject
-import fr.ecole2recte.app.ui.theme.CardWhite
-import fr.ecole2recte.app.ui.theme.Indigo
-import fr.ecole2recte.app.ui.theme.Ink
-import fr.ecole2recte.app.ui.theme.Muted
-import fr.ecole2recte.app.ui.theme.SubjectColors
+import fr.ecole2recte.app.ui.theme.AppTheme
 
 /** Maquette de l'éditeur de couleurs : « Modifier » ne fait encore rien (lot 14). */
 @Composable
 fun ColorEditor(subjects: List<Subject>, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
-        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(CardWhite)) {
+        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(AppTheme.colors.surface)) {
             Column(Modifier.padding(24.dp)) {
-                Text("Couleurs par matière", color = Ink, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text("Couleurs par matière", color = AppTheme.colors.ink, fontSize = 21.sp, fontWeight = FontWeight.Bold)
                 Text(
                     "Une couleur reste identique dans tout l'espace.",
-                    color = Muted,
-                    fontSize = 11.sp,
+                    color = AppTheme.colors.muted,
+                    fontSize = 12.sp,
                     modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
                 )
                 subjects.forEach { subject ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         androidx.compose.foundation.layout.Box(
-                            Modifier.size(12.dp).background(SubjectColors[subject.colorIndex], RoundedCornerShape(6.dp)),
+                            Modifier.size(12.dp).background(AppTheme.colors.subject[subject.colorIndex], RoundedCornerShape(6.dp)),
                         )
-                        Text(subject.name, color = Ink, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
+                        Text(subject.name, color = AppTheme.colors.ink, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
                         Spacer(Modifier.weight(1f))
-                        Text("Modifier", color = Indigo, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("Modifier", color = AppTheme.colors.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 Text(
                     "Fermer",
-                    color = Indigo,
+                    color = AppTheme.colors.accent,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.End).padding(top = 15.dp).clickable(onClick = onDismiss),
+                    modifier = Modifier.align(Alignment.End).padding(top = 7.dp).clickable(onClick = onDismiss).padding(8.dp),
                 )
             }
         }

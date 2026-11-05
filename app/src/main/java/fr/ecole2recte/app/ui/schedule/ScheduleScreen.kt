@@ -20,15 +20,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.ScheduleEntry
+import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.ScheduleViewModel
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
-import fr.ecole2recte.app.ui.theme.CardWhite
-import fr.ecole2recte.app.ui.theme.Ink
-import fr.ecole2recte.app.ui.theme.Muted
-import fr.ecole2recte.app.ui.theme.SubjectColors
+import fr.ecole2recte.app.ui.theme.AppTheme
 
 @Composable
 fun ScheduleRoute() {
@@ -45,17 +43,13 @@ fun ScheduleRoute() {
 @Composable
 private fun ScheduleRow(entry: ScheduleEntry) {
     val subject = entry.subject
-    Card(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 5.dp),
-        colors = CardDefaults.cardColors(CardWhite),
-        shape = RoundedCornerShape(15.dp),
-    ) {
+    ListCard {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(8.dp, 42.dp).background(SubjectColors[subject.colorIndex], RoundedCornerShape(4.dp)))
+            Box(Modifier.size(8.dp, 42.dp).background(AppTheme.colors.subject[subject.colorIndex], RoundedCornerShape(4.dp)))
             Column(Modifier.padding(start = 13.dp)) {
-                Text(subject.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text("${entry.whenLabel}  ·  Salle ${subject.room}", color = Muted, fontSize = 11.sp)
-                Text(subject.teacher, color = Muted, fontSize = 11.sp)
+                Text(subject.name, color = AppTheme.colors.ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("${entry.whenLabel}  ·  Salle ${subject.room}", color = AppTheme.colors.muted, fontSize = 12.sp)
+                Text(subject.teacher, color = AppTheme.colors.muted, fontSize = 12.sp)
             }
         }
     }

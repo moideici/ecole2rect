@@ -55,16 +55,7 @@ import fr.ecole2recte.app.data.FailureKind
 import fr.ecole2recte.app.session.LoginUiState
 import fr.ecole2recte.app.session.SecurityChallenge
 import fr.ecole2recte.app.session.findBirthAnswer
-import fr.ecole2recte.app.ui.theme.Background
-import fr.ecole2recte.app.ui.theme.CardWhite
-import fr.ecole2recte.app.ui.theme.DiagnosticSurface
-import fr.ecole2recte.app.ui.theme.DiagnosticText
-import fr.ecole2recte.app.ui.theme.DiagnosticTitle
-import fr.ecole2recte.app.ui.theme.ErrorRed
-import fr.ecole2recte.app.ui.theme.Indigo
-import fr.ecole2recte.app.ui.theme.Ink
-import fr.ecole2recte.app.ui.theme.Muted
-import fr.ecole2recte.app.ui.theme.PositiveDark
+import fr.ecole2recte.app.ui.theme.AppTheme
 
 /**
  * Connexion en deux temps : identifiant + mot de passe, puis — seulement si ÉcoleDirecte le
@@ -82,17 +73,17 @@ fun LoginScreen(
 ) {
     var identifier by remember { mutableStateOf(state.identifier) }
     var password by remember { mutableStateOf(state.password) }
-    Box(Modifier.fillMaxSize().background(Background), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(AppTheme.colors.background), contentAlignment = Alignment.Center) {
         Card(
             Modifier.fillMaxWidth().padding(24.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(CardWhite),
+            colors = CardDefaults.cardColors(AppTheme.colors.surface),
         ) {
             Column(
                 Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("ecole2recte", color = Indigo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("ecole2recte", color = AppTheme.colors.accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 val challenge = state.challenge
                 if (challenge == null) {
                     CredentialsStep(
@@ -107,7 +98,7 @@ fun LoginScreen(
                         Text(
                             cancelLabel,
                             modifier = Modifier.clickable(enabled = !state.loading, onClick = onCancel).padding(vertical = 8.dp),
-                            color = Indigo,
+                            color = AppTheme.colors.accent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                         )
@@ -135,10 +126,10 @@ private fun CredentialsStep(
     onSubmit: () -> Unit,
 ) {
     val canSubmit = identifier.isNotBlank() && password.isNotBlank() && !state.loading
-    Text("Connexion", color = Ink, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+    Text("Connexion", color = AppTheme.colors.ink, fontWeight = FontWeight.Bold, fontSize = 28.sp)
     Text(
         "Tu ne saisis tes identifiants qu'une seule fois : l'app s'occupe du reste.",
-        color = Muted,
+        color = AppTheme.colors.muted,
         fontSize = 12.sp,
     )
     Field(
@@ -175,7 +166,7 @@ private fun CredentialsStep(
         },
     )
     ErrorBlock(state)
-    Text("Tes identifiants sont chiffrés sur cet appareil.", color = Muted, fontSize = 11.sp)
+    Text("Tes identifiants sont chiffrés sur cet appareil.", color = AppTheme.colors.muted, fontSize = 12.sp)
     PrimaryButton(
         label = "Se connecter  →",
         loading = state.loading,
@@ -201,15 +192,15 @@ private fun SecurityStep(
     LaunchedEffect(automatic) {
         if (automatic != null) answer = automatic
     }
-    Text("Vérification", color = Ink, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+    Text("Vérification", color = AppTheme.colors.ink, fontWeight = FontWeight.Bold, fontSize = 28.sp)
     Text(
         "ÉcoleDirecte vérifie que c'est bien toi. Ça n'arrive qu'une fois sur cet appareil.",
-        color = Muted,
+        color = AppTheme.colors.muted,
         fontSize = 12.sp,
     )
-    Text(challenge.question, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+    Text(challenge.question, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
     if (challenge.choices.isNotEmpty()) {
-        Text("Entre ta date de naissance pour choisir la bonne réponse :", color = Muted, fontSize = 12.sp)
+        Text("Entre ta date de naissance pour choisir la bonne réponse :", color = AppTheme.colors.muted, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Field("Jour", birthDay, { birthDay = it }, Modifier.weight(1f), number = true)
             Field("Mois", birthMonth, { birthMonth = it }, Modifier.weight(1f), number = true)
@@ -218,7 +209,7 @@ private fun SecurityStep(
         if (automatic != null) {
             Text(
                 "Réponse trouvée depuis ta date de naissance",
-                color = PositiveDark,
+                color = AppTheme.colors.positive,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -229,7 +220,7 @@ private fun SecurityStep(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RadioButton(selected = answer == choice, onClick = { answer = choice })
-                Text(choice, color = Ink, fontSize = 14.sp)
+                Text(choice, color = AppTheme.colors.ink, fontSize = 14.sp)
             }
         }
     } else {
@@ -248,7 +239,7 @@ private fun SecurityStep(
     Text(
         "Retour",
         modifier = Modifier.clickable(enabled = !state.loading, onClick = onCancel).padding(vertical = 8.dp),
-        color = Indigo,
+        color = AppTheme.colors.accent,
         fontWeight = FontWeight.Bold,
         fontSize = 13.sp,
     )
@@ -259,7 +250,7 @@ private fun ErrorBlock(state: LoginUiState) {
     val error = state.error ?: return
     Text(
         error.message,
-        color = if (error.kind == FailureKind.Network || error.kind == FailureKind.Service) Muted else ErrorRed,
+        color = if (error.kind == FailureKind.Network || error.kind == FailureKind.Service) AppTheme.colors.muted else AppTheme.colors.error,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
     )
@@ -274,16 +265,16 @@ private fun TechnicalDetails(diagnostic: String) {
     Text(
         if (open) "Masquer les détails techniques" else "Détails techniques",
         modifier = Modifier.clickable { open = !open }.padding(vertical = 4.dp),
-        color = Indigo,
+        color = AppTheme.colors.accent,
         fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
     )
     if (open) {
-        Card(colors = CardDefaults.cardColors(containerColor = DiagnosticSurface)) {
+        Card(colors = CardDefaults.cardColors(containerColor = AppTheme.colors.warningSurface)) {
             Column(Modifier.padding(12.dp)) {
-                Text("Détail réseau (pour le debug)", color = DiagnosticTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("Détail réseau (pour le debug)", color = AppTheme.colors.warningTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 SelectionContainer {
-                    Text(diagnostic, color = DiagnosticText, fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
+                    Text(diagnostic, color = AppTheme.colors.warningText, fontSize = 12.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
                 }
                 Button(
                     onClick = {
@@ -304,7 +295,7 @@ private fun PrimaryButton(label: String, loading: Boolean, enabled: Boolean, onC
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        color = if (enabled || loading) Indigo else Indigo.copy(alpha = .4f),
+        color = if (enabled || loading) AppTheme.colors.accentFill else AppTheme.colors.accentFill.copy(alpha = .4f),
     ) {
         Row(
             Modifier.padding(15.dp),
@@ -340,7 +331,7 @@ private fun Field(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     Column(modifier) {
-        Text(label, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = AppTheme.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
