@@ -22,6 +22,7 @@ class EcoleDirecteRepositoryTest {
     private lateinit var server: MockWebServer
     private val paths = mutableListOf<String>()
     private var notesAnswers = ArrayDeque<String>()
+    private var dayContent = """{"code":200,"data":{"matieres":[]}}"""
 
     // Jeudi 5 novembre 2026, 9 h 50 à Paris.
     private val clock = Clock.fixed(Instant.parse("2026-11-05T08:50:00Z"), ZoneId.of("Europe/Paris"))
@@ -57,6 +58,7 @@ class EcoleDirecteRepositoryTest {
                 paths += path
                 val body = when {
                     path.endsWith("/emploidutemps.awp") -> timetable
+                    path.contains("/cahierdetexte/") -> dayContent
                     path.endsWith("/cahierdetexte.awp") -> homework
                     path.endsWith("/notes.awp") -> notesAnswers.removeFirstOrNull() ?: grades
                     path.endsWith("/messages.awp") -> messages
@@ -81,7 +83,7 @@ class EcoleDirecteRepositoryTest {
     private val cache = InMemoryResponseCache()
 
     private fun repository(session: ApiSession, profile: ActiveProfile = profile()) =
-        EcoleDirecteRepository(session, profile, cache, clock)
+        EcoleDirecteRepository(session, profile, cache, clock = clock)
 
     private fun openStudent(session: ApiSession = ApiSession()): ApiSession {
         session.open("jdupont", client(), listOf(Account("10", "E", "Jean", "DUPONT")))
@@ -128,11 +130,37 @@ class EcoleDirecteRepositoryTest {
     }
 
     @Test
-    fun `les devoirs faits ou passes sont ecartes`() = runTest {
+    fun `les devoirs passes sont ecartes et les faits sont marques`() = runTest {
         val tasks = repository(openStudent()).homework()
-        assertEquals(listOf("Maths"), tasks.map { it.subject })
-        assertEquals("Vendredi 6 novembre", tasks.single().due)
-        assertEquals(true, tasks.single().exam)
+        assertEquals(listOf("Maths", "Anglais"), tasks.map { it.subject })
+        assertEquals("Vendredi 6 novembre", tasks.first().due)
+        assertEquals(true, tasks.first().exam)
+        assertEquals(listOf(false, true), tasks.map { it.done })
+    }
+
+    @Test
+    fun `cocher un devoir l'emporte sur le serveur et sort des pastilles`() = runTest {
+        val repository = repository(openStudent())
+        repository.setHomeworkDone("55", true)
+        assertEquals(listOf(true, true), repository.homework().map { it.done })
+        assertEquals(0, repository.badges().urgentHomework)
+        repository.setHomeworkDone("55", false)
+        assertEquals(1, repository.badges().urgentHomework)
+    }
+
+    @Test
+    fun `la fiche d'un devoir charge l'enonce du jour`() = runTest {
+        val enonce = java.util.Base64.getEncoder().encodeToString("<p>Exercices 12 à 18</p>".toByteArray())
+        val seance = java.util.Base64.getEncoder().encodeToString("Les suites".toByteArray())
+        dayContent = """{"code":200,"data":{"matieres":[
+            {"matiere":"MATHS","aFaire":{"idDevoir":55,"contenu":"$enonce","documents":[{"id":9,"libelle":"Fiche.pdf","type":"FICHIER"}]},
+             "contenuDeSeance":{"contenu":"$seance"}}]}}"""
+        val repository = repository(openStudent())
+        val detail = repository.homeworkDetail(repository.homework().first())
+        assertEquals("Exercices 12 à 18", detail.content)
+        assertEquals(listOf("Fiche.pdf"), detail.attachments)
+        assertEquals("Les suites", detail.lessonContent)
+        assertTrue(paths.contains("/v3/Eleves/10/cahierdetexte/2026-11-06.awp"))
     }
 
     @Test
@@ -232,7 +260,7 @@ class EcoleDirecteRepositoryTest {
 
         val offline = repository(offlineSession())
         val tasks = offline.homework()
-        assertEquals(listOf("Maths"), tasks.map { it.subject })
+        assertEquals(listOf("Maths", "Anglais"), tasks.map { it.subject })
         assertEquals(true, offline.freshness.value.stale)
         assertEquals(clock.millis(), offline.freshness.value.lastSyncMillis)
     }

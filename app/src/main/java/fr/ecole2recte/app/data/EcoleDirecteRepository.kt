@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.data
 
+import fr.ecole2recte.app.data.api.ApiDay
 import fr.ecole2recte.app.data.api.ApiGrades
 import fr.ecole2recte.app.data.api.ApiHomework
 import fr.ecole2recte.app.data.api.ApiLesson
@@ -16,6 +17,7 @@ import fr.ecole2recte.app.domain.Highlight
 import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
+import fr.ecole2recte.app.domain.HomeworkDetail
 import fr.ecole2recte.app.domain.MessagePreview
 import fr.ecole2recte.app.domain.NextClass
 import fr.ecole2recte.app.domain.ScheduleEntry
@@ -58,6 +60,7 @@ class EcoleDirecteRepository(
     private val session: ApiSession,
     private val profile: ActiveProfile,
     private val responseCache: ResponseCache = InMemoryResponseCache(),
+    private val homeworkStatus: HomeworkStatusStore = InMemoryHomeworkStatusStore(),
     private val clock: Clock = Clock.systemDefaultZone(),
     private val ttlMs: Long = 90_000,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -174,8 +177,18 @@ class EcoleDirecteRepository(
         parse = Parsers::timetable,
     )
 
-    private suspend fun homeworkItems(): List<ApiHomework> =
-        resource("homework", { api, target -> api.homework(target.studentId) }, Parsers::homeworkSummary)
+    /** Le cahier de textes, avec les cases cochées sur l'appareil qui l'emportent sur celles du serveur. */
+    private suspend fun homeworkItems(): List<ApiHomework> {
+        val items = resource("homework", { api, target -> api.homework(target.studentId) }, Parsers::homeworkSummary)
+        val overrides = homeworkStatus.overrides(owner)
+        return if (overrides.isEmpty()) items else items.map { it.copy(done = overrides[it.id] ?: it.done) }
+    }
+
+    private suspend fun dayContent(date: String): ApiDay = resource(
+        "day-$date",
+        { api, target -> api.dayContent(target.studentId, date) },
+        { Parsers.dayContent(it, date) },
+    )
 
     private suspend fun gradesPayload(): ApiGrades =
         resource("grades", { api, target -> api.grades(target.studentId) }, Parsers::grades)
@@ -255,7 +268,26 @@ class EcoleDirecteRepository(
         )
     }
 
-    override suspend fun homework(): List<Homework> = pendingHomework(homeworkItems()).map { it.toHomework() }
+    override suspend fun homework(): List<Homework> {
+        val today = today().toString()
+        return homeworkItems().filter { it.dueDate >= today }.sortedBy { it.dueDate }.map { it.toHomework() }
+    }
+
+    override suspend fun homeworkDetail(homework: Homework): HomeworkDetail {
+        val day = dayContent(homework.dueDate)
+        val match = day.homework.firstOrNull { it.id == homework.id }
+            ?: day.homework.firstOrNull { it.subject.equals(homework.subject, ignoreCase = true) }
+        val lesson = day.sessions.firstOrNull { it.subject.prettySubject() == homework.subject }
+        return HomeworkDetail(
+            content = match?.content.orEmpty(),
+            attachments = match?.attachments?.map { it.name }.orEmpty(),
+            lessonContent = lesson?.content.orEmpty(),
+        )
+    }
+
+    override suspend fun setHomeworkDone(id: String, done: Boolean) {
+        homeworkStatus.set(owner, id, done)
+    }
 
     override suspend fun grades(): GradeOverview = overview(gradesPayload())
 
@@ -345,6 +377,7 @@ class EcoleDirecteRepository(
         dueDate = dueDate,
         done = done,
         exam = exam,
+        content = content,
     )
 
     private fun ApiLesson.toSubject() = Subject(subject.prettySubject(), teacher, room, colorFor(subject))

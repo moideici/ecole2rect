@@ -26,6 +26,10 @@ class EcoleDirecteApi(private val client: EcoleDirecteClient) {
     fun homework(studentId: String): String =
         client.call("/Eleves/$studentId/cahierdetexte.awp", "get").raw()
 
+    /** Le détail d'un jour : les énoncés et le contenu de séance, absents du résumé. */
+    fun dayContent(studentId: String, date: String): String =
+        client.call("/Eleves/$studentId/cahierdetexte/$date.awp", "get").raw()
+
     fun grades(studentId: String): String =
         client.call(
             "/eleves/$studentId/notes.awp",

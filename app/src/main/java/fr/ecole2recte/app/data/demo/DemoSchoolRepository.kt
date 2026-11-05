@@ -7,6 +7,7 @@ import fr.ecole2recte.app.domain.Highlight
 import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
+import fr.ecole2recte.app.domain.HomeworkDetail
 import fr.ecole2recte.app.domain.MessagePreview
 import fr.ecole2recte.app.domain.NextClass
 import fr.ecole2recte.app.domain.ScheduleEntry
@@ -74,7 +75,18 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
         return ScheduleWeek("Semaine du ${monday.dayOfMonth}", entries, monday.toString(), today.toString())
     }
 
-    override suspend fun homework(): List<Homework> = homework
+    private val doneIds = mutableSetOf<String>()
+
+    override suspend fun homework(): List<Homework> = homework.mapIndexed { index, task ->
+        task.copy(id = "demo-$index", dueDate = "", done = "demo-$index" in doneIds)
+    }
+
+    override suspend fun homeworkDetail(homework: Homework) =
+        HomeworkDetail(content = homework.title, attachments = emptyList())
+
+    override suspend fun setHomeworkDone(id: String, done: Boolean) {
+        if (done) doneIds += id else doneIds -= id
+    }
 
     override suspend fun grades(): GradeOverview = grades
 

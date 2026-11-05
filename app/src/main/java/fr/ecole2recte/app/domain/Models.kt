@@ -15,6 +15,15 @@ data class Homework(
     val dueDate: String = "",
     val done: Boolean = false,
     val exam: Boolean = false,
+    val content: String = "",
+)
+
+/** Le contenu complet d'un devoir, chargé à l'ouverture de sa fiche. */
+data class HomeworkDetail(
+    val content: String,
+    val attachments: List<String> = emptyList(),
+    /** Ce qui a été vu en cours ce jour-là dans la même matière. */
+    val lessonContent: String = "",
 )
 
 /** Un cours dans le résumé de la journée. */

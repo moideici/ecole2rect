@@ -16,6 +16,8 @@ data class ApiLesson(
     val note: String,
 )
 
+data class ApiAttachment(val id: String, val name: String, val type: String)
+
 data class ApiHomework(
     val id: String,
     val subject: String,
@@ -23,7 +25,14 @@ data class ApiHomework(
     val content: String,
     val exam: Boolean,
     val done: Boolean,
+    val attachments: List<ApiAttachment> = emptyList(),
 )
+
+/** Ce qui a été fait en cours un jour donné. */
+data class ApiSessionContent(val subject: String, val content: String, val attachments: List<ApiAttachment>)
+
+/** Le détail d'un jour du cahier de textes : les énoncés et le contenu des séances. */
+data class ApiDay(val homework: List<ApiHomework>, val sessions: List<ApiSessionContent>)
 
 data class ApiPeriod(
     val code: String,
@@ -103,21 +112,53 @@ object Parsers {
         val items = mutableListOf<ApiHomework>()
         for (key in root.keys()) {
             val dueDate = isoDate(key) ?: continue
-            for (raw in root.opt(key).objects()) {
-                val source = raw.optJSONObject("aFaire") ?: raw
-                items += ApiHomework(
-                    // `idDevoir` d'abord, où qu'il soit : la racine porte parfois un identifiant de séance.
-                    id = source.str("idDevoir").ifEmpty { raw.str("idDevoir", "id") }
-                        .ifEmpty { "$dueDate-${raw.str("matiere", "codeMatiere")}" },
-                    subject = raw.str("matiere", "libelleMatiere").ifEmpty { source.str("matiere") },
-                    dueDate = dueDate,
-                    content = decodeContent(source),
-                    exam = raw.flag("interrogation", "isInterrogation"),
-                    done = source.flag("effectue", "isEffectue"),
-                )
-            }
+            for (raw in root.opt(key).objects()) items += homeworkFrom(raw, dueDate)
         }
         return items.sortedBy { it.dueDate }
+    }
+
+    private fun homeworkFrom(raw: JSONObject, dueDate: String): ApiHomework {
+        val source = raw.optJSONObject("aFaire") ?: raw
+        return ApiHomework(
+            // `idDevoir` d'abord, où qu'il soit : la racine du détail porte un identifiant de séance, différent.
+            id = source.str("idDevoir").ifEmpty { raw.str("idDevoir", "id") }
+                .ifEmpty { "$dueDate-${raw.str("matiere", "codeMatiere")}" },
+            subject = raw.str("matiere", "libelleMatiere").ifEmpty { source.str("matiere") },
+            dueDate = dueDate,
+            content = decodeContent(source),
+            exam = raw.flag("interrogation", "isInterrogation"),
+            done = source.flag("effectue", "isEffectue"),
+            attachments = attachmentsOf(source),
+        )
+    }
+
+    /** Les listes de pièces jointes portent plusieurs noms selon l'endpoint. */
+    private fun attachmentsOf(source: JSONObject): List<ApiAttachment> {
+        for (key in listOf("documents", "files", "fichiers", "piecesJointes")) {
+            val found = source.opt(key).objects().mapNotNull { raw ->
+                val id = raw.str("id", "idDocument", "fichierId")
+                if (id.isEmpty()) null else ApiAttachment(id, raw.str("libelle", "nom", "name").ifEmpty { "Document" }, raw.str("type"))
+            }
+            if (found.isNotEmpty()) return found
+        }
+        return emptyList()
+    }
+
+    fun dayContent(data: Any?, date: String): ApiDay {
+        val root = data.asObject() ?: return ApiDay(emptyList(), emptyList())
+        val homework = mutableListOf<ApiHomework>()
+        val sessions = mutableListOf<ApiSessionContent>()
+        for (raw in root.opt("matieres").objects()) {
+            val subject = raw.str("matiere", "libelleMatiere")
+            if (raw.optJSONObject("aFaire") != null) homework += homeworkFrom(raw, date)
+            val lesson = raw.optJSONObject("contenuDeSeance") ?: continue
+            val content = decodeContent(lesson)
+            val attachments = attachmentsOf(lesson)
+            // Une séance sans contenu ni document n'apprend rien : mieux vaut ne rien montrer qu'une carte vide.
+            if (content.isEmpty() && attachments.isEmpty()) continue
+            sessions += ApiSessionContent(subject, content, attachments)
+        }
+        return ApiDay(homework, sessions)
     }
 
     private fun decodeContent(source: JSONObject): String {

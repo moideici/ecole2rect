@@ -17,7 +17,14 @@ interface SchoolRepository {
 
     suspend fun home(): HomeData
     suspend fun schedule(): ScheduleWeek
+    /** Les devoirs à venir, faits ou non (les faits sont marqués). */
     suspend fun homework(): List<Homework>
+
+    /** Énoncé complet et pièces jointes d'un devoir. */
+    suspend fun homeworkDetail(homework: Homework): HomeworkDetail
+
+    /** Coche ou décoche un devoir. Pour l'instant sur l'appareil seulement. */
+    suspend fun setHomeworkDone(id: String, done: Boolean)
     suspend fun grades(): GradeOverview
     suspend fun messages(): List<MessagePreview>
     suspend fun badges(): Badges

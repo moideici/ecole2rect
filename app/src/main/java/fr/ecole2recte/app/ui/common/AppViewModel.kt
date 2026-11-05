@@ -5,6 +5,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -14,6 +16,7 @@ import fr.ecole2recte.app.domain.Badges
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
+import fr.ecole2recte.app.domain.HomeworkDetail
 import fr.ecole2recte.app.domain.MessagePreview
 import fr.ecole2recte.app.domain.ScheduleWeek
 import fr.ecole2recte.app.domain.SchoolRepository
@@ -48,7 +51,18 @@ class HomeViewModel(repository: SchoolRepository) : LoadingViewModel<HomeData>(r
 
 class ScheduleViewModel(repository: SchoolRepository) : LoadingViewModel<ScheduleWeek>(repository::schedule, repository::invalidate)
 
-class HomeworkViewModel(repository: SchoolRepository) : LoadingViewModel<List<Homework>>(repository::homework, repository::invalidate)
+class HomeworkViewModel(private val repository: SchoolRepository) :
+    LoadingViewModel<List<Homework>>(repository::homework, repository::invalidate) {
+    /** Coche ou décoche un devoir : la liste se met à jour tout de suite, sans nouvel appel réseau. */
+    fun toggleDone(task: Homework) {
+        viewModelScope.launch {
+            repository.setHomeworkDone(task.id, !task.done)
+            refresh()
+        }
+    }
+
+    suspend fun detail(task: Homework): HomeworkDetail = repository.homeworkDetail(task)
+}
 
 class GradesViewModel(repository: SchoolRepository) : LoadingViewModel<GradeOverview>(repository::grades, repository::invalidate)
 

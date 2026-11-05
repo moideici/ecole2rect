@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import java.io.File
 import fr.ecole2recte.app.data.CredentialStore
+import fr.ecole2recte.app.data.HomeworkStatusStore
+import fr.ecole2recte.app.data.PrefsHomeworkStatusStore
 import fr.ecole2recte.app.data.cache.FileResponseCache
 import fr.ecole2recte.app.data.cache.ResponseCache
 import fr.ecole2recte.app.settings.AppSettings
@@ -21,10 +23,11 @@ class AppContainer(context: Context) {
 
     /** Les données du profil actif. */
     val apiSession = ApiSession()
+    val homeworkStatus: HomeworkStatusStore = PrefsHomeworkStatusStore(context)
     val responseCache: ResponseCache = FileResponseCache(File(context.filesDir, "cache"))
 
     fun schoolRepositoryFor(profile: ActiveProfile?): SchoolRepository =
-        if (profile == null) DemoSchoolRepository() else EcoleDirecteRepository(apiSession, profile, responseCache)
+        if (profile == null) DemoSchoolRepository() else EcoleDirecteRepository(apiSession, profile, responseCache, homeworkStatus)
 }
 
 class Ecole2recteApplication : Application() {

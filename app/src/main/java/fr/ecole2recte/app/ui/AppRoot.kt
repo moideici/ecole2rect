@@ -18,7 +18,10 @@ fun AppRoot() {
     val session = appViewModel { SessionViewModel(
             it.credentialStore,
             apiSession = it.apiSession,
-            onAccountRemoved = it.responseCache::clear,
+            onAccountRemoved = { id ->
+                it.responseCache.clear(id)
+                it.homeworkStatus.clear(id)
+            },
         ) }
     val state by session.state.collectAsStateWithLifecycle()
     Crossfade(targetState = state.status == AuthStatus.SignedOut || state.adding, animationSpec = tween(300), label = "root") { showLogin ->
