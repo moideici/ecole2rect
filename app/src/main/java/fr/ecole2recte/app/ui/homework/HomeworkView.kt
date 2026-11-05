@@ -25,9 +25,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -160,9 +160,8 @@ private fun HomeworkCard(task: Homework, modifier: Modifier, onToggle: () -> Uni
 
 @Composable
 private fun HomeworkSheet(task: Homework, viewModel: HomeworkViewModel, onToggle: () -> Unit) {
-    val detail by produceState<Result<HomeworkDetail>?>(null, task.id) {
-        value = runCatching { viewModel.detail(task) }
-    }
+    var detail by remember(task.id) { mutableStateOf<Result<HomeworkDetail>?>(null) }
+    LaunchedEffect(task.id) { detail = runCatching { viewModel.detail(task) } }
     Column(
         Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp).semantics { contentDescription = "Détail du devoir" },
         verticalArrangement = Arrangement.spacedBy(10.dp),

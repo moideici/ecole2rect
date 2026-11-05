@@ -26,9 +26,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -195,9 +195,8 @@ private fun MessageRow(message: MessagePreview, modifier: Modifier, onClick: () 
 
 @Composable
 private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel) {
-    val detail by produceState<Result<MessageDetail>?>(null, message.id) {
-        value = runCatching { viewModel.open(message) }
-    }
+    var detail by remember(message.id) { mutableStateOf<Result<MessageDetail>?>(null) }
+    LaunchedEffect(message.id) { detail = runCatching { viewModel.open(message) } }
     Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(message.preview, color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(message.sender, color = AppTheme.colors.muted, fontSize = 14.sp)

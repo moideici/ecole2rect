@@ -18,7 +18,22 @@ android {
         manifestPlaceholders["appLabel"] = "ecole2recte"
     }
 
+    // Signature de l'APK publié : seulement si la CI (ou toi) fournit la clé par l'environnement.
+    // Sans elle, `assembleRelease` donne un APK non signé et rien n'échoue.
+    val signingFile = System.getenv("SIGNING_KEYSTORE_FILE")?.takeIf { file(it).exists() }
+    if (signingFile != null) {
+        signingConfigs.create("release") {
+            storeFile = file(signingFile)
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
+        release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
+        }
         debug {
             // Installable à côté de la version publiée (autre signature, autres données) : un essai
             // sur le téléphone ne touche jamais à l'application installée du quotidien.

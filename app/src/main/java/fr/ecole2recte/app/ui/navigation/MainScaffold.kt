@@ -116,9 +116,10 @@ fun MainScaffold(
     val subjectColors = rememberAppContainer().subjectColors
     val overrides by remember(activeProfile?.key) { subjectColors.overrides(activeProfile?.key.orEmpty()) }
         .collectAsStateWithLifecycle(emptyMap())
-    Crossfade(targetState = activeProfile?.key, animationSpec = tween(260), label = "account") { _ ->
-        CompositionLocalProvider(LocalActiveProfile provides activeProfile, LocalSubjectColorOverrides provides overrides) {
-            MainContent(connection, connectionMessage, onRetryConnection, accounts, activeProfile, accountActions)
+    // Pendant le fondu, l'ancien écran garde son propre profil : rien ne passe d'un compte à l'autre.
+    Crossfade(targetState = activeProfile, animationSpec = tween(260), label = "account") { profile ->
+        CompositionLocalProvider(LocalActiveProfile provides profile, LocalSubjectColorOverrides provides overrides) {
+            MainContent(connection, connectionMessage, onRetryConnection, accounts, profile, accountActions)
         }
     }
 }
