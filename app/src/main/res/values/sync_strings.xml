@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_widget_next_class_label">Prochain cours</string>
+    <string name="sync_widget_next_class_description">Le prochain cours, avec l\'heure et la salle.</string>
+    <string name="sync_widget_homework_label">Devoirs à faire</string>
+    <string name="sync_widget_homework_description">Les devoirs qui t\'attendent.</string>
+    <string name="sync_shortcut_agenda">Agenda</string>
+    <string name="sync_shortcut_homework">Devoirs</string>
+    <string name="sync_shortcut_messages">Messages</string>
+</resources>

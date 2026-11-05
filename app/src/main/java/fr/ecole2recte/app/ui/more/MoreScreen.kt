@@ -104,6 +104,7 @@ fun MoreScreen(
                 }
             }
         }
+        item { NotificationsSection() }
         item {
             Text(
                 "ecole2recte ${BuildConfig.VERSION_NAME}",

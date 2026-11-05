@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -134,6 +135,20 @@ private fun MainContent(
     var showAccounts by rememberSaveable { mutableStateOf(false) }
     var agendaPage by rememberSaveable { mutableIntStateOf(AGENDA_SCHEDULE) }
     val scrollEvents = remember { MutableSharedFlow<String>(extraBufferCapacity = 1) }
+
+    // Raccourci, notification ou widget : ouvre l'onglet demandé, puis oublie la demande.
+    val container = rememberAppContainer()
+    val pendingTab by container.pendingTab.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingTab) {
+        val requested = pendingTab ?: return@LaunchedEffect
+        if (requested == "agenda_homework") {
+            agendaPage = AGENDA_HOMEWORK
+            navController.navigateToTab(AppTab.Agenda)
+        } else {
+            AppTab.entries.firstOrNull { it.route == requested }?.let(navController::navigateToTab)
+        }
+        container.pendingTab.value = null
+    }
 
     val repository = rememberSchoolRepository()
     val badgesViewModel = appViewModel { BadgesViewModel(repository) }

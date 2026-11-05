@@ -11,6 +11,8 @@ import fr.ecole2recte.app.data.SubjectColorStore
 import fr.ecole2recte.app.data.cache.FileResponseCache
 import fr.ecole2recte.app.data.cache.ResponseCache
 import fr.ecole2recte.app.settings.AppSettings
+import fr.ecole2recte.app.sync.SyncPreferences
+import kotlinx.coroutines.flow.MutableStateFlow
 import fr.ecole2recte.app.data.SecureCredentialStore
 import fr.ecole2recte.app.data.EcoleDirecteRepository
 import fr.ecole2recte.app.data.demo.DemoSchoolRepository
@@ -22,6 +24,10 @@ import fr.ecole2recte.app.session.ApiSession
 class AppContainer(context: Context) {
     val credentialStore: CredentialStore = SecureCredentialStore(context)
     val settings: AppSettings = AppSettings(context)
+    val syncPreferences = SyncPreferences(context)
+
+    /** Onglet demandé par un raccourci, une notification ou un widget ; consommé par l'écran principal. */
+    val pendingTab = MutableStateFlow<String?>(null)
 
     /** Les données du profil actif. */
     val apiSession = ApiSession()
