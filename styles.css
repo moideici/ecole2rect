@@ -11,3 +11,20 @@
 .focus-card h2{font-size:22px;letter-spacing:-.8px;max-width:230px}
 .view-dimmed{opacity:.45;transition:opacity .2s}
 .view-dimmed:hover{opacity:1}
+
+/* Personnalisation : la carte saisie, la place visée, et la sélection au clavier. */
+.dashboard-grid.editing .widget.dragging{opacity:.45}
+.dashboard-grid.editing .widget.drop-target{outline:2px solid var(--accent)}
+.dashboard-grid.editing .widget:focus-visible{outline:3px solid var(--accent)}
+.nav-link:focus-visible,.card-link:focus-visible,.day-title a:focus-visible,.brand:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.focus-action{display:block}
+
+/* Le formulaire de la maquette ne doit pas passer pour un vrai. */
+.demo-note{margin:-12px 0 22px;padding:10px 12px;border-radius:10px;background:#fff6e5;color:#8a5210;font-size:11px;line-height:1.5}
+
+/* La question de sécurité d'ÉcoleDirecte est un choix parmi des propositions, pas une saisie libre. */
+.security-choices{border:0;margin:0;padding:0;display:grid;gap:8px}
+.security-choices .security-question{padding:0;margin:0 0 11px}
+.setup-modal .choice{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:12px 13px;font-size:12px;font-weight:500;color:var(--ink);cursor:pointer}
+.setup-modal .choice input{width:auto;margin:0;accent-color:var(--accent)}
+.setup-modal .choice:has(input:checked){border-color:#959af1;background:#f5f6ff}
