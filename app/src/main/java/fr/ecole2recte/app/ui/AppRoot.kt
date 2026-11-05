@@ -4,7 +4,10 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import fr.ecole2recte.app.data.EcoleDirecteClient
 import fr.ecole2recte.app.session.AuthStatus
 import fr.ecole2recte.app.session.SessionViewModel
 import fr.ecole2recte.app.ui.accounts.AccountActions
@@ -17,7 +20,9 @@ import fr.ecole2recte.app.ui.navigation.MainScaffold
 fun AppRoot() {
     val session = appViewModel { SessionViewModel(
             it.credentialStore,
+            clientFactory = { EcoleDirecteClient(apiVersion = it.settings.apiVersion.value) },
             apiSession = it.apiSession,
+            tokenLog = it.tokenLog,
             onAccountRemoved = { id ->
                 it.responseCache.clear(id)
                 it.homeworkStatus.clear(id)
@@ -26,6 +31,8 @@ fun AppRoot() {
             },
         ) }
     val state by session.state.collectAsStateWithLifecycle()
+    // Le jeton renouvelé est gardé (chiffré) pour éviter une connexion au prochain lancement.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { session.saveSession() }
     Crossfade(targetState = state.status == AuthStatus.SignedOut || state.adding, animationSpec = tween(300), label = "root") { showLogin ->
     if (showLogin) {
         val other = state.accounts.firstOrNull { !it.isActive }

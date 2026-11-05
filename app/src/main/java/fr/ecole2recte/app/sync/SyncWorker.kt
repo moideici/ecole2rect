@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import fr.ecole2recte.app.Ecole2recteApplication
+import fr.ecole2recte.app.data.EcoleDirecteClient
 import fr.ecole2recte.app.widget.WidgetUpdater
 import java.util.concurrent.TimeUnit
 
@@ -29,8 +30,13 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             state = NotificationState(applicationContext),
             notifier = AndroidNotifier(applicationContext),
             widgets = WidgetUpdater(applicationContext),
+            clientFactory = { EcoleDirecteClient(apiVersion = container.settings.apiVersion.value) },
+            tokenLog = container.tokenLog,
         ).run()
-        if (outcome == SyncOutcome.Stopped || outcome == SyncOutcome.Disabled) SyncScheduler.cancel(applicationContext)
+        // Arrêtée (identifiants refusés, trop d'échecs, vérification à faire, version refusée) : plus aucun passage.
+        if (outcome == SyncOutcome.Stopped || outcome == SyncOutcome.Disabled || outcome == SyncOutcome.NeedsInteraction) {
+            SyncScheduler.cancel(applicationContext)
+        }
         return Result.success()
     }
 }
@@ -43,9 +49,16 @@ object SyncScheduler {
 
     /** Planifie un passage toutes les [hours] heures (2, 4 ou 8), avec du réseau. */
     fun schedule(context: Context, hours: Int = 4) {
-        val request = PeriodicWorkRequestBuilder<SyncWorker>(hours.coerceIn(2, 24).toLong(), TimeUnit.HOURS).setConstraints(network).build()
+        val request = PeriodicWorkRequestBuilder<SyncWorker>(hours.coerceIn(2, 24).toLong(), TimeUnit.HOURS)
+            .setConstraints(network)
+            // Gigue : tous les téléphones ne doivent pas interroger ÉcoleDirecte à la même minute.
+            .setInitialDelay(jitterMinutes(), TimeUnit.MINUTES)
+            .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
+
+    /** Délai aléatoire (1 à 10 minutes) avant le premier passage planifié. */
+    fun jitterMinutes(random: kotlin.random.Random = kotlin.random.Random.Default): Long = random.nextLong(1, 11)
 
     /** Un passage tout de suite : à l'activation, il fixe la référence « ce qui existe déjà ». */
     fun runNow(context: Context) {

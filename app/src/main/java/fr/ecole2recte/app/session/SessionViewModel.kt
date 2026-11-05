@@ -9,6 +9,10 @@ import fr.ecole2recte.app.data.BirthDate
 import fr.ecole2recte.app.data.CredentialStore
 import fr.ecole2recte.app.data.EcoleDirecteClient
 import fr.ecole2recte.app.data.EcoleDirecteException
+import fr.ecole2recte.app.data.InMemoryTokenLog
+import fr.ecole2recte.app.data.TokenLifetimeLog
+import fr.ecole2recte.app.data.TokenReplayPolicy
+import fr.ecole2recte.app.data.USER_AGENT
 import fr.ecole2recte.app.data.FailureKind
 import fr.ecole2recte.app.data.LoginResult
 import fr.ecole2recte.app.data.SavedLogin
@@ -78,6 +82,9 @@ class SessionViewModel(
     private val apiSession: ApiSession? = null,
     /** Appelé quand un compte est retiré : efface ses données enregistrées. */
     private val onAccountRemoved: (identifier: String) -> Unit = {},
+    /** Mesures de la durée de vie du jeton : décident si une session gardée est rejouée. */
+    private val tokenLog: TokenLifetimeLog = InMemoryTokenLog(),
+    private val now: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private class Pending(
         val client: AuthClient,
@@ -126,9 +133,15 @@ class SessionViewModel(
 
     // --- Reconnexion silencieuse -------------------------------------------------------------
 
-    private fun restore(saved: SavedLogin) {
+    private fun restore(saved: SavedLogin, allowReplay: Boolean = true) {
         restoreJob?.cancel()
         restoreJob = viewModelScope.launch {
+            // D'abord, la session gardée : si le jeton est encore plausible, aucune connexion du tout.
+            // Si ÉcoleDirecte le refuse, le premier appel de données rouvre la session (une fois).
+            if (allowReplay && replay(saved)) {
+                mutableState.update { build(AuthStatus.SignedIn, ConnectionStatus.Connected, adding = it.adding, login = it.login) }
+                return@launch
+            }
             var attempt = 0
             while (true) {
                 setConnection(ConnectionStatus.Connecting)
@@ -187,7 +200,7 @@ class SessionViewModel(
                             )
                             return@launch
                         }
-                        FailureKind.Other -> {
+                        FailureKind.Other, FailureKind.StaleVersion -> {
                             setConnection(ConnectionStatus.Offline, result.message)
                             apiSession?.fail(saved.identifier, result.message, result.kind)
                             return@launch
@@ -198,11 +211,30 @@ class SessionViewModel(
         }
     }
 
-    /** Relance à la main la reconnexion quand l'app est hors ligne. */
+    private fun replay(saved: SavedLogin): Boolean {
+        val stored = saved.session ?: return false
+        if (!TokenReplayPolicy.canReplay(stored, now(), tokenLog.load(), USER_AGENT)) return false
+        val client = clientFactory()
+        if (!client.restore(stored, onConfirmed = tokenLog::recordReplay)) return false
+        openApi(saved.identifier, client, stored.accounts)
+        return true
+    }
+
+    /**
+     * Garde la session en cours (jeton renouvelé, cookies) pour la rejouer au prochain lancement.
+     * Appelé quand l'application quitte le premier plan.
+     */
+    fun saveSession() {
+        val ready = apiSession?.state?.value as? ApiSessionState.Ready ?: return
+        val snapshot = ready.client.snapshot(ready.accounts) ?: return
+        store.update(ready.identifier) { it.copy(session = snapshot.newest(it.session)) }
+    }
+
+    /** Relance à la main la reconnexion quand l'app est hors ligne : une vraie connexion, jamais un rejeu. */
     fun retryConnection() {
         val current = mutableState.value
         if (current.status != AuthStatus.SignedIn || current.connection == ConnectionStatus.Connecting) return
-        store.active()?.let(::restore)
+        store.active()?.let { restore(it, allowReplay = false) }
     }
 
     // --- Comptes -----------------------------------------------------------------------------
@@ -414,6 +446,7 @@ class SessionViewModel(
                 birthDate = birthDate ?: sameAccount?.birthDate,
                 profile = profile,
                 activeStudentId = activeStudent,
+                session = client.snapshot(accounts),
             ),
             makeActive = makeActive,
         )

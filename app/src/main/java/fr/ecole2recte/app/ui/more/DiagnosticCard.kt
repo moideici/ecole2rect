@@ -13,6 +13,11 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.Row
+import fr.ecole2recte.app.data.TokenReplayPolicy
+import fr.ecole2recte.app.data.active
+import fr.ecole2recte.app.settings.DEFAULT_API_VERSION
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -81,6 +86,33 @@ fun DiagnosticCard(profile: ActiveProfile?) {
                     fontSize = 14.sp,
                     modifier = Modifier.fillMaxWidth().clickable { copy(context, report) }.padding(vertical = 8.dp),
                 )
+                var version by remember { mutableStateOf(container.settings.apiVersion.value) }
+                OutlinedTextField(
+                    value = version,
+                    onValueChange = { version = it.filter { c -> c.isDigit() || c == '.' }.take(12) },
+                    label = { Text("Version d'API envoyée à ÉcoleDirecte") },
+                    supportingText = { Text("À changer seulement si le service la refuse (code 517). Prise en compte à la prochaine connexion.") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Text(
+                        "Appliquer",
+                        color = AppTheme.colors.accent,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier.clickable { container.settings.setApiVersion(version) }.padding(vertical = 8.dp),
+                    )
+                    Text(
+                        "Rétablir $DEFAULT_API_VERSION",
+                        color = AppTheme.colors.muted,
+                        fontSize = 14.sp,
+                        modifier = Modifier.clickable {
+                            container.settings.setApiVersion(DEFAULT_API_VERSION)
+                            version = DEFAULT_API_VERSION
+                        }.padding(vertical = 8.dp),
+                    )
+                }
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     SelectionContainer {
                         Text(report, color = AppTheme.colors.ink, fontSize = 11.sp, fontFamily = FontFamily.Monospace, lineHeight = 15.sp)
@@ -95,7 +127,23 @@ fun DiagnosticCard(profile: ActiveProfile?) {
 private fun sessionLines(container: fr.ecole2recte.app.AppContainer, profile: ActiveProfile?): String = buildString {
     appendLine("ecole2recte ${fr.ecole2recte.app.BuildConfig.VERSION_NAME}")
     appendLine("version d'API : ${container.settings.apiVersion.value}")
+    val known = container.tokenLog.load()
+    appendLine("durée de vie du jeton, mesurée sur ce téléphone :")
+    appendLine("  expiré après une inactivité de : ${duration(known.expiredAfterIdleMs)}")
+    appendLine("  expiré à l'âge de : ${duration(known.expiredAfterAgeMs)}")
+    appendLine("  rejoué avec succès après : ${duration(known.replayedAfterIdleMs)}")
+    val window = TokenReplayPolicy.idleWindowMs(known)
+    appendLine("  fenêtre de rejeu au lancement : " + if (window == 0L) "aucune (le jeton expire en quelques minutes)" else duration(window))
+    val stored = container.credentialStore.active()?.session
+    appendLine("session gardée : " + if (stored == null) "non" else "oui, dernier appel réussi il y a ${duration(System.currentTimeMillis() - stored.lastOkAt)}")
     appendLine("profil : " + if (profile == null) "aucun" else if (profile.studentId != null) "compte famille (élève choisi)" else "compte élève")
+}
+
+private fun duration(ms: Long?): String = when {
+    ms == null -> "inconnu"
+    ms < 90_000 -> "${ms / 1000} s"
+    ms < 90 * 60_000 -> "${ms / 60_000} min"
+    else -> "%.1f h".format(java.util.Locale.FRANCE, ms / 3_600_000.0)
 }
 
 private fun copy(context: Context, text: String) {

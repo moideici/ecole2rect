@@ -17,6 +17,12 @@ interface SyncPrefs {
     /** Arrête la synchronisation et retient pourquoi. */
     fun disable(reason: String)
     fun recordSync(at: Long)
+
+    /** Compte un échec de plus et renvoie le nombre d'échecs de suite. */
+    fun recordFailure(): Int = 1
+
+    /** Une synchronisation a réussi : on repart de zéro. */
+    fun resetFailures() {}
 }
 
 /** Réglages de la synchronisation en arrière-plan, observables par l'écran. Désactivée par défaut. */
@@ -69,7 +75,7 @@ class SyncPreferences(context: Context) : SyncPrefs {
 
     fun setEnabled(value: Boolean) {
         val editor = preferences.edit().putBoolean("enabled", value)
-        if (value) editor.remove("reason")
+        if (value) editor.remove("reason").putInt("failures", 0)
         editor.apply()
         mutableEnabled.value = value
         if (value) mutableReason.value = null
@@ -84,6 +90,18 @@ class SyncPreferences(context: Context) : SyncPrefs {
     override fun recordSync(at: Long) {
         preferences.edit().putLong("last_sync", at).apply()
         mutableLastSync.value = at
+    }
+
+    @Synchronized
+    override fun recordFailure(): Int {
+        val count = preferences.getInt("failures", 0) + 1
+        preferences.edit().putInt("failures", count).apply()
+        return count
+    }
+
+    @Synchronized
+    override fun resetFailures() {
+        if (preferences.getInt("failures", 0) != 0) preferences.edit().putInt("failures", 0).apply()
     }
 }
 

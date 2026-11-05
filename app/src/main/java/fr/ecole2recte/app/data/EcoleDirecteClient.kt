@@ -13,6 +13,15 @@ interface AuthClient {
     val approvedAnswer: TrustedAnswer?
     fun login(identifier: String, password: String, trustedAnswer: TrustedAnswer?): LoginResult
     fun completeSecurityQuestion(choice: String, identifier: String, password: String): LoginResult
+
+    /** La session ouverte, à garder pour la rejouer plus tard ; null si rien à garder. */
+    fun snapshot(accounts: List<Account>): SavedSession? = null
+
+    /**
+     * Rejoue une session gardée sans se connecter. [onConfirmed] reçoit l'inactivité (en ms) quand
+     * le premier appel réussit avec ce jeton. Faux si cette session ne peut pas être rejouée.
+     */
+    fun restore(session: SavedSession, onConfirmed: (idleMs: Long) -> Unit = {}): Boolean = false
 }
 
 /**
@@ -36,6 +45,57 @@ class EcoleDirecteClient(
     /** Au plus deux appels de données simultanés : courtoisie envers le serveur, pas de rafale. */
     private val dataGate = java.util.concurrent.Semaphore(MAX_PARALLEL_CALLS)
 
+    /** Quand le jeton actuel a été obtenu par une connexion (0 : pas encore connecté). */
+    @Volatile var issuedAt: Long = 0
+        private set
+
+    /** Dernière réponse correcte avec ce jeton (0 : aucune). */
+    @Volatile var lastOkAt: Long = 0
+        private set
+    private var replayIdleMs: Long? = null
+    private var onReplayConfirmed: (Long) -> Unit = {}
+
+    private fun markOk() {
+        val confirmed: Long?
+        synchronized(this) {
+            lastOkAt = System.currentTimeMillis()
+            confirmed = replayIdleMs
+            replayIdleMs = null
+        }
+        confirmed?.let(onReplayConfirmed)
+    }
+
+    override fun snapshot(accounts: List<Account>): SavedSession? {
+        val current = token?.takeIf { it.isNotBlank() } ?: return null
+        if (accounts.isEmpty() || issuedAt == 0L) return null
+        return SavedSession(
+            token = current,
+            cookies = synchronized(cookies) { LinkedHashMap(cookies) },
+            gtk = currentGtk,
+            userAgent = USER_AGENT,
+            issuedAt = issuedAt,
+            lastOkAt = lastOkAt.takeIf { it > 0 } ?: issuedAt,
+            accounts = accounts,
+        )
+    }
+
+    override fun restore(session: SavedSession, onConfirmed: (Long) -> Unit): Boolean {
+        if (session.token.isBlank() || session.userAgent != USER_AGENT) return false
+        synchronized(cookies) {
+            cookies.clear()
+            cookies.putAll(session.cookies)
+        }
+        currentGtk = session.gtk
+        token = session.token
+        issuedAt = session.issuedAt
+        synchronized(this) {
+            lastOkAt = session.lastOkAt
+            replayIdleMs = (System.currentTimeMillis() - session.lastOkAt).coerceAtLeast(0)
+            onReplayConfirmed = onConfirmed
+        }
+        return true
+    }
+
     override fun login(identifier: String, password: String, trustedAnswer: TrustedAnswer?): LoginResult {
         val payload = JSONObject()
             .put("identifiant", identifier)
@@ -48,6 +108,11 @@ class EcoleDirecteClient(
         return when (response.body.optInt("code")) {
             ApiCode.OK -> {
                 token = response.body.optString("token").takeIf { it.isNotBlank() } ?: response.headers["x-token"]
+                issuedAt = System.currentTimeMillis()
+                synchronized(this) {
+                    lastOkAt = issuedAt
+                    replayIdleMs = null
+                }
                 LoginResult.Success(extractAccounts(response.body))
             }
 
@@ -82,6 +147,11 @@ class EcoleDirecteClient(
                 "Compte bloqué.",
                 response.diagnostic(),
                 FailureKind.Blocked,
+            )
+            ApiCode.STALE_VERSION -> LoginResult.Failure(
+                "ÉcoleDirecte n'accepte plus la version d'API utilisée (517). Une mise à jour de l'application est nécessaire.",
+                response.diagnostic(),
+                FailureKind.StaleVersion,
             )
             else -> LoginResult.Failure(
                 response.body.optString("message").ifBlank { "Connexion impossible." },
@@ -199,7 +269,10 @@ class EcoleDirecteClient(
         val response = post(path, verb, body, dataHeaders(), query = query)
         val code = response.body.optInt("code", 0)
         return when (code) {
-            ApiCode.OK -> ApiReply(response.body.opt("data"))
+            ApiCode.OK -> {
+                markOk()
+                ApiReply(response.body.opt("data"))
+            }
             ApiCode.TOKEN_INVALID, ApiCode.TOKEN_EXPIRED_ALT, ApiCode.TOKEN_EXPIRED ->
                 throw SessionExpiredException()
             ApiCode.ACCESS_DENIED -> throw EcoleDirecteException(
@@ -207,8 +280,8 @@ class EcoleDirecteClient(
                 kind = FailureKind.Other,
             )
             ApiCode.STALE_VERSION -> throw EcoleDirecteException(
-                "La version d'API utilisée n'est plus acceptée par ÉcoleDirecte.",
-                kind = FailureKind.Service,
+                "La version d'API utilisée n'est plus acceptée par ÉcoleDirecte (517).",
+                kind = FailureKind.StaleVersion,
             )
             ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> throw EcoleDirecteException(
                 "ÉcoleDirecte est momentanément indisponible pour ce compte.",
@@ -306,11 +379,7 @@ class EcoleDirecteClient(
             connectTimeout = 30_000
             readTimeout = 30_000
             // Match the browser-like fingerprint required by the current API/WAF.
-            setRequestProperty(
-                "User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                    "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-            )
+            setRequestProperty("User-Agent", USER_AGENT)
             setRequestProperty("Accept", "application/json, text/plain, */*")
             setRequestProperty("Origin", "https://www.ecoledirecte.com")
             setRequestProperty("Referer", "https://www.ecoledirecte.com/")
@@ -430,6 +499,9 @@ enum class FailureKind {
     /** Réponse à la question de sécurité refusée : ne jamais réessayer la même. */
     SecurityRefused,
 
+    /** Version d'API refusée (code 517) : réessayer ne sert à rien tant que l'application n'est pas mise à jour. */
+    StaleVersion,
+
     Other,
 }
 
@@ -503,6 +575,10 @@ private fun requestSummary(payload: JSONObject, headers: Map<String, String>, en
 }
 
 private const val MAX_PARALLEL_CALLS = 2
+
+/** Une seule empreinte réseau, jamais aléatoire : une session gardée n'est rejouée qu'avec la même. */
+internal const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
 
 private val cookieAttributes = setOf(
     "path", "domain", "expires", "max-age", "samesite", "version", "comment",

@@ -4,6 +4,7 @@ import fr.ecole2recte.app.data.Account
 import fr.ecole2recte.app.data.EcoleDirecteClient
 import fr.ecole2recte.app.data.EcoleDirecteException
 import fr.ecole2recte.app.data.FailureKind
+import fr.ecole2recte.app.data.TokenLifetimeLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +31,8 @@ class ApiSession(
     private val now: () -> Long = System::currentTimeMillis,
     private val minReauthIntervalMs: Long = 60_000,
     private val awaitTimeoutMs: Long = 60_000,
+    /** Retient depuis combien de temps un jeton a été trouvé expiré : sert à décider de rejouer ou non. */
+    private val tokenLog: TokenLifetimeLog? = null,
 ) {
     private val mutableState = MutableStateFlow<ApiSessionState>(ApiSessionState.Closed)
     val state: StateFlow<ApiSessionState> = mutableState.asStateFlow()
@@ -75,6 +78,15 @@ class ApiSession(
             ApiSessionState.Closed -> throw EcoleDirecteException("Aucun compte connecté.")
             else -> throw EcoleDirecteException("La connexion à ÉcoleDirecte prend trop de temps.", kind = FailureKind.Network)
         }
+    }
+
+    /** Un appel a trouvé le jeton expiré : on retient son âge, sans aucune donnée personnelle. */
+    fun noteExpired() {
+        val ready = state.value as? ApiSessionState.Ready ?: return
+        val current = now()
+        val lastOk = ready.client.lastOkAt.takeIf { it > 0 } ?: ready.client.issuedAt
+        if (lastOk <= 0 || ready.client.issuedAt <= 0) return
+        tokenLog?.recordExpiry(idleMs = (current - lastOk).coerceAtLeast(0), ageMs = (current - ready.client.issuedAt).coerceAtLeast(0))
     }
 
     /**

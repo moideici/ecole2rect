@@ -128,6 +128,7 @@ class EcoleDirecteRepository(
             try {
                 return withContext(ioDispatcher) { block(EcoleDirecteApi(ready.client), target) }
             } catch (expired: SessionExpiredException) {
+                session.noteExpired()
                 if (reopened || !session.reauthenticate()) throw EcoleDirecteException(
                     "La session ÉcoleDirecte a expiré. Réessaie dans un instant.",
                     expired,

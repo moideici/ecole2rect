@@ -7,6 +7,8 @@ import fr.ecole2recte.app.data.CredentialStore
 import fr.ecole2recte.app.data.HomeworkStatusStore
 import fr.ecole2recte.app.data.PrefsHomeworkStatusStore
 import fr.ecole2recte.app.data.PrefsTextStorage
+import fr.ecole2recte.app.data.PrefsTokenLog
+import fr.ecole2recte.app.data.TokenLifetimeLog
 import fr.ecole2recte.app.data.ProfileRepositories
 import fr.ecole2recte.app.data.SubjectColorStore
 import fr.ecole2recte.app.data.cache.FileResponseCache
@@ -30,8 +32,11 @@ class AppContainer(context: Context) {
     /** Onglet demandé par un raccourci, une notification ou un widget ; consommé par l'écran principal. */
     val pendingTab = MutableStateFlow<String?>(null)
 
+    /** Durées de vie du jeton mesurées sur ce téléphone. */
+    val tokenLog: TokenLifetimeLog = PrefsTokenLog(context)
+
     /** Les données du profil actif. */
-    val apiSession = ApiSession()
+    val apiSession = ApiSession(tokenLog = tokenLog)
     val subjectColors = SubjectColorStore(PrefsTextStorage(context, "ecole2recte_colors", "overrides"))
     val homeworkStatus: HomeworkStatusStore = PrefsHomeworkStatusStore(context)
     val responseCache: ResponseCache = FileResponseCache(File(context.filesDir, "cache"))

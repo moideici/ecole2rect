@@ -32,6 +32,8 @@ data class SavedLogin(
     val profile: AccountProfile? = null,
     /** Élève affiché pour un compte famille. */
     val activeStudentId: String? = null,
+    /** Session rejouable au prochain lancement (voir [TokenReplayPolicy]). */
+    val session: SavedSession? = null,
 )
 
 /** Stockage des comptes enregistrés sur l'appareil. Abstrait pour pouvoir être remplacé dans les tests. */
@@ -44,6 +46,11 @@ interface CredentialStore {
     fun setActive(identifier: String)
     fun remove(identifier: String)
     fun clear()
+
+    /** Modifie un compte existant sans changer le compte actif ; sans effet s'il n'existe plus. */
+    fun update(identifier: String, transform: (SavedLogin) -> SavedLogin) {
+        find(identifier)?.let { save(transform(it), makeActive = false) }
+    }
 }
 
 fun CredentialStore.find(identifier: String): SavedLogin? =
@@ -140,6 +147,7 @@ class SecureCredentialStore(context: Context) : CredentialStore {
             )
         }
         activeStudentId?.let { json.put("activeStudentId", it) }
+        session?.let { json.put("session", it.toJson()) }
         return json
     }
 
@@ -162,6 +170,7 @@ class SecureCredentialStore(context: Context) : CredentialStore {
             )
         },
         activeStudentId = optString("activeStudentId").takeIf { it.isNotBlank() },
+        session = optJSONObject("session")?.toSavedSession(),
     )
 
     private fun secretKey(): SecretKey {
