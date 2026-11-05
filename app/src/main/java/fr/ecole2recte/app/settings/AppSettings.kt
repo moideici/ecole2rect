@@ -40,6 +40,18 @@ class AppSettings(context: Context) {
         mutableAppLock.value = enabled
     }
 
+    /**
+     * Masque l'aperçu de l'application dans la liste des applications récentes (et bloque les
+     * captures d'écran) quand le verrou est actif. Éteint par défaut : il empêche aussi les captures.
+     */
+    private val mutableHidePreview = MutableStateFlow(preferences.getBoolean("hide_preview", false))
+    val hidePreview: StateFlow<Boolean> = mutableHidePreview.asStateFlow()
+
+    fun setHidePreview(enabled: Boolean) {
+        preferences.edit().putBoolean("hide_preview", enabled).apply()
+        mutableHidePreview.value = enabled
+    }
+
     /** Version de l'API envoyée à ÉcoleDirecte ; modifiable si le service refuse l'ancienne (code 517). */
     private val mutableApiVersion = MutableStateFlow(preferences.getString("api_version", null)?.takeIf { it.isNotBlank() } ?: DEFAULT_API_VERSION)
     val apiVersion: StateFlow<String> = mutableApiVersion.asStateFlow()
@@ -58,3 +70,6 @@ class AppSettings(context: Context) {
         mutableHomeLayout.value = layout
     }
 }
+
+/** L'aperçu n'est masqué que si le verrou est actif ET que l'option est cochée. */
+fun shouldSecureWindow(lockEnabled: Boolean, hidePreview: Boolean): Boolean = lockEnabled && hidePreview

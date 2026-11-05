@@ -103,6 +103,7 @@ class SessionViewModel(
         build(
             status = if (store.active() != null) AuthStatus.SignedIn else AuthStatus.SignedOut,
             connection = if (store.active() != null) ConnectionStatus.Connecting else ConnectionStatus.Connected,
+            login = if (store.isUnreadable()) LoginUiState(error = LoginError(UNREADABLE_MESSAGE, FailureKind.Other)) else LoginUiState(),
         ),
     )
     val state: StateFlow<SessionState> = mutableState.asStateFlow()
@@ -504,6 +505,9 @@ class SessionViewModel(
     }
 
     private companion object {
+        const val UNREADABLE_MESSAGE =
+            "Les comptes enregistrés sur ce téléphone sont illisibles (la clé de sécurité de l'appareil a changé). " +
+                "Reconnecte-toi : rien n'a été effacé tant que tu ne l'as pas fait."
         const val DEFAULT_QUESTION = "Réponds à la question demandée par ÉcoleDirecte."
         const val NETWORK_MESSAGE = "Pas de connexion à ÉcoleDirecte. Vérifie ton réseau puis réessaie."
     }

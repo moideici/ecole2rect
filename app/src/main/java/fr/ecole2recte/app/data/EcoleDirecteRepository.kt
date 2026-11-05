@@ -17,7 +17,9 @@ import fr.ecole2recte.app.domain.ChildSummary
 import fr.ecole2recte.app.domain.SchoolLifeEvent
 import fr.ecole2recte.app.domain.SchoolLifeKind
 import fr.ecole2recte.app.domain.SchoolLifeSummary
+import fr.ecole2recte.app.data.api.ParseReport
 import fr.ecole2recte.app.domain.Freshness
+import fr.ecole2recte.app.domain.StaleCause
 import fr.ecole2recte.app.domain.GradeEntry
 import fr.ecole2recte.app.domain.GradeMath
 import fr.ecole2recte.app.domain.GradeOverview
@@ -49,6 +51,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONException
+import org.json.JSONObject
 import org.json.JSONTokener
 import java.time.Clock
 import java.time.DayOfWeek
@@ -88,7 +92,7 @@ class EcoleDirecteRepository(
     private val french = Locale.FRENCH
 
     private val owner = CacheOwner(profile.identifier, profile.studentId)
-    private val staleResources = HashMap<String, Long>()
+    private val staleResources = HashMap<String, Pair<Long, StaleCause>>()
     private var lastFetchAt: Long? = null
     private val mutableFreshness = MutableStateFlow(Freshness())
     override val freshness: StateFlow<Freshness> = mutableFreshness.asStateFlow()
@@ -146,18 +150,52 @@ class EcoleDirecteRepository(
     private suspend fun <T> resource(
         name: String,
         fetch: (EcoleDirecteApi, Target) -> String,
-        parse: (Any?) -> T,
+        parse: (Any?, ParseReport) -> T,
     ): T = memo(name) {
         try {
             val raw = withApi(fetch)
+            val report = ParseReport()
+            val value = readJson(raw)
+            val parsed = parse(value, report)
+            if (value == null || parsed == null || (isEmptyResult(parsed) && report.rejected > 0)) {
+                // Réponse vide ou illisible : si on a mieux en réserve, on le garde (et on le dit).
+                val stored = responseCache.get(owner, name)
+                if (stored != null) throw UnusableResponseException("ÉcoleDirecte a répondu sans contenu exploitable.")
+                if (parsed == null) throw UnusableResponseException("ÉcoleDirecte a répondu sans contenu exploitable.")
+                markFresh(name)
+                return@memo parsed
+            }
             responseCache.put(owner, name, raw, clock.millis())
             markFresh(name)
-            parse(JSONTokener(raw).nextValue())
+            parsed
         } catch (error: EcoleDirecteException) {
             val stored = responseCache.get(owner, name) ?: throw error
-            markStale(name, stored.at)
-            parse(JSONTokener(stored.json).nextValue())
+            markStale(name, stored.at, causeOf(error))
+            parse(readJson(stored.json), ParseReport())
         }
+    }
+
+    /** La réponse brute en JSON, ou null si elle est vide, absente (`null`) ou illisible. */
+    private fun readJson(raw: String): Any? = try {
+        JSONTokener(raw).nextValue().takeIf { it != JSONObject.NULL }
+    } catch (error: JSONException) {
+        null
+    }
+
+    private fun isEmptyResult(parsed: Any?): Boolean = when (parsed) {
+        is Collection<*> -> parsed.isEmpty()
+        is ApiGrades -> parsed.periods.isEmpty() && parsed.grades.isEmpty() && parsed.subjectAverages.isEmpty()
+        else -> false
+    }
+
+    private fun causeOf(error: EcoleDirecteException): StaleCause = when {
+        error is UnusableResponseException -> StaleCause.Unusable
+        error.kind == FailureKind.Network -> StaleCause.Network
+        error.kind == FailureKind.Blocked -> StaleCause.Blocked
+        error.kind == FailureKind.StaleVersion -> StaleCause.StaleVersion
+        error.kind == FailureKind.Service && error.cause is SessionExpiredException -> StaleCause.Expired
+        error.kind == FailureKind.Service -> StaleCause.Service
+        else -> StaleCause.Other
     }
 
     private fun markFresh(name: String) {
@@ -168,9 +206,9 @@ class EcoleDirecteRepository(
         }
     }
 
-    private fun markStale(name: String, at: Long) {
+    private fun markStale(name: String, at: Long, cause: StaleCause) {
         synchronized(staleResources) {
-            staleResources[name] = at
+            staleResources[name] = at to cause
             publishFreshness()
         }
     }
@@ -178,7 +216,7 @@ class EcoleDirecteRepository(
     private fun publishFreshness() {
         mutableFreshness.value =
             if (staleResources.isEmpty()) Freshness(lastFetchAt, stale = false)
-            else Freshness(staleResources.values.min(), stale = true)
+            else staleResources.values.minBy { it.first }.let { (at, cause) -> Freshness(at, stale = true, cause = cause) }
     }
 
     private suspend fun lessons(): List<ApiLesson> = resource(
@@ -187,12 +225,12 @@ class EcoleDirecteRepository(
             val monday = today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             api.timetable(target.studentId, monday, monday.plusDays(13))
         },
-        parse = Parsers::timetable,
+        parse = { data, report -> Parsers.timetable(data, report) },
     )
 
     /** Le cahier de textes, avec les cases cochées sur l'appareil qui l'emportent sur celles du serveur. */
     private suspend fun homeworkItems(): List<ApiHomework> {
-        val items = resource("homework", { api, target -> api.homework(target.studentId) }, Parsers::homeworkSummary)
+        val items = resource("homework", { api, target -> api.homework(target.studentId) }, { data, report -> Parsers.homeworkSummary(data, report) })
         val overrides = homeworkStatus.overrides(owner)
         return if (overrides.isEmpty()) items else items.map { it.copy(done = overrides[it.id] ?: it.done) }
     }
@@ -200,16 +238,16 @@ class EcoleDirecteRepository(
     private suspend fun dayContent(date: String): ApiDay = resource(
         "day-$date",
         { api, target -> api.dayContent(target.studentId, date) },
-        { Parsers.dayContent(it, date) },
+        { data, _ -> Parsers.dayContent(data, date) },
     )
 
     private suspend fun gradesPayload(): ApiGrades =
-        resource("grades", { api, target -> api.grades(target.studentId) }, Parsers::grades)
+        resource("grades", { api, target -> api.grades(target.studentId) }, { data, report -> Parsers.grades(data, report) })
 
     private suspend fun inbox(page: Int = 0): List<ApiMessage> = resource(
         if (page == 0) "messages" else "messages-$page",
         { api, target -> api.messages(target.mailboxSegment, target.mailboxId, page, MESSAGES_PER_PAGE) },
-        Parsers::messages,
+        { data, report -> Parsers.messages(data, report) },
     )
 
     private fun today(): LocalDate = LocalDate.now(clock)
@@ -316,7 +354,7 @@ class EcoleDirecteRepository(
         val detail = resource(
             "message-$id",
             { api, target -> api.messageDetail(target.mailboxSegment, target.mailboxId, id) },
-            Parsers::messageDetail,
+            { data, _ -> Parsers.messageDetail(data) },
         ) ?: throw EcoleDirecteException("Ce message est illisible pour le moment.")
         return MessageDetail(
             subject = detail.subject,
@@ -338,7 +376,7 @@ class EcoleDirecteRepository(
     }
 
     override suspend fun schoolLife(): SchoolLifeSummary {
-        val events = resource("schoollife", { api, target -> api.schoolLife(target.studentId) }, Parsers::schoolLife)
+        val events = resource("schoollife", { api, target -> api.schoolLife(target.studentId) }, { data, report -> Parsers.schoolLife(data, report) })
         val kinds = mapOf(
             "absence" to SchoolLifeKind.Absence,
             "retard" to SchoolLifeKind.Late,

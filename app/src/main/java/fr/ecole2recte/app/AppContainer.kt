@@ -6,6 +6,7 @@ import java.io.File
 import fr.ecole2recte.app.data.CredentialStore
 import fr.ecole2recte.app.data.HomeworkStatusStore
 import fr.ecole2recte.app.data.PrefsHomeworkStatusStore
+import fr.ecole2recte.app.data.KeystoreCipher
 import fr.ecole2recte.app.data.PrefsTextStorage
 import fr.ecole2recte.app.data.PrefsTokenLog
 import fr.ecole2recte.app.data.TokenLifetimeLog
@@ -39,7 +40,7 @@ class AppContainer(context: Context) {
     val apiSession = ApiSession(tokenLog = tokenLog)
     val subjectColors = SubjectColorStore(PrefsTextStorage(context, "ecole2recte_colors", "overrides"))
     val homeworkStatus: HomeworkStatusStore = PrefsHomeworkStatusStore(context)
-    val responseCache: ResponseCache = FileResponseCache(File(context.filesDir, "cache"))
+    val responseCache: ResponseCache = FileResponseCache(File(context.filesDir, "cache"), KeystoreCipher())
 
     /** Un seul dépôt par profil, partagé par tous les écrans. */
     private val repositories = ProfileRepositories { profile ->

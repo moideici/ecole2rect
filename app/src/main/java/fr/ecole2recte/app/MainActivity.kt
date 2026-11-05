@@ -7,7 +7,13 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import android.view.WindowManager
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
+import fr.ecole2recte.app.settings.shouldSecureWindow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.security.AppLock
 import fr.ecole2recte.app.sync.AndroidNotifier
@@ -36,6 +42,13 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         val settings = (application as Ecole2recteApplication).container.settings
         publishRequestedTab(intent)
+        // Aperçu masqué dans les applications récentes quand le verrou est actif et l'option cochée.
+        lifecycleScope.launch {
+            combine(settings.appLock, settings.hidePreview, ::shouldSecureWindow).distinctUntilChanged().collect { secure ->
+                if (secure) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        }
         // Au démarrage à froid, le verrou est toujours demandé.
         locked = settings.appLock.value
         setContent {

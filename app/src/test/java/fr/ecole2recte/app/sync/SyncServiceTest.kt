@@ -31,6 +31,14 @@ import java.util.Base64
 
 private class MemoryStore(vararg initial: SavedLogin) : CredentialStore {
     val logins = initial.toMutableList()
+
+    /** Simule l'application qui modifie le compte pendant que la synchro travaille. */
+    var beforeUpdate: (() -> Unit)? = null
+
+    override fun update(identifier: String, transform: (SavedLogin) -> SavedLogin) {
+        beforeUpdate?.invoke()
+        super.update(identifier, transform)
+    }
     override fun readAll() = logins.toList()
     override fun activeIdentifier() = logins.firstOrNull()?.identifier
     override fun save(login: SavedLogin, makeActive: Boolean) {
@@ -328,6 +336,24 @@ class SyncServiceTest {
         assertEquals(SyncOutcome.Stopped, service(store, prefs, MemoryState(), Recorder()).run())
         assertFalse(prefs.enabled)
         assertEquals(2, paths.count { it.endsWith("/login.awp") })
+    }
+
+    @Test
+    fun `la synchro ne met a jour que la reponse de confiance, jamais le reste du compte`() = runTest {
+        loginBodies += """{"code":250}"""
+        loginBodies += accountBody
+        challenge = """{"code":200,"data":{"question":"${b64("Quel est ton mois de naissance ?")}","propositions":["${b64("Janvier")}","${b64("Février")}"]}}"""
+        val store = MemoryStore(saved.copy(birthDate = BirthDate("12", "2", "2008")))
+        // Pendant la synchro, l'utilisateur change d'élève et de mot de passe dans l'application.
+        store.beforeUpdate = {
+            store.logins[0] = store.logins[0].copy(activeStudentId = "20", password = "nouveau")
+            store.beforeUpdate = null
+        }
+        assertEquals(SyncOutcome.Done, service(store, MemoryPrefs(), MemoryState(), Recorder()).run())
+        val kept = store.logins.single()
+        assertEquals(TrustedAnswer("nouveau", "nouveau"), kept.trustedAnswer)
+        assertEquals("20", kept.activeStudentId)
+        assertEquals("nouveau", kept.password)
     }
 
     @Test

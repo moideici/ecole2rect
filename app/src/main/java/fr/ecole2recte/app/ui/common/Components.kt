@@ -43,18 +43,27 @@ import fr.ecole2recte.app.ui.theme.subjectColor
 
 /** Bandeau affiché quand l'écran montre la dernière réponse enregistrée faute de réseau. */
 @Composable
-fun StaleDataBar(lastSyncMillis: Long?) {
+fun StaleDataBar(lastSyncMillis: Long?, cause: fr.ecole2recte.app.domain.StaleCause? = null) {
     val label = lastSyncMillis?.let {
         val moment = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault())
         moment.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM 'à' HH:mm", java.util.Locale.FRENCH))
     }
     Text(
-        if (label != null) "Hors ligne · données enregistrées $label" else "Hors ligne · données enregistrées",
+        staleText(label, cause),
         modifier = Modifier.fillMaxWidth().background(AppTheme.colors.warningSurface).padding(horizontal = 18.dp, vertical = 8.dp),
         color = AppTheme.colors.warningTitle,
         fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
     )
+}
+
+/** « Hors ligne » seulement si c'est vraiment le réseau ; sinon la vraie cause (compte bloqué, version refusée…). */
+internal fun staleText(dateLabel: String?, cause: fr.ecole2recte.app.domain.StaleCause?): String {
+    val saved = if (dateLabel != null) "données enregistrées $dateLabel" else "données enregistrées"
+    return when (cause) {
+        null, fr.ecole2recte.app.domain.StaleCause.Network -> "Hors ligne · $saved"
+        else -> "${cause.label.replaceFirstChar { it.uppercase() }} · $saved"
+    }
 }
 
 /** Bandeau discret affiché quand la reconnexion à ÉcoleDirecte a échoué. */

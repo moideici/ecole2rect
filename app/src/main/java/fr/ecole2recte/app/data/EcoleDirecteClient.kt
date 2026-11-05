@@ -532,11 +532,14 @@ class ApiReply(val data: Any?)
 /** Le jeton a expiré : il faut rouvrir la session une fois, puis rejouer l'appel. */
 class SessionExpiredException : RuntimeException("La session ÉcoleDirecte a expiré.")
 
-class EcoleDirecteException(
+open class EcoleDirecteException(
     message: String,
     cause: Throwable? = null,
     val kind: FailureKind = FailureKind.Other,
 ) : RuntimeException(message, cause)
+
+/** ÉcoleDirecte a répondu, mais la réponse est vide ou illisible : on ne la garde pas à la place d'une bonne. */
+class UnusableResponseException(message: String) : EcoleDirecteException(message, kind = FailureKind.Other)
 
 private fun redactSecrets(value: String): String =
     value.replace(Regex("(?i)(motdepasse|password|token|x-token|2fa-token|cookie|set-cookie)\"?\\s*[:=]\\s*\"?[^\",}\\s]+"), "$1=<masqué>")

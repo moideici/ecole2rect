@@ -27,6 +27,8 @@ import org.junit.Test
 
 private class ReplayStore(vararg initial: SavedLogin) : CredentialStore {
     val logins = initial.toMutableList()
+    var unreadable = false
+    override fun isUnreadable() = unreadable
     override fun readAll() = logins.toList()
     override fun activeIdentifier() = logins.firstOrNull()?.identifier
     override fun save(login: SavedLogin, makeActive: Boolean) {
@@ -141,6 +143,16 @@ class SessionReplayViewModelTest {
         vm.retryConnection()
         advanceUntilIdle()
         assertEquals(2, paths.count { it.endsWith("/login.awp") })
+    }
+
+    @Test
+    fun `des comptes illisibles affichent la connexion avec une explication, sans rien effacer`() = runTest(dispatcher) {
+        val store = ReplayStore().also { it.unreadable = true }
+        val vm = viewModel(store, ApiSession())
+        advanceUntilIdle()
+        assertEquals(AuthStatus.SignedOut, vm.state.value.status)
+        assertTrue(vm.state.value.login.error!!.message.contains("illisibles"))
+        assertEquals(emptyList<String>(), paths)
     }
 
     @Test

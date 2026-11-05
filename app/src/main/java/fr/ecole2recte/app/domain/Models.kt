@@ -123,7 +123,18 @@ data class MessageDetail(
  * Ce que l'on sait de l'âge des données affichées. [stale] est vrai quand le réseau a échoué
  * et que l'écran montre la dernière réponse enregistrée, datée de [lastSyncMillis].
  */
-data class Freshness(val lastSyncMillis: Long? = null, val stale: Boolean = false)
+data class Freshness(val lastSyncMillis: Long? = null, val stale: Boolean = false, val cause: StaleCause? = null)
+
+/** Pourquoi l'écran montre une réponse enregistrée plutôt qu'une réponse toute fraîche. */
+enum class StaleCause(val label: String) {
+    Network("pas de réseau"),
+    Service("ÉcoleDirecte ne répond pas"),
+    Expired("la session a expiré"),
+    Blocked("compte bloqué par ÉcoleDirecte"),
+    StaleVersion("version d'API refusée (517)"),
+    Unusable("réponse d'ÉcoleDirecte inexploitable"),
+    Other("lecture impossible"),
+}
 
 /** Un enfant d'un compte famille, résumé pour la vue d'ensemble de l'accueil. */
 data class ChildSummary(

@@ -193,7 +193,7 @@ private fun MainContent(
                 if (connection == ConnectionStatus.Offline) {
                     ConnectionBanner(connectionMessage, onRetryConnection)
                 }
-                if (freshness.stale) StaleDataBar(freshness.lastSyncMillis)
+                if (freshness.stale) StaleDataBar(freshness.lastSyncMillis, freshness.cause)
                 Box(Modifier.fillMaxSize()) {
                     Surface(modifier = Modifier.fillMaxSize(), color = AppTheme.colors.background) {
                         NavHost(

@@ -89,6 +89,7 @@ fun SecurityAndMotionCard() {
     val context = LocalContext.current
     val lockEnabled by settings.appLock.collectAsStateWithLifecycle()
     val reduceMotion by settings.reduceMotion.collectAsStateWithLifecycle()
+    val hidePreview by settings.hidePreview.collectAsStateWithLifecycle()
     var message by remember { mutableStateOf<String?>(null) }
     ListCard {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -107,6 +108,21 @@ fun SecurityAndMotionCard() {
                 Switch(checked = lockEnabled, onCheckedChange = { toggleLock(context, lockEnabled, settings::setAppLock) { text -> message = text } })
             }
             message?.let { Text(it, color = AppTheme.colors.error, fontSize = 13.sp) }
+            Row(
+                Modifier.fillMaxWidth().clickable(enabled = lockEnabled) { settings.setHidePreview(!hidePreview) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Masquer l'aperçu", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (lockEnabled) "Cache l'application dans la liste des applications récentes. Bloque aussi les captures d'écran."
+                        else "Disponible quand le verrouillage est activé.",
+                        color = AppTheme.colors.muted,
+                        fontSize = 13.sp,
+                    )
+                }
+                Switch(checked = hidePreview, enabled = lockEnabled, onCheckedChange = { settings.setHidePreview(it) })
+            }
             Row(Modifier.fillMaxWidth().clickable { settings.setReduceMotion(!reduceMotion) }, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Réduire les animations", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
