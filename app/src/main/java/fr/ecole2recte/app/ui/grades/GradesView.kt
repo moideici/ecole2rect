@@ -50,6 +50,7 @@ import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.PageHeader
 import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
 import fr.ecole2recte.app.ui.common.SubjectBadge
+import fr.ecole2recte.app.ui.common.RefreshOnResume
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.entrance
@@ -67,6 +68,7 @@ fun GradesRoute() {
     val viewModel = appViewModel { GradesViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    RefreshOnResume(viewModel)
     StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { grades ->
         GradesContent(grades)
     }

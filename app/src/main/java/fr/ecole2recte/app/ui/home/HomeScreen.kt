@@ -56,6 +56,7 @@ import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.rememberAnimatedDecimal
 import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
 import fr.ecole2recte.app.ui.common.SectionTitle
+import fr.ecole2recte.app.ui.common.RefreshOnResume
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.SubjectChip
 import fr.ecole2recte.app.ui.common.appViewModel
@@ -79,6 +80,7 @@ fun HomeRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val layout by rememberAppContainer().settings.homeLayout.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    RefreshOnResume(viewModel)
     StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { data ->
         HomeScreen(
             data = data,

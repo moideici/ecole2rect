@@ -45,9 +45,9 @@ fun rememberSchoolRepository(): SchoolRepository {
 
 /** Crée (ou retrouve) un ViewModel en lui donnant le conteneur de dépendances. */
 @Composable
-inline fun <reified VM : ViewModel> appViewModel(crossinline create: (AppContainer) -> VM): VM {
+inline fun <reified VM : ViewModel> appViewModel(key: String? = null, crossinline create: (AppContainer) -> VM): VM {
     val application = LocalContext.current.applicationContext as Ecole2recteApplication
-    return viewModel(factory = viewModelFactory { initializer { create(application.container) } })
+    return viewModel(key = key, factory = viewModelFactory { initializer { create(application.container) } })
 }
 
 class BadgesViewModel(repository: SchoolRepository) : LoadingViewModel<Badges>(repository::badges, repository::invalidate)

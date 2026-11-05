@@ -23,14 +23,18 @@ class EcoleDirecteClient(
     private val apiBase: String = "https://api.ecoledirecte.com/v3",
     private val apiVersion: String = "4.75.0",
 ) : AuthClient {
+    // Plusieurs écrans appellent le client en même temps : l'état de session est protégé.
     private val cookies = LinkedHashMap<String, String>()
-    private var currentGtk: String = ""
-    var token: String? = null
+    @Volatile private var currentGtk: String = ""
+    @Volatile var token: String? = null
         private set
-    var twoFactorToken: String? = null
+    @Volatile var twoFactorToken: String? = null
         private set
-    override var approvedAnswer: TrustedAnswer? = null
+    @Volatile override var approvedAnswer: TrustedAnswer? = null
         private set
+
+    /** Au plus deux appels de données simultanés : courtoisie envers le serveur, pas de rafale. */
+    private val dataGate = java.util.concurrent.Semaphore(MAX_PARALLEL_CALLS)
 
     override fun login(identifier: String, password: String, trustedAnswer: TrustedAnswer?): LoginResult {
         val payload = JSONObject()
@@ -183,6 +187,15 @@ class EcoleDirecteClient(
         query: Map<String, String> = emptyMap(),
         body: JSONObject = JSONObject(),
     ): ApiReply {
+        dataGate.acquireUninterruptibly()
+        try {
+            return execute(path, verb, query, body)
+        } finally {
+            dataGate.release()
+        }
+    }
+
+    private fun execute(path: String, verb: String, query: Map<String, String>, body: JSONObject): ApiReply {
         val response = post(path, verb, body, dataHeaders(), query = query)
         val code = response.body.optInt("code", 0)
         return when (code) {
@@ -217,7 +230,7 @@ class EcoleDirecteClient(
             connection.inputStream.use { it.readBytes() }
             captureCookies(connection.headerFields)
             currentGtk = headerValue(connection.headerFields, "X-GTK")
-                .ifBlank { cookies["GTK"].orEmpty() }
+                .ifBlank { synchronized(cookies) { cookies["GTK"].orEmpty() } }
             currentGtk
         } catch (error: IOException) {
             val status = runCatching { connection.responseCode }.getOrDefault(-1)
@@ -306,10 +319,11 @@ class EcoleDirecteClient(
             doOutput = method == "POST"
         }
 
-    private fun cookieHeader(): String =
+    private fun cookieHeader(): String = synchronized(cookies) {
         cookies.entries.joinToString("; ") { (name, value) -> "$name=$value" }
+    }
 
-    private fun captureCookies(fields: Map<String?, List<String>?>) {
+    private fun captureCookies(fields: Map<String?, List<String>?>) = synchronized(cookies) {
         fields.entries
             .filter { it.key.equals("Set-Cookie", ignoreCase = true) }
             .flatMap { it.value.orEmpty() }
@@ -487,6 +501,8 @@ private fun requestSummary(payload: JSONObject, headers: Map<String, String>, en
         "identifierLength=$identifierLength; passwordLength=$passwordLength; faCount=$faSize; " +
         "encodedDataLength=$encodedLength; headers=$headerNames"
 }
+
+private const val MAX_PARALLEL_CALLS = 2
 
 private val cookieAttributes = setOf(
     "path", "domain", "expires", "max-age", "samesite", "version", "comment",

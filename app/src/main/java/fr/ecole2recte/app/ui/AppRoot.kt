@@ -22,6 +22,7 @@ fun AppRoot() {
                 it.responseCache.clear(id)
                 it.homeworkStatus.clear(id)
                 it.subjectColors.clear(id)
+                it.forgetRepositories(id)
             },
         ) }
     val state by session.state.collectAsStateWithLifecycle()

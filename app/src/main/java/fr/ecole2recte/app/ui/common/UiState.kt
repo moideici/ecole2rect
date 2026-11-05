@@ -24,11 +24,22 @@ abstract class LoadingViewModel<T>(
     private val mutableState = MutableStateFlow<UiState<T>>(UiState.Loading)
     val state: StateFlow<UiState<T>> = mutableState.asStateFlow()
 
+    /** Quand les données affichées ont été lues pour la dernière fois (0 : jamais). */
+    private var loadedAt = 0L
+
     private val mutableRefreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = mutableRefreshing.asStateFlow()
 
     init {
         refresh()
+    }
+
+    /**
+     * Relit les données si elles ont plus de [thresholdMs] (dix minutes par défaut). Jamais en
+     * boucle : appelé au retour au premier plan et à la réouverture de l'écran.
+     */
+    fun refreshIfStale(thresholdMs: Long = STALE_AFTER_MS, now: Long = System.currentTimeMillis()) {
+        if (loadedAt != 0L && now - loadedAt > thresholdMs && !mutableRefreshing.value) pullToRefresh()
     }
 
     /** « Réessayer » après une erreur : interroge de nouveau la source. */
@@ -46,6 +57,7 @@ abstract class LoadingViewModel<T>(
         viewModelScope.launch {
             try {
                 mutableState.value = UiState.Content(load())
+                loadedAt = System.currentTimeMillis()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -61,7 +73,7 @@ abstract class LoadingViewModel<T>(
     fun refresh() {
         viewModelScope.launch {
             mutableState.value = try {
-                UiState.Content(load())
+                UiState.Content(load()).also { loadedAt = System.currentTimeMillis() }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -70,3 +82,6 @@ abstract class LoadingViewModel<T>(
         }
     }
 }
+
+/** Âge à partir duquel un écran se relit au retour au premier plan. */
+const val STALE_AFTER_MS = 10 * 60 * 1000L

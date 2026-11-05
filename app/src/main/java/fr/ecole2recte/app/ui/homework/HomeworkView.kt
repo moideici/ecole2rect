@@ -45,6 +45,7 @@ import fr.ecole2recte.app.domain.HomeworkDetail
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.HomeworkViewModel
 import fr.ecole2recte.app.ui.common.ListCard
+import fr.ecole2recte.app.ui.common.RefreshOnResume
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.subjectIcon
 import fr.ecole2recte.app.ui.common.appViewModel
@@ -62,6 +63,7 @@ fun HomeworkList(listState: LazyListState) {
     val viewModel = appViewModel { HomeworkViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    RefreshOnResume(viewModel)
     StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { tasks ->
         HomeworkContent(tasks, listState, viewModel)
     }

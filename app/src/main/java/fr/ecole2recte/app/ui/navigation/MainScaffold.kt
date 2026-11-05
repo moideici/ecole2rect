@@ -37,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -58,6 +60,7 @@ import fr.ecole2recte.app.ui.agenda.AgendaScreen
 import fr.ecole2recte.app.ui.common.BadgesViewModel
 import fr.ecole2recte.app.ui.common.ConnectionBanner
 import fr.ecole2recte.app.ui.common.LocalActiveProfile
+import fr.ecole2recte.app.ui.common.LocalResumeTick
 import fr.ecole2recte.app.ui.common.LocalScrollEvents
 import fr.ecole2recte.app.ui.common.StaleDataBar
 import fr.ecole2recte.app.ui.common.UiState
@@ -151,12 +154,17 @@ private fun MainContent(
     }
 
     val repository = rememberSchoolRepository()
-    val badgesViewModel = appViewModel { BadgesViewModel(repository) }
+    val badgesViewModel = appViewModel(key = "badges/${activeProfile?.key}") { BadgesViewModel(repository) }
     val badgesState by badgesViewModel.state.collectAsStateWithLifecycle()
     val badges = (badgesState as? UiState.Content)?.value ?: Badges()
     val freshness by repository.freshness.collectAsStateWithLifecycle()
 
-    CompositionLocalProvider(LocalScrollEvents provides scrollEvents) {
+    // Chaque retour au premier plan prévient les écrans ; chacun décide s'il a besoin de se relire.
+    var resumeTick by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { resumeTick++ }
+    LaunchedEffect(resumeTick) { badgesViewModel.refreshIfStale() }
+
+    CompositionLocalProvider(LocalScrollEvents provides scrollEvents, LocalResumeTick provides resumeTick) {
         Scaffold(
             containerColor = AppTheme.colors.background,
             bottomBar = {
