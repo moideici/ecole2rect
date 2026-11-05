@@ -7,7 +7,7 @@
         android:name=".Ecole2recteApplication"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="ecole2recte"
+        android:label="${appLabel}"
         android:supportsRtl="true"
         android:theme="@style/Theme.Ecole2recte">
         <activity

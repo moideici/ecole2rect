@@ -15,6 +15,17 @@ android {
         versionCode = 3
         versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["appLabel"] = "ecole2recte"
+    }
+
+    buildTypes {
+        debug {
+            // Installable à côté de la version publiée (autre signature, autres données) : un essai
+            // sur le téléphone ne touche jamais à l'application installée du quotidien.
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            manifestPlaceholders["appLabel"] = "ecole2recte (dev)"
+        }
     }
 
     buildFeatures {
