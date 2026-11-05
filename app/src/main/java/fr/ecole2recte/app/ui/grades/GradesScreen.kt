@@ -23,13 +23,15 @@ import fr.ecole2recte.app.ui.common.GradesViewModel
 import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.theme.CardWhite
 import fr.ecole2recte.app.ui.theme.Ink
 import fr.ecole2recte.app.ui.theme.SubjectColors
 
 @Composable
 fun GradesRoute() {
-    val viewModel = appViewModel { GradesViewModel(it.schoolRepository) }
+    val repository = rememberSchoolRepository()
+    val viewModel = appViewModel { GradesViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     StateHost(state, onRetry = viewModel::refresh) { grades ->
         PageScaffold("Notes", "Moyenne générale · ${grades.average} / 20") {

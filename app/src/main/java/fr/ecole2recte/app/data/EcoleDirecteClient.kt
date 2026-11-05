@@ -335,6 +335,15 @@ class EcoleDirecteClient(
                         type = account.optString("typeCompte"),
                         firstName = account.optString("prenom"),
                         lastName = account.optString("nom"),
+                        // Forme à confirmer sur un vrai compte famille : profile.eleves[].
+                        students = account.optJSONObject("profile")?.optJSONArray("eleves").objects().map { student ->
+                            Student(
+                                id = student.optString("id"),
+                                firstName = student.optString("prenom"),
+                                lastName = student.optString("nom"),
+                                className = student.optString("classe"),
+                            )
+                        },
                     ),
                 )
             }
@@ -411,7 +420,16 @@ sealed interface LoginResult {
     ) : LoginResult
 }
 
-data class Account(val id: String, val type: String, val firstName: String, val lastName: String)
+/** Élève rattaché à un compte famille. */
+data class Student(val id: String, val firstName: String, val lastName: String, val className: String = "")
+
+data class Account(
+    val id: String,
+    val type: String,
+    val firstName: String,
+    val lastName: String,
+    val students: List<Student> = emptyList(),
+)
 
 class EcoleDirecteException(
     message: String,

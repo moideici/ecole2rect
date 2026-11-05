@@ -13,7 +13,7 @@ import fr.ecole2recte.app.domain.Subject
 import fr.ecole2recte.app.domain.SubjectAverage
 
 /** Données de démonstration issues de la maquette. À remplacer au lot 7. */
-class DemoSchoolRepository : SchoolRepository {
+class DemoSchoolRepository(private val firstName: String? = null) : SchoolRepository {
     private val subjects = listOf(
         Subject("Philosophie", "Mme Laurent", "B204", 2),
         Subject("Mathématiques", "M. Petit", "C011", 0),
@@ -36,7 +36,7 @@ class DemoSchoolRepository : SchoolRepository {
     )
 
     override suspend fun home(): HomeData = HomeData(
-        greeting = "Bonjour Martin",
+        greeting = firstName?.let { "Bonjour $it" } ?: "Bonjour",
         dateLabel = "Samedi 5 septembre 2026",
         nextClass = NextClass(subjects.first(), startLabel = "10:15  ·  dans 24 min", progress = 0.64f),
         today = subjects.take(3).mapIndexed { index, subject ->

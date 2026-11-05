@@ -3,9 +3,11 @@ package fr.ecole2recte.app.session
 import fr.ecole2recte.app.data.AuthClient
 import fr.ecole2recte.app.data.BirthDate
 import fr.ecole2recte.app.data.CredentialStore
+import fr.ecole2recte.app.data.Account
 import fr.ecole2recte.app.data.FailureKind
 import fr.ecole2recte.app.data.LoginResult
 import fr.ecole2recte.app.data.SavedLogin
+import fr.ecole2recte.app.data.Student
 import fr.ecole2recte.app.data.TrustedAnswer
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -20,14 +22,34 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
-private class FakeStore(var saved: SavedLogin? = null) : CredentialStore {
-    override fun read() = saved
-    override fun save(login: SavedLogin) {
-        saved = login
+private class FakeStore(vararg initial: SavedLogin) : CredentialStore {
+    val logins = initial.toMutableList()
+    var activeId: String? = initial.firstOrNull()?.identifier
+
+    /** Compte actif tel que l'enregistrement le voit. */
+    val saved: SavedLogin? get() = logins.firstOrNull { it.identifier == activeId }
+
+    override fun readAll() = logins.toList()
+    override fun activeIdentifier() = activeId
+
+    override fun save(login: SavedLogin, makeActive: Boolean) {
+        val index = logins.indexOfFirst { it.identifier.equals(login.identifier, ignoreCase = true) }
+        if (index >= 0) logins[index] = login else logins += login
+        if (makeActive || activeId == null) activeId = login.identifier
+    }
+
+    override fun setActive(identifier: String) {
+        activeId = identifier
+    }
+
+    override fun remove(identifier: String) {
+        logins.removeAll { it.identifier.equals(identifier, ignoreCase = true) }
+        if (logins.none { it.identifier == activeId }) activeId = logins.firstOrNull()?.identifier
     }
 
     override fun clear() {
-        saved = null
+        logins.clear()
+        activeId = null
     }
 }
 
@@ -192,5 +214,109 @@ class SessionViewModelTest {
         vm.answerSecurity("Février")
         advanceUntilIdle()
         assertEquals(listOf("Janvier"), client.answers)
+    }
+
+    // --- Multi-compte ------------------------------------------------------------------------
+
+    private val second = SavedLogin("lmartin", "autre")
+
+    @Test
+    fun `ajouter un compte le rend actif et garde le premier`() = runTest(dispatcher) {
+        client.loginResults += success
+        val store = FakeStore(saved)
+        val vm = viewModel(store)
+        advanceUntilIdle()
+        vm.startAddAccount()
+        assertEquals(true, vm.state.value.adding)
+        client.loginResults += LoginResult.Success(listOf(Account("1", "E", "Léa", "MARTIN")))
+        vm.login("lmartin", "autre")
+        advanceUntilIdle()
+        assertEquals(false, vm.state.value.adding)
+        assertEquals(listOf("jdupont", "lmartin"), vm.state.value.accounts.map { it.identifier })
+        assertEquals("lmartin", vm.state.value.active?.identifier)
+        assertEquals("Léa", vm.state.value.active?.firstName)
+        assertEquals("Léa Martin", vm.state.value.accounts.last().displayName)
+    }
+
+    @Test
+    fun `annuler l'ajout revient au compte actif sans appel reseau`() = runTest(dispatcher) {
+        client.loginResults += success
+        val vm = viewModel(FakeStore(saved))
+        advanceUntilIdle()
+        vm.startAddAccount()
+        vm.cancelAddAccount()
+        assertEquals(false, vm.state.value.adding)
+        assertEquals("jdupont", vm.state.value.active?.identifier)
+        assertEquals(1, client.loginAnswers.size)
+    }
+
+    @Test
+    fun `changer de compte reconnecte l'autre compte`() = runTest(dispatcher) {
+        client.loginResults += success
+        client.loginResults += success
+        val store = FakeStore(saved, second)
+        val vm = viewModel(store)
+        advanceUntilIdle()
+        vm.switchAccount("lmartin")
+        assertEquals("lmartin", vm.state.value.active?.identifier)
+        assertEquals(ConnectionStatus.Connecting, vm.state.value.connection)
+        advanceUntilIdle()
+        assertEquals(ConnectionStatus.Connected, vm.state.value.connection)
+        assertEquals("lmartin", store.activeId)
+        assertEquals(2, client.loginAnswers.size)
+    }
+
+    @Test
+    fun `retirer le compte actif bascule sur l'autre`() = runTest(dispatcher) {
+        client.loginResults += success
+        client.loginResults += success
+        val store = FakeStore(saved, second)
+        val vm = viewModel(store)
+        advanceUntilIdle()
+        vm.removeAccount("jdupont")
+        advanceUntilIdle()
+        assertEquals(listOf("lmartin"), store.logins.map { it.identifier })
+        assertEquals("lmartin", vm.state.value.active?.identifier)
+        assertEquals(AuthStatus.SignedIn, vm.state.value.status)
+    }
+
+    @Test
+    fun `retirer le dernier compte deconnecte`() = runTest(dispatcher) {
+        client.loginResults += success
+        val store = FakeStore(saved)
+        val vm = viewModel(store)
+        advanceUntilIdle()
+        vm.removeAccount("jdupont")
+        assertEquals(AuthStatus.SignedOut, vm.state.value.status)
+        assertEquals(true, store.logins.isEmpty())
+        assertNull(vm.state.value.active)
+    }
+
+    @Test
+    fun `un compte famille permet de choisir l'eleve affiche`() = runTest(dispatcher) {
+        val family = Account(
+            "1", "1", "Marie", "DUPONT",
+            students = listOf(Student("10", "PAUL", "DUPONT", "6A"), Student("11", "Zoé", "DUPONT", "3B")),
+        )
+        client.loginResults += LoginResult.Success(listOf(family))
+        val vm = viewModel(FakeStore(saved))
+        advanceUntilIdle()
+        assertEquals("10", vm.state.value.active?.studentId)
+        assertEquals("Paul", vm.state.value.active?.firstName)
+        assertEquals("Famille", vm.state.value.accounts.single().typeLabel)
+        val before = vm.state.value.active?.key
+        vm.selectStudent("11")
+        assertEquals("Zoé", vm.state.value.active?.firstName)
+        assertEquals(true, before != vm.state.value.active?.key)
+        vm.selectStudent("inconnu")
+        assertEquals("11", vm.state.value.active?.studentId)
+    }
+
+    @Test
+    fun `les noms sont mis en forme`() {
+        assertEquals("Jean-Paul", titleCase("JEAN-PAUL"))
+        assertEquals("De La Fontaine", titleCase("de la fontaine"))
+        assertEquals("LM", initialsOf("léa", "martin", "x"))
+        assertEquals("X", initialsOf("", "", "xavier"))
     }
 }

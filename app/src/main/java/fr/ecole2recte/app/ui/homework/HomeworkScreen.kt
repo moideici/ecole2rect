@@ -18,6 +18,7 @@ import fr.ecole2recte.app.ui.common.HomeworkViewModel
 import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.theme.CardWhite
 import fr.ecole2recte.app.ui.theme.Ink
 import fr.ecole2recte.app.ui.theme.Muted
@@ -25,7 +26,8 @@ import fr.ecole2recte.app.ui.theme.SubjectColors
 
 @Composable
 fun HomeworkRoute() {
-    val viewModel = appViewModel { HomeworkViewModel(it.schoolRepository) }
+    val repository = rememberSchoolRepository()
+    val viewModel = appViewModel { HomeworkViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     StateHost(state, onRetry = viewModel::refresh) { tasks ->
         PageScaffold("Devoirs", "${tasks.size} devoirs à venir") {

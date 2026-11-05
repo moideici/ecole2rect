@@ -1,6 +1,8 @@
 package fr.ecole2recte.app.ui.common
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -14,6 +16,18 @@ import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.MessagePreview
 import fr.ecole2recte.app.domain.ScheduleWeek
 import fr.ecole2recte.app.domain.SchoolRepository
+import fr.ecole2recte.app.session.ActiveProfile
+
+/** Profil dont les données sont affichées ; change quand on change de compte ou d'élève. */
+val LocalActiveProfile = staticCompositionLocalOf<ActiveProfile?> { null }
+
+/** Dépôt de données du profil actif. */
+@Composable
+fun rememberSchoolRepository(): SchoolRepository {
+    val container = (LocalContext.current.applicationContext as Ecole2recteApplication).container
+    val profile = LocalActiveProfile.current
+    return remember(profile?.key) { container.schoolRepositoryFor(profile) }
+}
 
 /** Crée (ou retrouve) un ViewModel en lui donnant le conteneur de dépendances. */
 @Composable

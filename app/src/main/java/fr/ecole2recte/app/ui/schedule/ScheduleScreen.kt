@@ -24,6 +24,7 @@ import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.ScheduleViewModel
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.theme.CardWhite
 import fr.ecole2recte.app.ui.theme.Ink
 import fr.ecole2recte.app.ui.theme.Muted
@@ -31,7 +32,8 @@ import fr.ecole2recte.app.ui.theme.SubjectColors
 
 @Composable
 fun ScheduleRoute() {
-    val viewModel = appViewModel { ScheduleViewModel(it.schoolRepository) }
+    val repository = rememberSchoolRepository()
+    val viewModel = appViewModel { ScheduleViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     StateHost(state, onRetry = viewModel::refresh) { week ->
         PageScaffold("Emploi du temps", week.label) {

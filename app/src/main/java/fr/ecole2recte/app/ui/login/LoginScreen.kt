@@ -77,6 +77,8 @@ fun LoginScreen(
     onLogin: (identifier: String, password: String) -> Unit,
     onAnswerSecurity: (answer: String, birthDate: BirthDate?) -> Unit,
     onCancelSecurity: () -> Unit,
+    cancelLabel: String? = null,
+    onCancel: (() -> Unit)? = null,
 ) {
     var identifier by remember { mutableStateOf(state.identifier) }
     var password by remember { mutableStateOf(state.password) }
@@ -101,6 +103,15 @@ fun LoginScreen(
                         onPassword = { password = it },
                         onSubmit = { onLogin(identifier, password) },
                     )
+                    if (cancelLabel != null && onCancel != null) {
+                        Text(
+                            cancelLabel,
+                            modifier = Modifier.clickable(enabled = !state.loading, onClick = onCancel).padding(vertical = 8.dp),
+                            color = Indigo,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                        )
+                    }
                 } else {
                     SecurityStep(
                         state = state,

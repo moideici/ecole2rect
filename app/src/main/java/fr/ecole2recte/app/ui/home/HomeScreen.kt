@@ -40,6 +40,7 @@ import fr.ecole2recte.app.ui.common.SectionTitle
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.SubjectChip
 import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.personalization.ColorEditor
 import fr.ecole2recte.app.ui.theme.CardWhite
 import fr.ecole2recte.app.ui.theme.Indigo
@@ -51,7 +52,8 @@ import fr.ecole2recte.app.ui.theme.SubjectColors
 
 @Composable
 fun HomeRoute(onOpenSchedule: () -> Unit, onOpenHomework: () -> Unit, onOpenGrades: () -> Unit) {
-    val viewModel = appViewModel { HomeViewModel(it.schoolRepository) }
+    val repository = rememberSchoolRepository()
+    val viewModel = appViewModel { HomeViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showColorEditor by rememberSaveable { mutableStateOf(false) }
     StateHost(state, onRetry = viewModel::refresh) { data ->
