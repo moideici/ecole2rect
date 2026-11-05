@@ -1,5 +1,7 @@
 package fr.ecole2recte.app.ui
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -15,7 +17,8 @@ import fr.ecole2recte.app.ui.navigation.MainScaffold
 fun AppRoot() {
     val session = appViewModel { SessionViewModel(it.credentialStore) }
     val state by session.state.collectAsStateWithLifecycle()
-    if (state.status == AuthStatus.SignedOut || state.adding) {
+    Crossfade(targetState = state.status == AuthStatus.SignedOut || state.adding, animationSpec = tween(300), label = "root") { showLogin ->
+    if (showLogin) {
         val other = state.accounts.firstOrNull { !it.isActive }
         // Sortie de secours de l'écran de connexion : annuler un ajout, ou revenir à un autre compte.
         val (cancelLabel, onCancel) = when {
@@ -45,5 +48,6 @@ fun AppRoot() {
                 onSelectStudent = session::selectStudent,
             ),
         )
+    }
     }
 }

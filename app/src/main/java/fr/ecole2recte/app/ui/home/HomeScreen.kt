@@ -36,6 +36,9 @@ import fr.ecole2recte.app.domain.NextClass
 import fr.ecole2recte.app.domain.ScheduleSlot
 import fr.ecole2recte.app.ui.common.HomeViewModel
 import fr.ecole2recte.app.ui.common.PageHeader
+import fr.ecole2recte.app.ui.common.ProgressRing
+import fr.ecole2recte.app.ui.common.entrance
+import fr.ecole2recte.app.ui.common.rememberAnimatedDecimal
 import fr.ecole2recte.app.ui.common.SectionTitle
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.SubjectChip
@@ -76,17 +79,17 @@ private fun HomeScreen(
         item {
             Column {
                 PageHeader(data.greeting, data.dateLabel)
-                NextClassCard(data.nextClass)
+                NextClassCard(data.nextClass, Modifier.entrance(0))
             }
         }
         item { SectionTitle("Aujourd'hui", "Voir le planning", onClick = onOpenSchedule) }
-        item { ScheduleSummary(data.today) }
+        item { ScheduleSummary(data.today, Modifier.entrance(1)) }
         data.reminder?.let { reminder ->
             item { SectionTitle("À ne pas oublier", "Tout voir", onClick = onOpenHomework) }
-            item { ReminderCard(reminder) }
+            item { ReminderCard(reminder, Modifier.entrance(2)) }
         }
         item { SectionTitle("Tes dernières notes", "Voir les notes", onClick = onOpenGrades) }
-        item { GradesSummary(data.grades) }
+        item { GradesSummary(data.grades, Modifier.entrance(3)) }
         item {
             Text(
                 "Couleurs par matière",
@@ -100,10 +103,10 @@ private fun HomeScreen(
 }
 
 @Composable
-private fun NextClassCard(next: NextClass) {
+private fun NextClassCard(next: NextClass, modifier: Modifier = Modifier) {
     val subject = next.subject
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 18.dp),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = AppTheme.colors.accentFill),
     ) {
@@ -120,20 +123,16 @@ private fun NextClassCard(next: NextClass) {
                     Text(subject.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text("Salle ${subject.room}  ·  ${subject.teacher}", color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
                 }
-                SubjectChip(subject)
-            }
-            Spacer(Modifier.height(24.dp))
-            Box(Modifier.fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = .25f), RoundedCornerShape(4.dp))) {
-                Box(Modifier.fillMaxWidth(next.progress).height(4.dp).background(Color.White, RoundedCornerShape(4.dp)))
+                ProgressRing(next.progress, size = 68.dp) { SubjectChip(subject) }
             }
         }
     }
 }
 
 @Composable
-private fun ScheduleSummary(slots: List<ScheduleSlot>) {
+private fun ScheduleSummary(slots: List<ScheduleSlot>, modifier: Modifier = Modifier) {
     Card(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        modifier.fillMaxWidth().padding(horizontal = 18.dp),
         colors = CardDefaults.cardColors(AppTheme.colors.surface),
         shape = RoundedCornerShape(18.dp),
     ) {
@@ -151,9 +150,9 @@ private fun ScheduleSummary(slots: List<ScheduleSlot>) {
 }
 
 @Composable
-private fun ReminderCard(task: Homework) {
+private fun ReminderCard(task: Homework, modifier: Modifier = Modifier) {
     Card(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        modifier.fillMaxWidth().padding(horizontal = 18.dp),
         colors = CardDefaults.cardColors(AppTheme.colors.inverseSurface),
         shape = RoundedCornerShape(18.dp),
     ) {
@@ -174,14 +173,14 @@ private fun ReminderCard(task: Homework) {
 }
 
 @Composable
-private fun GradesSummary(grades: GradeOverview) {
+private fun GradesSummary(grades: GradeOverview, modifier: Modifier = Modifier) {
     Card(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        modifier.fillMaxWidth().padding(horizontal = 18.dp),
         colors = CardDefaults.cardColors(AppTheme.colors.surface),
         shape = RoundedCornerShape(18.dp),
     ) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(grades.average, color = AppTheme.colors.ink, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+            Text(rememberAnimatedDecimal(grades.average), color = AppTheme.colors.ink, fontSize = 36.sp, fontWeight = FontWeight.Bold)
             Text(" / 20\nMoyenne générale", color = AppTheme.colors.muted, fontSize = 12.sp)
             Spacer(Modifier.weight(1f))
             Text(grades.trend, color = AppTheme.colors.positive, fontSize = 12.sp, fontWeight = FontWeight.Bold)

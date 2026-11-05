@@ -1,5 +1,10 @@
 package fr.ecole2recte.app.ui.navigation
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -77,7 +81,7 @@ fun MainScaffold(
     accountActions: AccountActions,
 ) {
     // Un autre compte ou un autre élève repart d'un écran vierge : aucune donnée ne passe de l'un à l'autre.
-    key(activeProfile?.key) {
+    Crossfade(targetState = activeProfile?.key, animationSpec = tween(260), label = "account") { _ ->
         CompositionLocalProvider(LocalActiveProfile provides activeProfile) {
             MainContent(connection, connectionMessage, onRetryConnection, accounts, activeProfile, accountActions)
         }
@@ -118,7 +122,14 @@ private fun MainContent(
             }
             Box(Modifier.fillMaxSize()) {
                 Surface(modifier = Modifier.fillMaxSize(), color = AppTheme.colors.background) {
-                    NavHost(navController = navController, startDestination = AppTab.Home.route) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = AppTab.Home.route,
+                        enterTransition = { fadeIn(tween(240, delayMillis = 80)) + slideInVertically(tween(280, delayMillis = 80)) { it / 24 } },
+                        exitTransition = { fadeOut(tween(80)) },
+                        popEnterTransition = { fadeIn(tween(240, delayMillis = 80)) + slideInVertically(tween(280, delayMillis = 80)) { it / 24 } },
+                        popExitTransition = { fadeOut(tween(80)) },
+                    ) {
                         composable(AppTab.Home.route) {
                             HomeRoute(
                                 onOpenSchedule = { navController.navigateToTab(AppTab.Schedule) },

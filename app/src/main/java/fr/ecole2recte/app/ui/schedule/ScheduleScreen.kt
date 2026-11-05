@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.ui.common.ListCard
+import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.ScheduleViewModel
 import fr.ecole2recte.app.ui.common.StateHost
@@ -35,15 +36,15 @@ fun ScheduleRoute() {
     val state by viewModel.state.collectAsStateWithLifecycle()
     StateHost(state, onRetry = viewModel::refresh) { week ->
         PageScaffold("Emploi du temps", week.label) {
-            week.entries.forEach { ScheduleRow(it) }
+            week.entries.forEachIndexed { index, entry -> ScheduleRow(entry, Modifier.entrance(index)) }
         }
     }
 }
 
 @Composable
-private fun ScheduleRow(entry: ScheduleEntry) {
+private fun ScheduleRow(entry: ScheduleEntry, modifier: Modifier = Modifier) {
     val subject = entry.subject
-    ListCard {
+    ListCard(modifier) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp, 42.dp).background(AppTheme.colors.subject[subject.colorIndex], RoundedCornerShape(4.dp)))
             Column(Modifier.padding(start = 13.dp)) {

@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import fr.ecole2recte.app.data.BirthDate
 import fr.ecole2recte.app.data.FailureKind
 import fr.ecole2recte.app.session.LoginUiState
+import fr.ecole2recte.app.ui.common.pressScale
 import fr.ecole2recte.app.session.SecurityChallenge
 import fr.ecole2recte.app.session.findBirthAnswer
 import fr.ecole2recte.app.ui.theme.AppTheme
@@ -292,8 +294,9 @@ private fun TechnicalDetails(diagnostic: String) {
 
 @Composable
 private fun PrimaryButton(label: String, loading: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick),
+        modifier = Modifier.fillMaxWidth().pressScale(source).clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = if (enabled || loading) AppTheme.colors.accentFill else AppTheme.colors.accentFill.copy(alpha = .4f),
     ) {

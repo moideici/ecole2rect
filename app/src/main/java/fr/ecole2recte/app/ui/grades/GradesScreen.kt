@@ -22,6 +22,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.ui.common.GradesViewModel
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.ListCard
+import fr.ecole2recte.app.ui.common.entrance
+import fr.ecole2recte.app.ui.common.rememberAnimatedDecimal
 import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
@@ -36,13 +38,13 @@ fun GradesRoute() {
     StateHost(state, onRetry = viewModel::refresh) { grades ->
         PageScaffold("Notes", "Moyenne générale · ${grades.average} / 20") {
             if (grades.bySubject.isEmpty()) EmptyState("Pas encore de notes", "Tes notes apparaîtront ici dès qu'elles seront saisies.")
-            grades.bySubject.forEach { line ->
-                ListCard {
+            grades.bySubject.forEachIndexed { index, line ->
+                ListCard(Modifier.entrance(index)) {
                     Row(Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(9.dp).background(AppTheme.colors.subject[line.subject.colorIndex], RoundedCornerShape(5.dp)))
                         Text(line.subject.name, color = AppTheme.colors.ink, fontSize = 14.sp, modifier = Modifier.padding(start = 10.dp))
                         Spacer(Modifier.weight(1f))
-                        Text(line.average, color = AppTheme.colors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(rememberAnimatedDecimal(line.average), color = AppTheme.colors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

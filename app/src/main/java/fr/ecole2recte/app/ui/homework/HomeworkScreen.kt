@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.ui.common.HomeworkViewModel
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.ListCard
+import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
@@ -31,8 +32,8 @@ fun HomeworkRoute() {
     StateHost(state, onRetry = viewModel::refresh) { tasks ->
         PageScaffold("Devoirs", "${tasks.size} devoirs à venir") {
             if (tasks.isEmpty()) EmptyState("Rien à faire", "Aucun devoir à venir pour le moment.")
-            tasks.forEach { task ->
-                ListCard {
+            tasks.forEachIndexed { index, task ->
+                ListCard(Modifier.entrance(index)) {
                     Column(Modifier.padding(17.dp)) {
                         Text(task.subject, color = AppTheme.colors.subject[task.colorIndex], fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Text(task.title, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)

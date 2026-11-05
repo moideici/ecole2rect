@@ -2,6 +2,7 @@ package fr.ecole2recte.app.ui.accounts
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ecole2recte.app.session.AccountSummary
 import fr.ecole2recte.app.session.ActiveProfile
+import fr.ecole2recte.app.ui.common.pressScale
 import fr.ecole2recte.app.ui.theme.AppTheme
 
 /** Actions possibles sur les comptes, fournies par la session. */
@@ -67,10 +69,12 @@ fun Avatar(initials: String, active: Boolean = true, size: Int = 40) {
 /** Pastille d'initiales qui ouvre la liste des comptes. */
 @Composable
 fun AccountButton(profile: ActiveProfile?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val source = remember { MutableInteractionSource() }
     Box(
         modifier
             .semantics { contentDescription = "Comptes : ${profile?.displayName ?: "aucun"}" }
-            .clickable(onClick = onClick),
+            .pressScale(source)
+            .clickable(interactionSource = source, indication = null, onClick = onClick),
     ) {
         Avatar(profile?.initials ?: "?")
     }

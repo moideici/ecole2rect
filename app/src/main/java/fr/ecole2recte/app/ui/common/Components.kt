@@ -90,9 +90,7 @@ fun EmptyState(title: String, message: String) {
 @Composable
 fun <T> StateHost(state: UiState<T>, onRetry: () -> Unit, content: @Composable (T) -> Unit) {
     when (state) {
-        UiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = AppTheme.colors.accent)
-        }
+        UiState.Loading -> SkeletonPage()
         is UiState.Error -> Column(
             Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.Center,
