@@ -43,6 +43,8 @@ data class ScheduleEntry(
     val note: String = "",
     /** ÉcoleDirecte signale le cours comme modifié (salle, professeur, horaire). */
     val modified: Boolean = false,
+    /** `typeCours` d'ÉcoleDirecte : COURS, PERMANENCE… */
+    val kind: String = "",
 )
 
 /**

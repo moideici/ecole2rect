@@ -1,0 +1,13 @@
+{
+  "classeurs": [{ "id": 0, "libelle": "Boîte de réception" }],
+  "messages": {
+    "received": [
+      { "id": 9001, "mtype": "message", "read": false, "idDossier": 0, "idClasseur": 0, "date": "2026-11-04 10:00:00",
+        "subject": "Réunion parents-professeurs", "from": { "id": 3, "nom": "VIE SCOLAIRE", "prenom": "", "civilite": "", "role": "P" },
+        "to": [] },
+      { "id": 9002, "mtype": "message", "read": true, "date": "2026-11-03 18:30:00", "subject": "Correction du DM",
+        "from": { "id": 77, "nom": "PETIT", "prenom": "Paul", "civilite": "M.", "role": "P" } }
+    ]
+  },
+  "pagination": { "total": 2 }
+}

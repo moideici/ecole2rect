@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+const val DEFAULT_API_VERSION = "4.75.0"
+
 /** Réglages de l'application, non secrets, gardés sur l'appareil. */
 class AppSettings(context: Context) {
     private val preferences = context.getSharedPreferences("ecole2recte_settings", Context.MODE_PRIVATE)
@@ -36,6 +38,16 @@ class AppSettings(context: Context) {
     fun setAppLock(enabled: Boolean) {
         preferences.edit().putBoolean("app_lock", enabled).apply()
         mutableAppLock.value = enabled
+    }
+
+    /** Version de l'API envoyée à ÉcoleDirecte ; modifiable si le service refuse l'ancienne (code 517). */
+    private val mutableApiVersion = MutableStateFlow(preferences.getString("api_version", null)?.takeIf { it.isNotBlank() } ?: DEFAULT_API_VERSION)
+    val apiVersion: StateFlow<String> = mutableApiVersion.asStateFlow()
+
+    fun setApiVersion(version: String) {
+        val clean = version.trim().ifBlank { DEFAULT_API_VERSION }
+        preferences.edit().putString("api_version", clean).apply()
+        mutableApiVersion.value = clean
     }
 
     private val mutableHomeLayout = MutableStateFlow(HomeLayout.parse(preferences.getString("home_layout", null)))

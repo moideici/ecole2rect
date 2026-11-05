@@ -546,6 +546,7 @@ class EcoleDirecteRepository(
         exam = exam,
         note = note,
         modified = modified,
+        kind = kind,
     )
 
     private fun ApiLesson.toSubject() = Subject(subject.prettySubject(), teacher, room, colorFor(subject))

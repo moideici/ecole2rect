@@ -1,0 +1,16 @@
+[
+  { "id": 101, "text": "MATHEMATIQUES", "matiere": "MATHEMATIQUES", "codeMatiere": "MATHS", "typeCours": "COURS",
+    "start_date": "2026-11-05 08:00", "end_date": "2026-11-05 08:55", "color": "#7779E8", "dispensable": false,
+    "dispense": 0, "prof": "M. PETIT", "salle": "C011", "classe": "2NDE 3", "classeId": 12, "classeCode": "2ND3",
+    "groupe": "", "groupeCode": "", "isFlexible": false, "isModifie": false, "isAnnule": false, "contenuDeSeance": "", "devoirAFaire": "" },
+  { "id": 102, "text": "MATHEMATIQUES", "matiere": "MATHEMATIQUES", "codeMatiere": "MATHS", "typeCours": "COURS",
+    "start_date": "2026-11-05 08:55", "end_date": "2026-11-05 09:50", "prof": "M. PETIT", "salle": "C011",
+    "isModifie": false, "isAnnule": false },
+  { "id": 103, "text": "HISTOIRE-GEOGRAPHIE", "matiere": "HISTOIRE-GEOGRAPHIE", "typeCours": "COURS",
+    "start_date": "2026-11-05 10:30", "end_date": "2026-11-05 11:25", "prof": "M. DUBOIS", "salle": "A112",
+    "isModifie": true, "isAnnule": false },
+  { "id": 104, "text": "PERMANENCE", "typeCours": "PERMANENCE", "start_date": "2026-11-05 11:25", "end_date": "2026-11-05 12:20" },
+  { "id": 105, "text": "ANGLAIS", "matiere": "ANGLAIS LV1", "typeCours": "COURS", "start_date": "2026-11-05 13:30",
+    "end_date": "2026-11-05 14:25", "prof": "Mme ROBERT", "salle": "A112", "isAnnule": true },
+  { "id": 106, "text": "SANS HEURES", "typeCours": "COURS" }
+]

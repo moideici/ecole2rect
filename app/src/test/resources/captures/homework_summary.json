@@ -1,0 +1,11 @@
+{
+  "2026-11-06": [
+    { "matiere": "MATHEMATIQUES", "codeMatiere": "MATHS", "aFaire": true, "idDevoir": 5501, "documentsAFaire": false,
+      "donneLe": "2026-11-02", "effectue": false, "interrogation": true, "rendreEnLigne": false },
+    { "matiere": "ANGLAIS LV1", "codeMatiere": "ANG", "aFaire": true, "idDevoir": 5502, "documentsAFaire": true,
+      "donneLe": "2026-11-03", "effectue": true, "interrogation": false }
+  ],
+  "2026-11-09": [
+    { "matiere": "FRANCAIS", "codeMatiere": "FRANC", "aFaire": true, "idDevoir": 5503, "donneLe": "2026-11-04", "effectue": false, "interrogation": false }
+  ]
+}

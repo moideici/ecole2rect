@@ -164,6 +164,7 @@ fun DayTimelineView(
                     }
                     val tags = listOfNotNull(
                         "Maintenant".takeIf { live },
+                        "Permanence".takeIf { entry.kind.equals("PERMANENCE", ignoreCase = true) },
                         lesson.multiLabel.takeIf { it.isNotEmpty() },
                         "Annulé".takeIf { canceled },
                         "Évaluation".takeIf { entry.exam },

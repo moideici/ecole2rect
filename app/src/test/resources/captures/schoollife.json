@@ -1,0 +1,11 @@
+{
+  "absencesRetards": [
+    { "id": 1, "typeElement": "Absence", "date": "2026-10-02", "dateFin": "2026-10-02", "displayDate": "2 oct. de 8h à 10h",
+      "justifie": true, "motif": "Maladie", "commentaire": "" },
+    { "id": 2, "typeElement": "Retard", "date": "2026-10-20", "displayDate": "20 oct. à 8h05", "justifie": false, "motif": "Transport" },
+    { "id": 3, "typeElement": "Absence", "displayDate": "sans date" }
+  ],
+  "sanctionsEncouragements": [
+    { "id": 4, "typeElement": "Encouragement", "libelle": "Bravo", "date": "2026-10-25", "motif": "Participation" }
+  ]
+}

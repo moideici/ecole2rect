@@ -107,6 +107,8 @@ fun MoreScreen(
             }
         }
         item { NotificationsSection() }
+        item { Section("Diagnostic") }
+        item { DiagnosticCard(profile) }
         item {
             Text(
                 "ecole2recte ${BuildConfig.VERSION_NAME}",

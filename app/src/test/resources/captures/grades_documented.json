@@ -1,0 +1,44 @@
+{
+  "foEleveAvecNotesAbsente": false,
+  "periodes": [
+    {
+      "idPeriode": "A001", "codePeriode": "A001", "periode": "1er trimestre", "annuel": false,
+      "dateDebut": "2026-09-01", "dateFin": "2026-11-30", "examenBlanc": false, "cloture": false,
+      "dateConseil": "2026-12-10", "heureConseil": "17:30",
+      "ensembleMatieres": {
+        "moyenneGenerale": "14,52", "moyenneClasse": "12,31", "moyenneMin": "6,10", "moyenneMax": "17,90",
+        "dateCalcul": "2026-11-04", "nomPP": "Mme MARTIN", "appreciationPP": "Bon trimestre, continue ainsi.",
+        "disciplines": [
+          {
+            "id": 1, "codeMatiere": "MATHS", "codeSousMatiere": "", "discipline": "MATHEMATIQUES",
+            "moyenne": "15,5", "moyenneClasse": "11,2", "moyenneMin": "5,0", "moyenneMax": "19,0", "coef": 4,
+            "effectif": 28, "rang": 0, "groupeMatiere": false, "sousMatiere": false,
+            "professeurs": [{ "id": 77, "nom": "M. PETIT" }],
+            "appreciations": ["Très bon travail, des progrès constants."]
+          },
+          {
+            "id": 2, "codeMatiere": "ANG", "codeSousMatiere": "", "discipline": "ANGLAIS LV1",
+            "moyenne": "12,9", "moyenneClasse": "12,0", "coef": 3, "professeurs": [{ "id": 78, "nom": "Mme ROBERT" }],
+            "appreciations": []
+          }
+        ]
+      }
+    },
+    {
+      "idPeriode": "A000", "codePeriode": "A000", "periode": "Année", "annuel": true,
+      "dateDebut": "2026-09-01", "dateFin": "2027-06-30", "cloture": false,
+      "ensembleMatieres": { "moyenneGenerale": "", "disciplines": [] }
+    }
+  ],
+  "notes": [
+    { "id": 1, "devoir": "DS 1", "codePeriode": "A001", "codeMatiere": "MATHS", "libelleMatiere": "MATHEMATIQUES",
+      "typeDevoir": "Devoir surveillé", "coef": "2", "noteSur": "20", "valeur": "16", "nonSignificatif": false,
+      "date": "2026-10-03", "dateSaisie": "2026-10-05", "moyenneClasse": "11,4", "minClasse": "4", "maxClasse": "19" },
+    { "id": 2, "devoir": "Oral", "codePeriode": "A001", "codeMatiere": "ANG", "libelleMatiere": "ANGLAIS LV1",
+      "coef": "1", "noteSur": "20", "valeur": "Abs", "nonSignificatif": true, "date": "2026-10-20", "dateSaisie": "2026-10-21" },
+    { "id": 3, "devoir": "Contrôle", "codePeriode": "A001", "codeMatiere": "ANG", "libelleMatiere": "ANGLAIS LV1",
+      "coef": "1", "noteSur": "20", "valeur": "Disp", "nonSignificatif": true, "date": "2026-10-27", "dateSaisie": "2026-10-28" },
+    { "id": 4, "devoir": "Dictée", "codePeriode": "A001", "codeMatiere": "ANG", "libelleMatiere": "ANGLAIS LV1",
+      "coef": "1", "noteSur": "10", "valeur": "8,5", "nonSignificatif": false, "date": "2026-11-03", "dateSaisie": "2026-11-04" }
+  ]
+}
