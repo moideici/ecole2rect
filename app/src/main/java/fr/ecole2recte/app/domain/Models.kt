@@ -95,7 +95,15 @@ data class SubjectAverage(
     val classAverage: String? = null,
     val grades: List<GradeEntry> = emptyList(),
     val coefficient: Double? = null,
+    /** Appréciation du professeur sur la période. */
+    val appreciation: String = "",
+    /** Moyennes la plus basse et la plus haute de la classe dans cette matière. */
+    val minimum: String? = null,
+    val maximum: String? = null,
 )
+
+/** Une période du bulletin (trimestre, semestre) que l'on peut afficher. */
+data class GradePeriod(val code: String, val name: String, val selected: Boolean)
 
 data class GradeOverview(
     val average: String,
@@ -110,6 +118,11 @@ data class GradeOverview(
     val classAverage: String? = null,
     /** Nom de la période affichée (« 1er trimestre »). */
     val periodName: String = "",
+    val periodCode: String = "",
+    /** Toutes les périodes du bulletin, pour choisir laquelle afficher. */
+    val periods: List<GradePeriod> = emptyList(),
+    /** Appréciation générale du professeur principal pour la période affichée. */
+    val appreciation: String = "",
 )
 
 data class MessagePreview(

@@ -16,7 +16,23 @@ data class GradeEntry(
     /** Faux quand la note ne compte pas dans la moyenne. */
     val counted: Boolean,
     val periodCode: String = "",
+    /** « Abs », « Disp », « NE »… quand la note n'est pas un nombre ; vide sinon. */
+    val rawValue: String = "",
 )
+
+/** Ce que veulent dire les valeurs textuelles d'une note, au lieu d'un « Abs » pour tout. */
+object RawGrade {
+    fun describe(raw: String): String = when (raw.trim().lowercase()) {
+        "abs" -> "Absent"
+        "disp" -> "Dispensé"
+        "ne" -> "Non évalué"
+        "nn" -> "Non noté"
+        "nr" -> "Non rendu"
+        "comp" -> "Compétence évaluée sans note"
+        "" -> "Pas de note"
+        else -> raw.trim()
+    }
+}
 
 /** Une moyenne de période, pour la courbe d'évolution. */
 data class PeriodAverage(val name: String, val average: Double)

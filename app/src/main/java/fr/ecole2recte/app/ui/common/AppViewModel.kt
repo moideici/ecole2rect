@@ -71,7 +71,18 @@ class HomeworkViewModel(private val repository: SchoolRepository) :
     suspend fun download(attachment: fr.ecole2recte.app.domain.Attachment) = repository.downloadAttachment(attachment)
 }
 
-class GradesViewModel(repository: SchoolRepository) : LoadingViewModel<GradeOverview>(repository::grades, repository::invalidate)
+class GradesViewModel private constructor(
+    repository: SchoolRepository,
+    private val period: java.util.concurrent.atomic.AtomicReference<String?>,
+) : LoadingViewModel<GradeOverview>({ repository.grades(period.get()) }, repository::invalidate) {
+    constructor(repository: SchoolRepository) : this(repository, java.util.concurrent.atomic.AtomicReference(null))
+
+    /** Affiche une autre période du même bulletin : aucune nouvelle requête, la réponse est déjà là. */
+    fun selectPeriod(code: String) {
+        period.set(code)
+        refresh()
+    }
+}
 
 class MessagesViewModel(private val repository: SchoolRepository) :
     LoadingViewModel<List<MessagePreview>>(repository::messages, repository::invalidate) {

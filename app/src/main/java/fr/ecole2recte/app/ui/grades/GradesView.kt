@@ -57,6 +57,11 @@ import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.rememberAnimatedDecimal
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.theme.AppTheme
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.FilterChip
+import androidx.compose.ui.text.font.FontStyle
+import fr.ecole2recte.app.domain.RawGrade
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -70,18 +75,31 @@ fun GradesRoute() {
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     RefreshOnResume(viewModel)
     StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { grades ->
-        GradesContent(grades)
+        GradesContent(grades, viewModel::selectPeriod)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GradesContent(grades: GradeOverview) {
+private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Unit) {
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("notes", listState)
     var opened by remember { mutableStateOf<GradeEntry?>(null) }
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageHeader("Notes", grades.periodName.ifBlank { "Matière par matière" }) }
+        if (grades.periods.size > 1) {
+            item {
+                LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(grades.periods, key = { it.code }) { period ->
+                        FilterChip(
+                            selected = period.selected,
+                            onClick = { onSelectPeriod(period.code) },
+                            label = { Text(period.name) },
+                        )
+                    }
+                }
+            }
+        }
         item { AverageCard(grades, Modifier.entrance(0)) }
         if (grades.recent.isNotEmpty()) {
             item { SectionLabel("Dernières notes") }
@@ -141,6 +159,10 @@ private fun AverageCard(grades: GradeOverview, modifier: Modifier) {
             grades.classAverage?.let {
                 Text("Moyenne de la classe : $it", color = AppTheme.colors.muted, fontSize = 13.sp)
             }
+            if (grades.appreciation.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(grades.appreciation, color = AppTheme.colors.ink, fontSize = 14.sp, lineHeight = 20.sp, fontStyle = FontStyle.Italic)
+            }
             if (grades.evolution.size >= 2) {
                 Spacer(Modifier.height(14.dp))
                 EvolutionChart(grades.evolution)
@@ -174,6 +196,12 @@ private fun EvolutionChart(points: List<PeriodAverage>) {
     Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         points.forEach { Text(it.name.take(12), color = AppTheme.colors.muted, fontSize = 12.sp) }
     }
+}
+
+/** « Classe : 12,3 · de 6,5 à 18,0 » quand l'établissement donne les extrêmes. */
+private fun classLine(average: String, line: SubjectAverage): String {
+    val range = if (line.minimum != null && line.maximum != null) " · de ${line.minimum} à ${line.maximum}" else ""
+    return "Classe : $average$range"
 }
 
 private fun format(value: Double) = String.format(Locale.FRENCH, "%.1f", value).removeSuffix(",0").let {
@@ -211,7 +239,7 @@ private fun GradeRow(grade: GradeEntry, showSubject: Boolean, modifier: Modifier
 @Composable
 private fun GradePill(grade: GradeEntry) {
     val value = grade.value
-    val text = if (value == null) "Abs" else "${format(value)}/${grade.scale.toInt()}"
+    val text = if (value == null) grade.rawValue.ifBlank { "–" } else "${format(value)}/${grade.scale.toInt()}"
     val good = value != null && grade.classAverage != null && value >= grade.classAverage
     val tint = when {
         !grade.counted || value == null -> AppTheme.colors.muted
@@ -236,7 +264,17 @@ private fun SubjectCard(line: SubjectAverage, modifier: Modifier, onGrade: (Grad
                 SubjectBadge(line.subject.name, line.subject.colorIndex, size = 36.dp)
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text(line.subject.name, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    line.classAverage?.let { Text("Classe : $it", color = AppTheme.colors.muted, fontSize = 12.sp) }
+                    line.classAverage?.let { Text(classLine(it, line), color = AppTheme.colors.muted, fontSize = 12.sp) }
+                    if (line.appreciation.isNotBlank()) {
+                        Text(
+                            line.appreciation,
+                            color = AppTheme.colors.ink,
+                            fontSize = 12.sp,
+                            fontStyle = FontStyle.Italic,
+                            maxLines = if (expanded) Int.MAX_VALUE else 2,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                 }
                 Text(line.average, color = AppTheme.colors.ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             }
@@ -307,7 +345,7 @@ private fun GradeDetail(grade: GradeEntry) {
         Text(grade.label.ifBlank { "Évaluation" }, color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                grade.value?.let { "${format(it)} / ${grade.scale.toInt()}" } ?: "Absent ou non noté",
+                grade.value?.let { "${format(it)} / ${grade.scale.toInt()}" } ?: RawGrade.describe(grade.rawValue),
                 color = AppTheme.colors.ink,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,

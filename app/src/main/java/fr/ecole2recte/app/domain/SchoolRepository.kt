@@ -29,6 +29,9 @@ interface SchoolRepository {
     /** Coche ou décoche un devoir. Pour l'instant sur l'appareil seulement. */
     suspend fun setHomeworkDone(id: String, done: Boolean)
     suspend fun grades(): GradeOverview
+
+    /** Les notes d'une période du bulletin ; `null` : la période en cours. Sans nouvelle requête (même bulletin). */
+    suspend fun grades(periodCode: String?): GradeOverview = grades()
     suspend fun messages(): List<MessagePreview>
     suspend fun badges(): Badges
 

@@ -22,6 +22,7 @@ import fr.ecole2recte.app.domain.Attachment
 import fr.ecole2recte.app.domain.AttachmentFile
 import fr.ecole2recte.app.domain.AttachmentSource
 import fr.ecole2recte.app.domain.Freshness
+import fr.ecole2recte.app.domain.GradePeriod
 import fr.ecole2recte.app.domain.StaleCause
 import fr.ecole2recte.app.domain.GradeEntry
 import fr.ecole2recte.app.domain.GradeMath
@@ -356,6 +357,8 @@ class EcoleDirecteRepository(
 
     override suspend fun grades(): GradeOverview = overview(gradesPayload())
 
+    override suspend fun grades(periodCode: String?): GradeOverview = overview(gradesPayload(), periodCode)
+
     override suspend fun messages(): List<MessagePreview> = messagesPage(0).items
 
     override suspend fun messagesPage(page: Int): MessagesPage {
@@ -635,11 +638,13 @@ class EcoleDirecteRepository(
         maximum = maximum,
         counted = counted,
         periodCode = periodCode,
+        rawValue = rawValue,
     )
 
-    private fun overview(payload: ApiGrades): GradeOverview {
+    private fun overview(payload: ApiGrades, requestedCode: String? = null): GradeOverview {
         val periods = payload.periods.filter { !it.annual }.ifEmpty { payload.periods }
-        val current = PeriodSelection.select(payload.periods, payload.grades, today())
+        val current = periods.firstOrNull { it.code == requestedCode }
+            ?: PeriodSelection.select(payload.periods, payload.grades, today())
 
         val periodGrades = payload.grades.filter { current != null && it.periodCode == current.code }.map { it.toEntry() }
         val official = payload.subjectAverages.filter { current != null && it.periodCode == current.code }
@@ -656,6 +661,9 @@ class EcoleDirecteRepository(
                 classAverage = line?.classAverage?.let(::decimal),
                 grades = grades,
                 coefficient = line?.coefficient,
+                appreciation = line?.appreciation.orEmpty(),
+                minimum = line?.minimum?.let(::decimal),
+                maximum = line?.maximum?.let(::decimal),
             )
         }
         // Moyenne générale : celle de l'établissement, sinon la moyenne des matières (pondérée par
@@ -678,6 +686,9 @@ class EcoleDirecteRepository(
             evolution = periods.mapNotNull { p -> p.average?.let { PeriodAverage(p.name, it) } },
             classAverage = current?.classAverage?.let(::decimal),
             periodName = current?.name.orEmpty(),
+            periodCode = current?.code.orEmpty(),
+            periods = periods.map { GradePeriod(it.code, it.name, selected = it.code == current?.code) },
+            appreciation = current?.appreciation.orEmpty(),
         )
     }
 
