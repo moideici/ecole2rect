@@ -1,12 +1,19 @@
 package fr.ecole2recte.app.data
 
-import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
+import java.util.Base64
+
+/** Ce que l'écran de connexion et la session attendent d'un client d'authentification. */
+interface AuthClient {
+    val approvedAnswer: TrustedAnswer?
+    fun login(identifier: String, password: String, trustedAnswer: TrustedAnswer?): LoginResult
+    fun completeSecurityQuestion(choice: String, identifier: String, password: String): LoginResult
+}
 
 /**
  * Small protocol client kept separate from Compose so API changes do not leak into the UI.
@@ -15,17 +22,17 @@ import java.nio.charset.StandardCharsets
 class EcoleDirecteClient(
     private val apiBase: String = "https://api.ecoledirecte.com/v3",
     private val apiVersion: String = "4.75.0",
-) {
+) : AuthClient {
     private val cookies = LinkedHashMap<String, String>()
     private var currentGtk: String = ""
     var token: String? = null
         private set
     var twoFactorToken: String? = null
         private set
-    var approvedAnswer: TrustedAnswer? = null
+    override var approvedAnswer: TrustedAnswer? = null
         private set
 
-    fun login(identifier: String, password: String, trustedAnswer: TrustedAnswer? = null): LoginResult {
+    override fun login(identifier: String, password: String, trustedAnswer: TrustedAnswer?): LoginResult {
         val payload = JSONObject()
             .put("identifiant", identifier)
             .put("motdepasse", password)
@@ -54,6 +61,7 @@ class EcoleDirecteClient(
                         challengeResponse.body.optString("message")
                             .ifBlank { "Question de sécurité indisponible." },
                         challengeResponse.diagnostic(),
+                        FailureKind.Service,
                     )
                 LoginResult.SecurityQuestionRequired(
                     question = data.optString("question").decodeBase64()
@@ -61,9 +69,21 @@ class EcoleDirecteClient(
                     choices = data.optJSONArray("propositions").decodeChoices(),
                 )
             }
-            ApiCode.INVALID_CREDENTIALS -> LoginResult.Failure("Identifiant ou mot de passe invalide.", response.diagnostic())
-            ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> LoginResult.Failure("Compte bloqué.", response.diagnostic())
-            else -> LoginResult.Failure(response.body.optString("message").ifBlank { "Connexion impossible." }, response.diagnostic())
+            ApiCode.INVALID_CREDENTIALS -> LoginResult.Failure(
+                "Identifiant ou mot de passe invalide.",
+                response.diagnostic(),
+                FailureKind.InvalidCredentials,
+            )
+            ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> LoginResult.Failure(
+                "Compte bloqué.",
+                response.diagnostic(),
+                FailureKind.Blocked,
+            )
+            else -> LoginResult.Failure(
+                response.body.optString("message").ifBlank { "Connexion impossible." },
+                response.diagnostic(),
+                if (response.rawBody.isBlank() || response.httpStatus >= 500) FailureKind.Service else FailureKind.Other,
+            )
         }
     }
 
@@ -123,12 +143,12 @@ class EcoleDirecteClient(
         append('"')
     }
 
-    fun completeSecurityQuestion(choice: String, identifier: String, password: String): LoginResult {
-        val xToken = token ?: return LoginResult.Failure("Session de vérification absente.")
+    override fun completeSecurityQuestion(choice: String, identifier: String, password: String): LoginResult {
+        val xToken = token ?: return LoginResult.Failure("Session de vérification absente.", kind = FailureKind.Other)
         val twoFa = twoFactorToken ?: return LoginResult.Failure("Jeton de vérification absent.")
         val answer = JSONObject().put(
             "choix",
-            Base64.encodeToString(choice.toByteArray(Charsets.UTF_8), Base64.NO_WRAP),
+            Base64.getEncoder().encodeToString(choice.toByteArray(Charsets.UTF_8)),
         )
         val response = post(
             path = "/connexion/doubleauth.awp",
@@ -137,7 +157,7 @@ class EcoleDirecteClient(
             headers = mapOf("X-Token" to xToken, "2FA-Token" to twoFa),
         )
         if (response.body.optInt("code") != ApiCode.OK) {
-            return LoginResult.Failure("Réponse de sécurité refusée.", response.diagnostic())
+            return LoginResult.Failure("Réponse de sécurité refusée.", response.diagnostic(), FailureKind.SecurityRefused)
         }
         val data = response.body.optJSONObject("data")
             ?: return LoginResult.Failure("Réponse de sécurité incomplète.")
@@ -188,10 +208,16 @@ class EcoleDirecteClient(
             currentGtk = headerValue(connection.headerFields, "X-GTK")
                 .ifBlank { cookies["GTK"].orEmpty() }
             currentGtk
+        } catch (error: IOException) {
+            val status = runCatching { connection.responseCode }.getOrDefault(-1)
+            if (status >= 400) {
+                throw EcoleDirecteException("ÉcoleDirecte ne répond pas correctement (HTTP $status).", error, FailureKind.Service)
+            }
+            throw EcoleDirecteException("Connexion réseau impossible.", error, FailureKind.Network)
         } finally {
             connection.disconnect()
         }.let { value -> value.takeIf { it.isNotBlank() } }
-            ?: throw EcoleDirecteException("Le jeton GTK est vide.")
+            ?: throw EcoleDirecteException("Le jeton GTK est vide.", kind = FailureKind.Service)
     }
 
     private fun post(
@@ -242,7 +268,7 @@ class EcoleDirecteClient(
                 response.body.optString("token").takeIf { it.isNotBlank() }?.let { token = it }
             }
         } catch (error: IOException) {
-            throw EcoleDirecteException("Connexion réseau impossible.", error)
+            throw EcoleDirecteException("Connexion réseau impossible.", error, FailureKind.Network)
         } finally {
             connection.disconnect()
         }
@@ -355,15 +381,43 @@ data class Lesson(
     val end: String,
 )
 
+/** Nature d'un échec de connexion : décide si on peut réessayer et ce qu'on affiche. */
+enum class FailureKind {
+    /** Pas de réseau : on peut réessayer sans risque. */
+    Network,
+
+    /** ÉcoleDirecte répond mal (erreur serveur, réponse vide) : on peut réessayer plus tard. */
+    Service,
+
+    /** Identifiant ou mot de passe refusé : ne jamais réessayer sans que l'utilisateur les change. */
+    InvalidCredentials,
+
+    /** Compte bloqué par ÉcoleDirecte : ne jamais réessayer. */
+    Blocked,
+
+    /** Réponse à la question de sécurité refusée : ne jamais réessayer la même. */
+    SecurityRefused,
+
+    Other,
+}
+
 sealed interface LoginResult {
     data class Success(val accounts: List<Account>) : LoginResult
     data class SecurityQuestionRequired(val question: String?, val choices: List<String>) : LoginResult
-    data class Failure(val message: String, val diagnostic: String? = null) : LoginResult
+    data class Failure(
+        val message: String,
+        val diagnostic: String? = null,
+        val kind: FailureKind = FailureKind.Other,
+    ) : LoginResult
 }
 
 data class Account(val id: String, val type: String, val firstName: String, val lastName: String)
 
-class EcoleDirecteException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+class EcoleDirecteException(
+    message: String,
+    cause: Throwable? = null,
+    val kind: FailureKind = FailureKind.Other,
+) : RuntimeException(message, cause)
 
 private fun redactSecrets(value: String): String =
     value.replace(Regex("(?i)(motdepasse|password|token|x-token|2fa-token|cookie|set-cookie)\"?\\s*[:=]\\s*\"?[^\",}\\s]+"), "$1=<masqué>")
@@ -415,7 +469,7 @@ private object ApiCode {
 }
 
 private fun String?.decodeBase64(): String? = this?.takeIf { it.isNotBlank() }?.let {
-    runCatching { String(Base64.decode(it, Base64.DEFAULT), Charsets.UTF_8) }.getOrNull()
+    runCatching { String(Base64.getMimeDecoder().decode(it), Charsets.UTF_8) }.getOrNull()
 }
 
 private fun JSONArray?.decodeChoices(): List<String> = buildList {

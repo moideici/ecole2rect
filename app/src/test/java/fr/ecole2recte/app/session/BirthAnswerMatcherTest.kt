@@ -1,4 +1,4 @@
-package fr.ecole2recte.app.ui.login
+package fr.ecole2recte.app.session
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

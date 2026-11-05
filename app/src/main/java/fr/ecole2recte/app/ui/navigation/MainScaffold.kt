@@ -26,6 +26,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.foundation.layout.Column
+import fr.ecole2recte.app.session.ConnectionStatus
+import fr.ecole2recte.app.ui.common.ConnectionBanner
 import fr.ecole2recte.app.ui.grades.GradesRoute
 import fr.ecole2recte.app.ui.home.HomeRoute
 import fr.ecole2recte.app.ui.homework.HomeworkRoute
@@ -52,7 +55,11 @@ private fun NavController.navigateToTab(tab: AppTab) {
 }
 
 @Composable
-fun MainScaffold() {
+fun MainScaffold(
+    connection: ConnectionStatus,
+    connectionMessage: String?,
+    onRetryConnection: () -> Unit,
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -71,7 +78,11 @@ fun MainScaffold() {
             }
         },
     ) { padding ->
-        Surface(modifier = Modifier.fillMaxSize().padding(padding), color = Background) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
+        if (connection == ConnectionStatus.Offline) {
+            ConnectionBanner(connectionMessage, onRetryConnection)
+        }
+        Surface(modifier = Modifier.fillMaxSize(), color = Background) {
             NavHost(navController = navController, startDestination = AppTab.Home.route) {
                 composable(AppTab.Home.route) {
                     HomeRoute(
@@ -85,6 +96,7 @@ fun MainScaffold() {
                 composable(AppTab.Grades.route) { GradesRoute() }
                 composable(AppTab.Messages.route) { MessagesRoute() }
             }
+        }
         }
     }
 }

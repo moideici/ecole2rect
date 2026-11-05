@@ -10,17 +10,30 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+/** Date de naissance saisie par l'utilisateur, gardée pour répondre seule à une question de sécurité. */
+data class BirthDate(val day: String, val month: String, val year: String) {
+    val isComplete: Boolean get() = day.isNotBlank() && month.isNotBlank() && year.isNotBlank()
+}
+
 data class SavedLogin(
     val identifier: String,
     val password: String,
     val trustedAnswer: TrustedAnswer? = null,
+    val birthDate: BirthDate? = null,
 )
 
-class SecureCredentialStore(context: Context) {
+/** Stockage des identifiants. Abstrait pour pouvoir être remplacé dans les tests. */
+interface CredentialStore {
+    fun read(): SavedLogin?
+    fun save(login: SavedLogin)
+    fun clear()
+}
+
+class SecureCredentialStore(context: Context) : CredentialStore {
     private val preferences = context.getSharedPreferences("ecole2recte_secure", Context.MODE_PRIVATE)
     private val keyAlias = "ecole2recte_credentials"
 
-    fun read(): SavedLogin? = preferences.getString("login", null)?.let { encrypted ->
+    override fun read(): SavedLogin? = preferences.getString("login", null)?.let { encrypted ->
         runCatching {
             val json = JSONObject(decrypt(encrypted))
             SavedLogin(
@@ -29,21 +42,27 @@ class SecureCredentialStore(context: Context) {
                 trustedAnswer = json.optJSONObject("trustedAnswer")?.let {
                     TrustedAnswer(it.getString("cn"), it.getString("cv"))
                 },
+                birthDate = json.optJSONObject("birthDate")?.let {
+                    BirthDate(it.getString("day"), it.getString("month"), it.getString("year"))
+                },
             )
         }.getOrNull()
     }
 
-    fun save(login: SavedLogin) {
+    override fun save(login: SavedLogin) {
         val json = JSONObject()
             .put("identifier", login.identifier)
             .put("password", login.password)
         login.trustedAnswer?.let {
             json.put("trustedAnswer", JSONObject().put("cn", it.cn).put("cv", it.cv))
         }
+        login.birthDate?.takeIf { it.isComplete }?.let {
+            json.put("birthDate", JSONObject().put("day", it.day).put("month", it.month).put("year", it.year))
+        }
         preferences.edit().putString("login", encrypt(json.toString())).apply()
     }
 
-    fun clear() {
+    override fun clear() {
         preferences.edit().clear().apply()
     }
 

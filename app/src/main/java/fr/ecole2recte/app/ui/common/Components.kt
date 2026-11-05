@@ -31,10 +31,27 @@ import fr.ecole2recte.app.ui.theme.Ink
 import fr.ecole2recte.app.ui.theme.Muted
 import fr.ecole2recte.app.ui.theme.SubjectColors
 
+/** Bandeau discret affiché quand la reconnexion à ÉcoleDirecte a échoué. */
 @Composable
-fun SplashScreen() {
-    Box(Modifier.fillMaxSize().background(Background), contentAlignment = Alignment.Center) {
-        Text("ecole2recte", color = Indigo, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+fun ConnectionBanner(message: String?, onRetry: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(Ink).padding(horizontal = 18.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            message ?: "Hors ligne",
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+            color = Color.White,
+            fontSize = 12.sp,
+        )
+        Text(
+            "Réessayer",
+            modifier = Modifier.clickable(onClick = onRetry).padding(8.dp),
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+        )
     }
 }
 
