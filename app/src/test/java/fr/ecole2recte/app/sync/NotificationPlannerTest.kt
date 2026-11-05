@@ -158,3 +158,95 @@ class NotificationPlannerTest {
         assertNotNull(WidgetSnapshot.fromJson(empty.toJson())?.tasks)
     }
 }
+
+class ScheduleChangesTest {
+    private val today = LocalDate.of(2026, 11, 5)
+
+    private fun lesson(room: String = "B05", teacher: String = "M. Petit", end: String = "14:30", canceled: Boolean = false, modified: Boolean = false, date: String = "2026-11-05") =
+        ScheduleEntry(Subject("Maths", teacher, room, 0), "", canceled, date, "13:30", end, modified = modified)
+
+    private fun snap(vararg lessons: ScheduleEntry) = SyncSnapshot(emptyList(), emptyList(), emptyList(), emptyList(), lessons.toList())
+
+    private fun plan(before: ScheduleEntry, after: ScheduleEntry, rules: NotificationRules = NotificationRules()): List<NotificationEvent> {
+        val first = NotificationPlanner.plan(null, snap(before), today)
+        return NotificationPlanner.plan(first.next, snap(after), today, rules).events
+    }
+
+    @Test
+    fun `un changement de salle est signale avec l'ancienne et la nouvelle`() {
+        val events = plan(lesson(room = "B05"), lesson(room = "B12"))
+        assertEquals(listOf(EventKind.Changed), events.map { it.kind })
+        assertEquals("Cours modifié : Maths", events.single().title)
+        assertEquals("aujourd'hui à 13:30 · salle B05 → B12", events.single().text)
+    }
+
+    @Test
+    fun `un changement de professeur et d'horaire est signale`() {
+        val text = plan(lesson(), lesson(teacher = "Mme Roux", end = "14:00")).single().text
+        assertEquals("aujourd'hui à 13:30 · professeur M. Petit → Mme Roux, fin à 14:00", text)
+    }
+
+    @Test
+    fun `un cours retabli est signale`() {
+        val events = plan(lesson(canceled = true), lesson(canceled = false))
+        assertEquals("Cours rétabli : Maths", events.single().title)
+    }
+
+    @Test
+    fun `un cours qui vient d'etre annule n'est pas aussi un cours modifie`() {
+        val events = plan(lesson(), lesson(canceled = true))
+        assertEquals(emptyList<EventKind>(), events.map { it.kind }.filter { it == EventKind.Changed })
+    }
+
+    @Test
+    fun `un cours inchange ou lointain ne notifie rien`() {
+        assertEquals(emptyList<NotificationEvent>(), plan(lesson(), lesson()))
+        assertEquals(emptyList<NotificationEvent>(), plan(lesson(date = "2026-11-12"), lesson(room = "C1", date = "2026-11-12")))
+    }
+
+    @Test
+    fun `apres une mise a jour sans empreintes on ne notifie rien`() {
+        val result = NotificationPlanner.plan(NotifiedIds(), snap(lesson(room = "B12")), today)
+        assertEquals(emptyList<NotificationEvent>(), result.events)
+    }
+
+    @Test
+    fun `un changement n'est notifie qu'une fois`() {
+        val first = NotificationPlanner.plan(null, snap(lesson()), today)
+        val changed = NotificationPlanner.plan(first.next, snap(lesson(room = "B12")), today)
+        val again = NotificationPlanner.plan(changed.next, snap(lesson(room = "B12")), today)
+        assertEquals(1, changed.events.size)
+        assertEquals(emptyList<NotificationEvent>(), again.events)
+    }
+
+    @Test
+    fun `une famille desactivee ne notifie pas mais reste a jour`() {
+        val rules = NotificationRules(schedule = false)
+        val first = NotificationPlanner.plan(null, snap(lesson()), today)
+        val off = NotificationPlanner.plan(first.next, snap(lesson(room = "B12")), today, rules)
+        assertEquals(emptyList<NotificationEvent>(), off.events)
+        // Réactivée plus tard, l'ancien changement ne ressort pas.
+        val on = NotificationPlanner.plan(off.next, snap(lesson(room = "B12")), today)
+        assertEquals(emptyList<NotificationEvent>(), on.events)
+    }
+
+    @Test
+    fun `le mode nuit couvre de 22 h a 7 h`() {
+        val rules = NotificationRules()
+        assertEquals(true, rules.isQuiet(23))
+        assertEquals(true, rules.isQuiet(3))
+        assertEquals(false, rules.isQuiet(7))
+        assertEquals(false, rules.isQuiet(21))
+        assertEquals(false, NotificationRules(quietNight = false).isQuiet(3))
+    }
+
+    @Test
+    fun `chaque famille suit son reglage`() {
+        val rules = NotificationRules(grades = false, messages = false)
+        assertEquals(true, rules.allows(EventKind.Canceled))
+        assertEquals(true, rules.allows(EventKind.Changed))
+        assertEquals(false, rules.allows(EventKind.Grade))
+        assertEquals(false, rules.allows(EventKind.Message))
+        assertEquals(true, rules.allows(EventKind.Homework))
+    }
+}

@@ -41,9 +41,9 @@ object SyncScheduler {
 
     private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
-    /** Planifie un passage toutes les 4 heures, avec du réseau. */
-    fun schedule(context: Context) {
-        val request = PeriodicWorkRequestBuilder<SyncWorker>(4, TimeUnit.HOURS).setConstraints(network).build()
+    /** Planifie un passage toutes les [hours] heures (2, 4 ou 8), avec du réseau. */
+    fun schedule(context: Context, hours: Int = 4) {
+        val request = PeriodicWorkRequestBuilder<SyncWorker>(hours.coerceIn(2, 24).toLong(), TimeUnit.HOURS).setConstraints(network).build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 

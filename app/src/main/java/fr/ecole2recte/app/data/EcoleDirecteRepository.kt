@@ -3,6 +3,7 @@ package fr.ecole2recte.app.data
 import fr.ecole2recte.app.data.api.ApiDay
 import fr.ecole2recte.app.data.api.ApiGrade
 import fr.ecole2recte.app.data.api.ApiGrades
+import fr.ecole2recte.app.data.api.ApiSubjectAverage
 import fr.ecole2recte.app.data.api.ApiHomework
 import fr.ecole2recte.app.data.api.ApiLesson
 import fr.ecole2recte.app.data.api.ApiMessage
@@ -12,6 +13,10 @@ import fr.ecole2recte.app.data.cache.CacheOwner
 import fr.ecole2recte.app.data.cache.InMemoryResponseCache
 import fr.ecole2recte.app.data.cache.ResponseCache
 import fr.ecole2recte.app.domain.Badges
+import fr.ecole2recte.app.domain.ChildSummary
+import fr.ecole2recte.app.domain.SchoolLifeEvent
+import fr.ecole2recte.app.domain.SchoolLifeKind
+import fr.ecole2recte.app.domain.SchoolLifeSummary
 import fr.ecole2recte.app.domain.Freshness
 import fr.ecole2recte.app.domain.GradeEntry
 import fr.ecole2recte.app.domain.GradeMath
@@ -27,7 +32,6 @@ import fr.ecole2recte.app.domain.MessagePreview
 import fr.ecole2recte.app.domain.MessagesPage
 import fr.ecole2recte.app.domain.NextClass
 import fr.ecole2recte.app.domain.ScheduleEntry
-import fr.ecole2recte.app.domain.ScheduleSlot
 import fr.ecole2recte.app.domain.ScheduleWeek
 import fr.ecole2recte.app.domain.SchoolRepository
 import fr.ecole2recte.app.domain.Subject
@@ -35,6 +39,8 @@ import fr.ecole2recte.app.domain.SubjectAverage
 import fr.ecole2recte.app.session.ActiveProfile
 import fr.ecole2recte.app.session.ApiSession
 import fr.ecole2recte.app.session.ApiSessionState
+import fr.ecole2recte.app.session.initialsOf
+import fr.ecole2recte.app.session.titleCase
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -228,10 +234,10 @@ class EcoleDirecteRepository(
         val homework = optional(errors, emptyList()) { homeworkItems() }
         val grades = optional(errors, null) { gradesPayload() }
         val inbox = optional(errors, emptyList()) { inbox() }
-        if (errors.size == 4) throw errors.first()
+        val family = optional(errors, emptyList()) { family() }
+        if (errors.size >= 5) throw errors.first()
 
         val current = now()
-        val todays = lessons.filter { it.start.startsWith(today().toString()) && !it.canceled }
         val upcoming = lessons.filter { !it.canceled && parse(it.end) > current }.minByOrNull { it.start }
         return HomeData(
             greeting = "Bonjour ${profile.firstName}",
@@ -239,9 +245,10 @@ class EcoleDirecteRepository(
             nextClass = upcoming?.let {
                 NextClass(it.toSubject(), startLabel(it, current), progress(it, current), afterLabel(lessons, it))
             },
-            today = todays.map { ScheduleSlot(it.start.substring(11, 16), it.toSubject()) },
+            today = lessons.filter { it.start.startsWith(today().toString()) }.map { it.toEntry() },
             reminder = pendingHomework(homework).firstOrNull()?.toHomework(),
             highlights = highlights(lessons, homework, grades, inbox),
+            family = family,
             grades = grades?.let(::overview) ?: GradeOverview("–", "", emptyList()),
             allSubjects = lessons.map { it.toSubject() }.distinctBy { it.name },
         )
@@ -257,18 +264,7 @@ class EcoleDirecteRepository(
         }
         return ScheduleWeek(
             label = "Semaine du ${monday.format(DateTimeFormatter.ofPattern("d MMMM", french))}",
-            entries = window.map { lesson ->
-                ScheduleEntry(
-                    subject = lesson.toSubject(),
-                    whenLabel = "${dayName(lesson.start)} · ${lesson.start.substring(11, 16)} — ${lesson.end.substring(11, 16)}",
-                    canceled = lesson.canceled,
-                    date = lesson.start.substring(0, 10),
-                    start = lesson.start.substring(11, 16),
-                    end = lesson.end.substring(11, 16),
-                    exam = lesson.exam,
-                    note = lesson.note,
-                )
-            },
+            entries = window.map { it.toEntry() },
             weekStart = monday.toString(),
             today = today().toString(),
         )
@@ -340,6 +336,93 @@ class EcoleDirecteRepository(
         else moment.format(DateTimeFormatter.ofPattern("d MMM", french))
     }
 
+    override suspend fun schoolLife(): SchoolLifeSummary {
+        val events = resource("schoollife", { api, target -> api.schoolLife(target.studentId) }, Parsers::schoolLife)
+        val kinds = mapOf(
+            "absence" to SchoolLifeKind.Absence,
+            "retard" to SchoolLifeKind.Late,
+            "sanction" to SchoolLifeKind.Sanction,
+            "encouragement" to SchoolLifeKind.Encouragement,
+        )
+        val mapped = events.map { event ->
+            val kind = kinds[event.kind] ?: SchoolLifeKind.Other
+            SchoolLifeEvent(
+                kind = kind,
+                title = event.label.ifBlank {
+                    when (kind) {
+                        SchoolLifeKind.Absence -> "Absence"
+                        SchoolLifeKind.Late -> "Retard"
+                        SchoolLifeKind.Sanction -> "Sanction"
+                        SchoolLifeKind.Encouragement -> "Encouragement"
+                        SchoolLifeKind.Other -> "Vie scolaire"
+                    }
+                }.capitalized(),
+                dateLabel = shortDay(event.start.take(10)).orEmpty() + event.duration.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
+                detail = listOf(event.reason, event.comment).filter { it.isNotBlank() }.joinToString(" — "),
+                justified = event.justified,
+            )
+        }
+        return SchoolLifeSummary(
+            absences = mapped.count { it.kind == SchoolLifeKind.Absence },
+            unjustified = mapped.count { it.kind == SchoolLifeKind.Absence && !it.justified },
+            lates = mapped.count { it.kind == SchoolLifeKind.Late },
+            sanctions = mapped.count { it.kind == SchoolLifeKind.Sanction },
+            encouragements = mapped.count { it.kind == SchoolLifeKind.Encouragement },
+            events = mapped,
+        )
+    }
+
+    /**
+     * Un résumé par enfant d'un compte famille : prochain cours, devoirs urgents, nouvelles notes,
+     * moyenne. L'enfant affiché réutilise les données déjà chargées ; les autres ont leur propre
+     * mémoire et leur propre cache.
+     */
+    private suspend fun family(): List<ChildSummary> {
+        val account = session.await(profile.identifier).accounts.firstOrNull() ?: return emptyList()
+        if (account.students.isEmpty()) return emptyList()
+        val selected = profile.studentId ?: account.students.first().id
+        return account.students.map { student ->
+            val repository = if (student.id == selected) this else EcoleDirecteRepository(
+                session,
+                ActiveProfile(
+                    identifier = profile.identifier,
+                    studentId = student.id,
+                    firstName = titleCase(student.firstName),
+                    displayName = "${titleCase(student.firstName)} ${titleCase(student.lastName)}".trim(),
+                    initials = initialsOf(student.firstName, student.lastName, profile.identifier),
+                ),
+                responseCache,
+                homeworkStatus,
+                clock,
+                ttlMs,
+                ioDispatcher,
+            )
+            repository.summary(student, student.id == selected)
+        }
+    }
+
+    private suspend fun summary(student: Student, selected: Boolean): ChildSummary {
+        val errors = mutableListOf<Throwable>()
+        val lessons = optional(errors, emptyList()) { lessons() }
+        val homework = optional(errors, emptyList()) { homeworkItems() }
+        val grades = optional(errors, null) { gradesPayload() }
+        val current = now()
+        val next = lessons.filter { !it.canceled && parse(it.end) > current }.minByOrNull { it.start }
+        val limit = today().plusDays(1)
+        val since = today().minusDays(7).toString()
+        return ChildSummary(
+            studentId = student.id,
+            name = "${titleCase(student.firstName)} ${titleCase(student.lastName)}".trim(),
+            initials = initialsOf(student.firstName, student.lastName, student.id),
+            className = student.className,
+            nextClass = next?.let { "${it.subject.prettySubject()} · ${startLabel(it, current)}" },
+            urgentHomework = pendingHomework(homework).count { LocalDate.parse(it.dueDate) <= limit },
+            newGrades = grades?.grades?.count { it.counted && it.value != null && (it.date ?: "") >= since } ?: 0,
+            average = grades?.let { overview(it).average }?.takeIf { it != "–" },
+            selected = selected,
+        )
+    }
+
     override suspend fun badges(): Badges {
         val errors = mutableListOf<Throwable>()
         val unread = optional(errors, 0) { inbox().count { !it.read } }
@@ -362,7 +445,10 @@ class EcoleDirecteRepository(
         return items.filter { !it.done && it.dueDate >= today }.sortedBy { it.dueDate }
     }
 
-    /** Ce qui mérite un coup d'œil dès l'ouverture, du plus urgent au moins urgent. */
+    /**
+     * Ce qui mérite un coup d'œil dès l'ouverture, du plus pressant au moins pressant :
+     * cours annulé, cours modifié, évaluation proche, message non lu, nouvelle note.
+     */
     private fun highlights(
         lessons: List<ApiLesson>,
         homework: List<ApiHomework>,
@@ -371,14 +457,26 @@ class EcoleDirecteRepository(
     ): List<Highlight> {
         val today = today()
         val list = mutableListOf<Highlight>()
-        lessons.filter { it.canceled }.forEach { lesson ->
+        fun whenLabel(lesson: ApiLesson): String? {
             val day = LocalDate.parse(lesson.start.substring(0, 10))
-            if (day == today || day == today.plusDays(1)) {
-                val when_ = if (day == today) "aujourd'hui" else "demain"
+            val word = when (day) {
+                today -> "aujourd'hui"
+                today.plusDays(1) -> "demain"
+                else -> return null
+            }
+            return "$word à ${lesson.start.substring(11, 16)}"
+        }
+        lessons.filter { it.canceled }.forEach { lesson ->
+            whenLabel(lesson)?.let {
+                list += Highlight(HighlightKind.Canceled, "Cours annulé : ${lesson.subject.prettySubject()}", it)
+            }
+        }
+        lessons.filter { it.modified && !it.canceled }.forEach { lesson ->
+            whenLabel(lesson)?.let {
                 list += Highlight(
-                    HighlightKind.Canceled,
-                    "Cours annulé : ${lesson.subject.prettySubject()}",
-                    "$when_ à ${lesson.start.substring(11, 16)}",
+                    HighlightKind.Changed,
+                    "Cours modifié : ${lesson.subject.prettySubject()}",
+                    listOfNotNull(it, lesson.room.takeIf { room -> room.isNotBlank() }?.let { room -> "salle $room" }).joinToString(" · "),
                 )
             }
         }
@@ -386,16 +484,6 @@ class EcoleDirecteRepository(
             val day = LocalDate.parse(task.dueDate).format(DateTimeFormatter.ofPattern("EEEE d MMMM", french))
             list += Highlight(HighlightKind.Exam, "Évaluation en ${task.subject.prettySubject()}", day.capitalized())
         }
-        grades?.grades
-            ?.filter { it.counted && it.value != null && (it.date ?: "") >= today.minusDays(7).toString() }
-            ?.take(2)
-            ?.forEach { grade ->
-                list += Highlight(
-                    HighlightKind.Grade,
-                    "Nouvelle note en ${grade.subject.prettySubject()}",
-                    "${decimal(grade.value!!)} / ${grade.scale.toInt()}" + grade.label.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
-                )
-            }
         val unread = inbox.count { !it.read }
         if (unread > 0) {
             list += Highlight(
@@ -404,8 +492,30 @@ class EcoleDirecteRepository(
                 inbox.firstOrNull { !it.read }?.let { "${it.sender} · ${it.subject}" }.orEmpty(),
             )
         }
-        return list.take(5)
+        // Une note : la matière à gauche, la note avec son coefficient en grand à droite, le détail en petit.
+        grades?.grades
+            ?.filter { it.counted && it.value != null && (it.date ?: "") >= today.minusDays(7).toString() }
+            ?.take(2)
+            ?.forEach { grade ->
+                list += Highlight(
+                    kind = HighlightKind.Grade,
+                    title = grade.subject.prettySubject(),
+                    detail = listOfNotNull(
+                        grade.label.takeIf { it.isNotBlank() },
+                        shortDay(grade.date),
+                        grade.classAverage?.let { "classe ${decimal(it)}" },
+                    ).joinToString(" · "),
+                    value = "${coefficientText(grade.value!!)}/${grade.scale.toInt()}",
+                    valueSub = "coef. ${coefficientText(grade.coefficient)}",
+                )
+            }
+        return list.take(6)
     }
+
+    private fun coefficientText(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else decimal(value)
+
+    private fun shortDay(iso: String?): String? =
+        iso?.let { runCatching { LocalDate.parse(it).format(DateTimeFormatter.ofPattern("d MMM", french)) }.getOrNull() }
 
     private fun afterLabel(lessons: List<ApiLesson>, current: ApiLesson): String? {
         val following = lessons.filter { !it.canceled && it.start >= current.end }.minByOrNull { it.start } ?: return null
@@ -424,6 +534,18 @@ class EcoleDirecteRepository(
         done = done,
         exam = exam,
         content = content,
+    )
+
+    private fun ApiLesson.toEntry() = ScheduleEntry(
+        subject = toSubject(),
+        whenLabel = "${dayName(start)} · ${start.substring(11, 16)} — ${end.substring(11, 16)}",
+        canceled = canceled,
+        date = start.substring(0, 10),
+        start = start.substring(11, 16),
+        end = end.substring(11, 16),
+        exam = exam,
+        note = note,
+        modified = modified,
     )
 
     private fun ApiLesson.toSubject() = Subject(subject.prettySubject(), teacher, room, colorFor(subject))
@@ -445,12 +567,8 @@ class EcoleDirecteRepository(
     )
 
     private fun overview(payload: ApiGrades): GradeOverview {
-        val periods = payload.periods
-        val current = periods.firstOrNull { it.current && it.average != null }
-            ?: periods.lastOrNull { it.average != null }
-            ?: periods.lastOrNull()
-        val previous = current?.let { c -> periods.takeWhile { it.code != c.code }.lastOrNull { it.average != null } }
-        val delta = if (current?.average != null && previous?.average != null) current.average - previous.average else null
+        val periods = payload.periods.filter { !it.annual }.ifEmpty { payload.periods }
+        val current = PeriodSelection.select(payload.periods, payload.grades, today())
 
         val periodGrades = payload.grades.filter { current != null && it.periodCode == current.code }.map { it.toEntry() }
         val official = payload.subjectAverages.filter { current != null && it.periodCode == current.code }
@@ -466,10 +584,18 @@ class EcoleDirecteRepository(
                 average = average?.let(::decimal) ?: "–",
                 classAverage = line?.classAverage?.let(::decimal),
                 grades = grades,
+                coefficient = line?.coefficient,
             )
         }
+        // Moyenne générale : celle de l'établissement, sinon la moyenne des matières (pondérée par
+        // leur coefficient quand il est connu), sinon celle de toutes les notes.
+        val general = current?.average
+            ?: weightedSubjects(official)
+            ?: GradeMath.weightedAverage(periodGrades)
+        val previous = current?.let { c -> periods.takeWhile { it.code != c.code }.lastOrNull { it.average != null } }
+        val delta = if (general != null && previous?.average != null) general - previous.average else null
         return GradeOverview(
-            average = current?.average?.let(::decimal) ?: "–",
+            average = general?.let(::decimal) ?: "–",
             trend = when {
                 delta == null || abs(delta) < 0.05 -> ""
                 delta > 0 -> "↗ +${decimal(delta)}"
@@ -479,7 +605,14 @@ class EcoleDirecteRepository(
             recent = payload.grades.filter { it.value != null }.take(6).map { it.toEntry() },
             evolution = periods.mapNotNull { p -> p.average?.let { PeriodAverage(p.name, it) } },
             classAverage = current?.classAverage?.let(::decimal),
+            periodName = current?.name.orEmpty(),
         )
+    }
+
+    private fun weightedSubjects(official: List<ApiSubjectAverage>): Double? {
+        val withAverage = official.mapNotNull { line -> line.average?.let { it to (line.coefficient?.takeIf { c -> c > 0 } ?: 1.0) } }
+        if (withAverage.isEmpty()) return null
+        return withAverage.sumOf { it.first * it.second } / withAverage.sumOf { it.second }
     }
 
     private fun decimal(value: Double): String = String.format(french, "%.1f", value)

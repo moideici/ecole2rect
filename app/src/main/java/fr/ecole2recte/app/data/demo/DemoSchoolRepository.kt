@@ -13,8 +13,8 @@ import fr.ecole2recte.app.domain.MessagePreview
 import fr.ecole2recte.app.domain.MessagesPage
 import fr.ecole2recte.app.domain.NextClass
 import fr.ecole2recte.app.domain.ScheduleEntry
-import fr.ecole2recte.app.domain.ScheduleSlot
 import fr.ecole2recte.app.domain.ScheduleWeek
+import fr.ecole2recte.app.domain.SchoolLifeSummary
 import fr.ecole2recte.app.domain.SchoolRepository
 import fr.ecole2recte.app.domain.Subject
 import fr.ecole2recte.app.domain.SubjectAverage
@@ -53,7 +53,8 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
         dateLabel = "Samedi 5 septembre 2026",
         nextClass = NextClass(subjects.first(), startLabel = "10:15  ·  dans 24 min", progress = 0.64f),
         today = subjects.take(3).mapIndexed { index, subject ->
-            ScheduleSlot(listOf("08:00", "10:15", "13:30")[index], subject)
+            val (start, end) = listOf("08:00" to "09:50", "10:15" to "12:00", "13:30" to "14:25")[index]
+            ScheduleEntry(subject, "$start — $end", date = java.time.LocalDate.now().toString(), start = start, end = end)
         },
         reminder = homework.first(),
         highlights = listOf(
@@ -96,6 +97,8 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
 
     override suspend fun messageDetail(id: String) =
         MessageDetail("Réunion parents-professeurs", "Vie scolaire", "4 nov.", "Bonjour,\n\nLa réunion aura lieu jeudi.", emptyList(), emptyList())
+
+    override suspend fun schoolLife() = SchoolLifeSummary()
 
     override suspend fun badges(): Badges = Badges(newGrades = 1, urgentHomework = 1, unreadMessages = 2)
 

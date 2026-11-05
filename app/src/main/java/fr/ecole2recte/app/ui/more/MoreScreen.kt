@@ -72,6 +72,8 @@ fun MoreScreen(
                 }
             }
         }
+        item { Section("Vie scolaire") }
+        item { SchoolLifeCard() }
         item { Section("Accueil") }
         item { HomeLayoutCard() }
         item { Section("Couleurs") }

@@ -49,6 +49,7 @@ import fr.ecole2recte.app.ui.common.GradesViewModel
 import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.PageHeader
 import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
+import fr.ecole2recte.app.ui.common.SubjectBadge
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.entrance
@@ -78,7 +79,7 @@ private fun GradesContent(grades: GradeOverview) {
     ScrollToTopOnReselect("notes", listState)
     var opened by remember { mutableStateOf<GradeEntry?>(null) }
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { PageHeader("Notes", "Ce trimestre, matière par matière") }
+        item { PageHeader("Notes", grades.periodName.ifBlank { "Matière par matière" }) }
         item { AverageCard(grades, Modifier.entrance(0)) }
         if (grades.recent.isNotEmpty()) {
             item { SectionLabel("Dernières notes") }
@@ -184,7 +185,7 @@ private fun shortDate(iso: String?): String =
 private fun GradeRow(grade: GradeEntry, showSubject: Boolean, modifier: Modifier, onClick: () -> Unit) {
     ListCard(modifier, onClick = onClick) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(9.dp).background(subjectColor(grade.subject, grade.colorIndex), RoundedCornerShape(5.dp)))
+            SubjectBadge(grade.subject, grade.colorIndex, size = 32.dp)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     if (showSubject) grade.subject else grade.label.ifBlank { "Évaluation" },
@@ -230,7 +231,7 @@ private fun SubjectCard(line: SubjectAverage, modifier: Modifier, onGrade: (Grad
     ListCard(modifier, onClick = { expanded = !expanded }) {
         Column {
             Row(Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(9.dp).background(subjectColor(line.subject.name, line.subject.colorIndex), RoundedCornerShape(5.dp)))
+                SubjectBadge(line.subject.name, line.subject.colorIndex, size = 36.dp)
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text(line.subject.name, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     line.classAverage?.let { Text("Classe : $it", color = AppTheme.colors.muted, fontSize = 12.sp) }

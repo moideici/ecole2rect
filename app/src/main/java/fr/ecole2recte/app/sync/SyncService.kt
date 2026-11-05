@@ -107,9 +107,15 @@ class SyncService(
             val today = LocalDate.now(clock)
             val owner = "${saved.identifier.lowercase()}|${profile.studentId.orEmpty()}"
             val snapshot = NotificationPlanner.snapshot(home.grades, inbox.items, week, homework, today)
-            val plan = NotificationPlanner.plan(state.load(owner), snapshot, today)
-            if (plan.events.isNotEmpty()) notifier.post(plan.events)
-            state.save(owner, plan.next)
+            val rules = prefs.rules
+            val plan = NotificationPlanner.plan(state.load(owner), snapshot, today, rules)
+            val hour = java.time.LocalTime.now(clock).hour
+            if (plan.events.isNotEmpty() && rules.isQuiet(hour)) {
+                // De nuit : on ne dérange pas et on ne retient rien, les nouveautés partiront au matin.
+            } else {
+                if (plan.events.isNotEmpty()) notifier.post(plan.events)
+                state.save(owner, plan.next)
+            }
 
             widgets.publish(
                 WidgetSnapshot(

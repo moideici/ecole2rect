@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
@@ -188,7 +189,7 @@ fun SectionTitle(title: String, action: String, onClick: () -> Unit) {
 @Composable
 fun SubjectChip(subject: Subject) {
     Box(Modifier.size(56.dp).background(Color.White.copy(alpha = .85f), RoundedCornerShape(17.dp)), contentAlignment = Alignment.Center) {
-        Text(subject.name.take(2), color = subjectColor(subject.name, subject.colorIndex), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Icon(subjectIcon(subject.name), contentDescription = null, tint = subjectColor(subject.name, subject.colorIndex), modifier = Modifier.size(30.dp))
     }
 }
 

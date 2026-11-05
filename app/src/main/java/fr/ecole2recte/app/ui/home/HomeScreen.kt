@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.EventBusy
+import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material3.Icon
 import fr.ecole2recte.app.domain.Highlight
@@ -27,21 +28,31 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import fr.ecole2recte.app.domain.ChildSummary
 import fr.ecole2recte.app.domain.GradeOverview
+import fr.ecole2recte.app.sync.WidgetLesson
+import fr.ecole2recte.app.sync.WidgetSnapshot
+import fr.ecole2recte.app.sync.WidgetTask
+import fr.ecole2recte.app.ui.accounts.Avatar
+import fr.ecole2recte.app.widget.WidgetUpdater
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.NextClass
-import fr.ecole2recte.app.domain.ScheduleSlot
+import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.ui.common.HomeViewModel
 import fr.ecole2recte.app.ui.common.PageHeader
+import fr.ecole2recte.app.ui.schedule.DayTimelineView
+import fr.ecole2recte.app.ui.schedule.rememberClock
 import fr.ecole2recte.app.ui.common.ProgressRing
 import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.rememberAnimatedDecimal
@@ -63,6 +74,7 @@ fun HomeRoute(
     onOpenHomework: () -> Unit,
     onOpenGrades: () -> Unit,
     onOpenMessages: () -> Unit,
+    onSelectChild: (String) -> Unit = {},
 ) {
     val repository = rememberSchoolRepository()
     val viewModel = appViewModel { HomeViewModel(repository) }
@@ -77,6 +89,26 @@ fun HomeRoute(
             onOpenHomework = onOpenHomework,
             onOpenGrades = onOpenGrades,
             onOpenMessages = onOpenMessages,
+            onSelectChild = onSelectChild,
+        )
+        PublishWidgets(data, repository)
+    }
+}
+
+/** Met à jour les widgets à chaque ouverture : ils marchent sans activer les notifications. */
+@Composable
+private fun PublishWidgets(data: HomeData, repository: fr.ecole2recte.app.domain.SchoolRepository) {
+    val context = LocalContext.current.applicationContext
+    LaunchedEffect(data) {
+        val tasks = runCatching { repository.homework() }.getOrDefault(emptyList()).filter { !it.done }.take(5)
+        WidgetUpdater(context).publish(
+            WidgetSnapshot(
+                updatedAt = System.currentTimeMillis(),
+                nextClass = data.nextClass?.let {
+                    WidgetLesson(it.subject.name, it.startLabel, it.subject.room.takeIf { room -> room.isNotBlank() }?.let { room -> "Salle $room" }.orEmpty())
+                },
+                tasks = tasks.map { WidgetTask(it.subject, it.title, it.due) },
+            ),
         )
     }
 }
@@ -90,6 +122,7 @@ private fun HomeScreen(
     onOpenHomework: () -> Unit,
     onOpenGrades: () -> Unit,
     onOpenMessages: () -> Unit,
+    onSelectChild: (String) -> Unit,
 ) {
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("accueil", listState)
@@ -97,8 +130,12 @@ private fun HomeScreen(
         item { PageHeader(data.greeting, data.dateLabel) }
         layout.visible.forEachIndexed { rank, section ->
             when (section) {
+                HomeSection.Family -> if (data.family.isNotEmpty()) {
+                    item(key = "family-title") { SectionTitle("Ma famille", "", onClick = {}) }
+                    item(key = "family") { FamilyCard(data.family, Modifier.entrance(rank), onSelectChild) }
+                }
                 HomeSection.NextClass -> item(key = "next") {
-                    if (data.nextClass != null) NextClassCard(data.nextClass, Modifier.entrance(rank))
+                    if (data.nextClass != null) NextClassCard(data.nextClass, Modifier.entrance(rank).clickable(onClick = onOpenSchedule))
                     else NoClassCard(Modifier.entrance(rank))
                 }
                 HomeSection.Today -> {
@@ -107,7 +144,7 @@ private fun HomeScreen(
                         if (data.today.isEmpty()) {
                             Text("Pas de cours aujourd'hui.", color = AppTheme.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 22.dp))
                         } else {
-                            ScheduleSummary(data.today, Modifier.entrance(rank))
+                            TodayCard(data.today, Modifier.entrance(rank), onOpenSchedule)
                         }
                     }
                 }
@@ -120,7 +157,7 @@ private fun HomeScreen(
                                     highlight,
                                     Modifier.entrance(rank + index),
                                     onClick = when (highlight.kind) {
-                                        HighlightKind.Canceled, HighlightKind.Exam -> onOpenSchedule
+                                        HighlightKind.Canceled, HighlightKind.Changed, HighlightKind.Exam -> onOpenSchedule
                                         HighlightKind.Grade -> onOpenGrades
                                         HighlightKind.Message -> onOpenMessages
                                     },
@@ -142,13 +179,57 @@ private fun HomeScreen(
     }
 }
 
+/** Une ligne par enfant : prochain cours, devoirs urgents, nouvelles notes, moyenne. On touche pour changer d'enfant. */
+@Composable
+private fun FamilyCard(children: List<ChildSummary>, modifier: Modifier, onSelect: (String) -> Unit) {
+    Card(
+        modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        colors = CardDefaults.cardColors(AppTheme.colors.surface),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Column(Modifier.padding(vertical = 6.dp)) {
+            children.forEach { child ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onSelect(child.studentId) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Avatar(child.initials, active = child.selected, size = 44)
+                    Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                        Text(
+                            child.name + if (child.className.isNotBlank()) " · ${child.className}" else "",
+                            color = AppTheme.colors.ink,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(child.nextClass?.let { "Ensuite : $it" } ?: "Plus de cours aujourd'hui", color = AppTheme.colors.muted, fontSize = 12.sp, maxLines = 1)
+                        val tags = listOfNotNull(
+                            child.urgentHomework.takeIf { it > 0 }?.let { if (it == 1) "1 devoir pour demain" else "$it devoirs pour demain" },
+                            child.newGrades.takeIf { it > 0 }?.let { if (it == 1) "1 nouvelle note" else "$it nouvelles notes" },
+                        )
+                        if (tags.isNotEmpty()) {
+                            Text(tags.joinToString(" · "), color = AppTheme.colors.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    child.average?.let {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(it, color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("moyenne", color = AppTheme.colors.muted, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun HighlightCard(highlight: Highlight, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val (icon, tint) = when (highlight.kind) {
         HighlightKind.Canceled -> Icons.Outlined.EventBusy to AppTheme.colors.error
+        HighlightKind.Changed -> Icons.Outlined.EventRepeat to AppTheme.colors.error
         HighlightKind.Exam -> Icons.Outlined.EditNote to AppTheme.colors.accent
-        HighlightKind.Grade -> Icons.AutoMirrored.Outlined.TrendingUp to AppTheme.colors.positive
         HighlightKind.Message -> Icons.Outlined.MarkEmailUnread to AppTheme.colors.accent
+        HighlightKind.Grade -> Icons.AutoMirrored.Outlined.TrendingUp to AppTheme.colors.positive
     }
     Card(
         modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp).clickable(onClick = onClick),
@@ -157,10 +238,17 @@ private fun HighlightCard(highlight: Highlight, modifier: Modifier = Modifier, o
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, contentDescription = null, tint = tint)
-            Column(Modifier.padding(start = 14.dp)) {
-                Text(highlight.title, color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                Text(highlight.title, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 if (highlight.detail.isNotBlank()) {
-                    Text(highlight.detail, color = AppTheme.colors.muted, fontSize = 13.sp)
+                    Text(highlight.detail, color = AppTheme.colors.muted, fontSize = 12.sp, maxLines = 2)
+                }
+            }
+            // Une note : le chiffre en grand à droite, son coefficient en petit dessous.
+            highlight.value?.let { value ->
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 12.dp)) {
+                    Text(value, color = AppTheme.colors.ink, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    highlight.valueSub?.let { Text(it, color = AppTheme.colors.muted, fontSize = 12.sp) }
                 }
             }
         }
@@ -219,22 +307,17 @@ private fun NextClassCard(next: NextClass, modifier: Modifier = Modifier) {
     }
 }
 
+/** La journée entière sur la même frise que l'agenda : pauses, doubles heures, cours en cours. */
 @Composable
-private fun ScheduleSummary(slots: List<ScheduleSlot>, modifier: Modifier = Modifier) {
+private fun TodayCard(entries: List<ScheduleEntry>, modifier: Modifier, onOpen: () -> Unit) {
+    val now = rememberClock()
     Card(
         modifier.fillMaxWidth().padding(horizontal = 18.dp),
         colors = CardDefaults.cardColors(AppTheme.colors.surface),
         shape = RoundedCornerShape(18.dp),
     ) {
-        Column(Modifier.padding(18.dp)) {
-            slots.forEach { slot ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(slot.time, color = AppTheme.colors.muted, fontSize = 12.sp, modifier = Modifier.size(45.dp, 20.dp))
-                    Box(Modifier.size(8.dp).background(subjectColor(slot.subject.name, slot.subject.colorIndex), RoundedCornerShape(4.dp)))
-                    Text(slot.subject.name, color = AppTheme.colors.ink, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
-                    Text(slot.subject.room, color = AppTheme.colors.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
-                }
-            }
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 12.dp)) {
+            DayTimelineView(entries, now = now, compact = true, onSelect = { onOpen() })
         }
     }
 }

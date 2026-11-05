@@ -14,6 +14,7 @@ data class ApiLesson(
     val canceled: Boolean,
     val exam: Boolean,
     val note: String,
+    val modified: Boolean = false,
 )
 
 data class ApiAttachment(val id: String, val name: String, val type: String)
@@ -40,6 +41,10 @@ data class ApiPeriod(
     val current: Boolean,
     val average: Double?,
     val classAverage: Double?,
+    /** Période « Année » qui chapeaute les trimestres : jamais celle qu'on affiche par défaut. */
+    val annual: Boolean = false,
+    val start: String? = null,
+    val end: String? = null,
 )
 
 data class ApiSubjectAverage(
@@ -92,6 +97,20 @@ data class ApiMessageDetail(
     val attachments: List<ApiAttachment>,
 )
 
+data class ApiSchoolLife(
+    val id: String,
+    /** absence, retard, sanction, encouragement ou autre. */
+    val kind: String,
+    val label: String,
+    val start: String,
+    val end: String?,
+    val justified: Boolean,
+    val reason: String,
+    val comment: String,
+    /** Durée telle que l'établissement la compte. */
+    val duration: String,
+)
+
 object Parsers {
     /**
      * Un cours annulé reste dans la réponse (la salle est réservée) ; deux cours peuvent se
@@ -111,6 +130,7 @@ object Parsers {
                 canceled = raw.flag("isAnnule", "annule"),
                 exam = raw.flag("isDevoir", "devoir", "interrogation"),
                 note = raw.str("note", "commentaire"),
+                modified = raw.flag("isModifie", "modifie"),
             )
         }.sortedBy { it.start }
 
@@ -189,14 +209,18 @@ object Parsers {
         for (raw in root.opt("periodes").objects()) {
             val code = raw.str("idPeriode", "codePeriode", "code")
             if (code.isEmpty()) continue
+            val set = raw.optJSONObject("ensembleMatieres")
             periods += ApiPeriod(
                 code = code,
                 name = raw.str("periode", "libelle").ifEmpty { code },
                 current = !raw.flag("cloture") && raw.flag("isCurrent", "courante"),
-                average = raw.num("moyenneGenerale"),
-                classAverage = raw.num("moyenneClasse"),
+                // La moyenne générale est tantôt sur la période, tantôt dans `ensembleMatieres`.
+                average = raw.num("moyenneGenerale") ?: set?.num("moyenneGenerale"),
+                classAverage = raw.num("moyenneClasse") ?: set?.num("moyenneClasse"),
+                annual = raw.flag("annuel"),
+                start = raw.date("dateDebut"),
+                end = raw.date("dateFin"),
             )
-            val set = raw.optJSONObject("ensembleMatieres")
             for (discipline in set?.opt("disciplines").objects()) {
                 val subject = discipline.str("discipline", "libelle", "codeMatiere")
                 if (subject.isEmpty()) continue
@@ -234,6 +258,39 @@ object Parsers {
             grades = grades,
             subjectAverages = averages.distinctBy { "${it.periodCode} ${it.subject}" },
         )
+    }
+
+    /**
+     * La vie scolaire. La durée est reprise **telle que l'établissement la compte** : une absence de
+     * 8 h à 10 h peut valoir une ou deux heures selon l'emploi du temps, et c'est son décompte qui fait foi.
+     */
+    fun schoolLife(data: Any?): List<ApiSchoolLife> {
+        val root = data.asObject() ?: return emptyList()
+        val events = mutableListOf<ApiSchoolLife>()
+        for (key in listOf("absencesRetards", "sanctionsEncouragements", "evenements")) {
+            for (raw in root.opt(key).objects()) {
+                val start = raw.dateTime("date", "dateDebut", "displayDate") ?: continue
+                val label = raw.str("typeElement", "type").lowercase()
+                events += ApiSchoolLife(
+                    id = raw.str("id").ifEmpty { "$key-$start" },
+                    kind = when {
+                        "absence" in label -> "absence"
+                        "retard" in label -> "retard"
+                        "sanction" in label || "punition" in label -> "sanction"
+                        "encouragement" in label || "valorisation" in label -> "encouragement"
+                        else -> "autre"
+                    },
+                    label = raw.str("libelle", "typeElement"),
+                    start = start,
+                    end = raw.dateTime("dateFin"),
+                    justified = raw.flag("justifie", "justifiee"),
+                    reason = raw.str("motif", "parMotif"),
+                    comment = raw.str("commentaire"),
+                    duration = raw.str("displayDate", "duree"),
+                )
+            }
+        }
+        return events.sortedByDescending { it.start }
     }
 
     /** Le détail d'un message : le corps arrive en base64 et contient du HTML. */

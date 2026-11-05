@@ -208,6 +208,7 @@ private fun MainContent(
                                     },
                                     onOpenGrades = { navController.navigateToTab(AppTab.Grades) },
                                     onOpenMessages = { navController.navigateToTab(AppTab.Messages) },
+                                    onSelectChild = accountActions.onSelectStudent,
                                 )
                             }
                             composable(AppTab.Agenda.route) { AgendaScreen(agendaPage) { agendaPage = it } }

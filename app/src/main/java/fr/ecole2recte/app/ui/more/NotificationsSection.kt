@@ -8,10 +8,12 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,12 +47,14 @@ fun NotificationsSection() {
     val enabled by prefs.enabled.collectAsStateWithLifecycle()
     val lastSync by prefs.lastSyncMillis.collectAsStateWithLifecycle()
     val reason by prefs.disabledReason.collectAsStateWithLifecycle()
+    val rules by prefs.rulesFlow.collectAsStateWithLifecycle()
+    val interval by prefs.intervalHours.collectAsStateWithLifecycle()
     var blocked by remember { mutableStateOf(false) }
 
     fun enable() {
         prefs.setEnabled(true)
         AndroidNotifier(context).ensureChannels()
-        SyncScheduler.schedule(context)
+        SyncScheduler.schedule(context, prefs.intervalHours.value)
         // Un premier passage fixe la référence : ce qui existe déjà ne sera pas notifié.
         SyncScheduler.runNow(context)
     }
@@ -67,7 +71,7 @@ fun NotificationsSection() {
                 Column(Modifier.weight(1f)) {
                     Text("Notifications et widgets", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Vérifie ÉcoleDirecte toutes les 4 heures : nouvelle note, message, cours annulé, devoir pour demain.",
+                        "Te prévient quand l'emploi du temps change, qu'une note ou un message arrive, ou qu'un devoir est pour demain.",
                         color = AppTheme.colors.muted,
                         fontSize = 13.sp,
                     )
@@ -88,6 +92,34 @@ fun NotificationsSection() {
                         }
                     },
                 )
+            }
+            if (enabled) {
+                Column(Modifier.padding(top = 10.dp)) {
+                    RuleRow("Emploi du temps", "Cours annulé, salle ou professeur changé, cours rétabli", rules.schedule) { prefs.setRules(rules.copy(schedule = it)) }
+                    RuleRow("Nouvelles notes", "Matière, note et coefficient", rules.grades) { prefs.setRules(rules.copy(grades = it)) }
+                    RuleRow("Messages", "Expéditeur et objet", rules.messages) { prefs.setRules(rules.copy(messages = it)) }
+                    RuleRow("Devoirs pour demain", "Un rappel quand un devoir n'est pas fait", rules.homework) { prefs.setRules(rules.copy(homework = it)) }
+                    RuleRow("Pas de notification la nuit", "De 22 h à 7 h : elles arrivent au matin", rules.quietNight) { prefs.setRules(rules.copy(quietNight = it)) }
+                    Text("Vérifier toutes les", color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(2, 4, 8).forEach { hours ->
+                            FilterChip(
+                                selected = interval == hours,
+                                onClick = {
+                                    prefs.setIntervalHours(hours)
+                                    SyncScheduler.schedule(context, hours)
+                                },
+                                label = { Text("$hours h", fontSize = 13.sp) },
+                            )
+                        }
+                    }
+                    Text(
+                        "Plus c'est fréquent, plus l'application se connecte à ÉcoleDirecte : 4 h est un bon équilibre.",
+                        color = AppTheme.colors.muted,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
             }
             lastSync?.let {
                 val moment = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())
@@ -120,5 +152,20 @@ fun NotificationsSection() {
                 )
             }
         }
+    }
+}
+
+/** Une ligne de réglage : un titre, une explication courte et un interrupteur. */
+@Composable
+private fun RuleRow(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(detail, color = AppTheme.colors.muted, fontSize = 12.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }

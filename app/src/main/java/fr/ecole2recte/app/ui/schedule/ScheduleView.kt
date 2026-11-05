@@ -201,66 +201,16 @@ private fun DayView(
                     modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp),
                 )
             }
-            if (entries.isEmpty()) item { EmptyState("Pas de cours", "Rien de prévu ce jour-là.") }
-            itemsIndexed(entries) { i, entry ->
-                val live = now != null && !entry.canceled && now >= LocalTime.parse(entry.start) && now < LocalTime.parse(entry.end)
-                LessonRow(entry, live, Modifier.entrance(i)) { onSelect(entry) }
-            }
-        }
-    }
-}
-
-/** L'heure actuelle, rafraîchie chaque minute : sert à repérer le cours en cours. */
-@Composable
-private fun rememberClock(): LocalTime {
-    val time by produceState(LocalTime.now()) {
-        while (true) {
-            value = LocalTime.now()
-            delay(60_000)
-        }
-    }
-    return time
-}
-
-@Composable
-private fun LessonRow(entry: ScheduleEntry, live: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val subject = entry.subject
-    val color = subjectColor(subject.name, subject.colorIndex)
-    Row(modifier.padding(horizontal = 18.dp, vertical = 5.dp), verticalAlignment = Alignment.Top) {
-        Column(Modifier.width(48.dp).padding(top = 14.dp)) {
-            Text(entry.start, color = AppTheme.colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text(entry.end, color = AppTheme.colors.muted, fontSize = 12.sp)
-        }
-        ListCard(
-            Modifier.weight(1f).then(if (live) Modifier.border(2.dp, AppTheme.colors.accent, RoundedCornerShape(15.dp)) else Modifier),
-            padded = false,
-            onClick = onClick,
-        ) {
-            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(6.dp, 44.dp).background(if (entry.canceled) AppTheme.colors.muted else color, RoundedCornerShape(3.dp)))
-                Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                    Text(
-                        subject.name,
-                        color = if (entry.canceled) AppTheme.colors.muted else AppTheme.colors.ink,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        textDecoration = if (entry.canceled) TextDecoration.LineThrough else null,
+            if (entries.isEmpty()) {
+                item { EmptyState("Pas de cours", "Rien de prévu ce jour-là.") }
+            } else {
+                item {
+                    DayTimelineView(
+                        entries = entries,
+                        now = now,
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        onSelect = onSelect,
                     )
-                    Text(
-                        listOf(subject.room.takeIf { it.isNotBlank() }?.let { "Salle $it" }, subject.teacher.takeIf { it.isNotBlank() })
-                            .filterNotNull().joinToString("  ·  "),
-                        color = AppTheme.colors.muted,
-                        fontSize = 12.sp,
-                    )
-                    val tags = listOfNotNull("Maintenant".takeIf { live }, "Annulé".takeIf { entry.canceled }, "Évaluation".takeIf { entry.exam })
-                    if (tags.isNotEmpty()) {
-                        Text(
-                            tags.joinToString("  ·  "),
-                            color = if (entry.canceled) AppTheme.colors.error else AppTheme.colors.accent,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
                 }
             }
         }

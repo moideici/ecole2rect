@@ -29,6 +29,9 @@ interface SchoolRepository {
     suspend fun messages(): List<MessagePreview>
     suspend fun badges(): Badges
 
+    /** Absences, retards, sanctions et encouragements. */
+    suspend fun schoolLife(): SchoolLifeSummary
+
     /** Une page de la boîte de réception (0 = la plus récente). */
     suspend fun messagesPage(page: Int): MessagesPage
 

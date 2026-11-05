@@ -48,6 +48,7 @@ import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.entrance
+import fr.ecole2recte.app.ui.common.linkified
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.theme.AppTheme
 import java.text.Normalizer
@@ -207,7 +208,7 @@ private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel) 
                         Text("À : " + content.recipients.joinToString(", "), color = AppTheme.colors.muted, fontSize = 13.sp)
                     }
                     SelectionContainer {
-                        Text(content.body, color = AppTheme.colors.ink, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 8.dp))
+                        Text(linkified(content.body), color = AppTheme.colors.ink, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 8.dp))
                     }
                     content.attachments.forEach { name ->
                         Row(verticalAlignment = Alignment.CenterVertically) {

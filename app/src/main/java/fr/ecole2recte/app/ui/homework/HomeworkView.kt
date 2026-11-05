@@ -46,8 +46,10 @@ import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.HomeworkViewModel
 import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.StateHost
+import fr.ecole2recte.app.ui.common.subjectIcon
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.entrance
+import fr.ecole2recte.app.ui.common.linkified
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.theme.AppTheme
 import java.time.LocalDate
@@ -133,7 +135,10 @@ private fun HomeworkCard(task: Homework, modifier: Modifier, onToggle: () -> Uni
                     .size(26.dp),
             )
             Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                Text(task.subject, color = subjectColor(task.subject, task.colorIndex), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(subjectIcon(task.subject), contentDescription = null, tint = subjectColor(task.subject, task.colorIndex), modifier = Modifier.size(14.dp))
+                    Text(task.subject, color = subjectColor(task.subject, task.colorIndex), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 5.dp))
+                }
                 Text(
                     task.title,
                     color = if (task.done) AppTheme.colors.muted else AppTheme.colors.ink,
@@ -169,7 +174,7 @@ private fun HomeworkSheet(task: Homework, viewModel: HomeworkViewModel, onToggle
                 onSuccess = { content ->
                     SelectionContainer {
                         Text(
-                            content.content.ifBlank { "Aucun énoncé détaillé pour ce devoir." },
+                            linkified(content.content.ifBlank { "Aucun énoncé détaillé pour ce devoir." }),
                             color = AppTheme.colors.ink,
                             fontSize = 15.sp,
                             lineHeight = 22.sp,
@@ -184,7 +189,7 @@ private fun HomeworkSheet(task: Homework, viewModel: HomeworkViewModel, onToggle
                     if (content.lessonContent.isNotBlank()) {
                         Text("Vu en cours", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
                         SelectionContainer {
-                            Text(content.lessonContent, color = AppTheme.colors.muted, fontSize = 14.sp, lineHeight = 20.sp)
+                            Text(linkified(content.lessonContent), color = AppTheme.colors.muted, fontSize = 14.sp, lineHeight = 20.sp)
                         }
                     }
                 },

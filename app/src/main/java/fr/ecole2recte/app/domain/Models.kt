@@ -41,6 +41,8 @@ data class ScheduleEntry(
     val end: String = "",
     val exam: Boolean = false,
     val note: String = "",
+    /** ÉcoleDirecte signale le cours comme modifié (salle, professeur, horaire). */
+    val modified: Boolean = false,
 )
 
 /**
@@ -62,16 +64,24 @@ data class NextClass(
     val afterLabel: String? = null,
 )
 
-enum class HighlightKind { Canceled, Exam, Grade, Message }
+enum class HighlightKind { Canceled, Changed, Exam, Message, Grade }
 
 /** Une chose à savoir dès l'ouverture : cours annulé, évaluation proche, nouvelle note, message. */
-data class Highlight(val kind: HighlightKind, val title: String, val detail: String)
+data class Highlight(
+    val kind: HighlightKind,
+    val title: String,
+    val detail: String,
+    /** Valeur mise en avant à droite (la note), avec son complément en petit (le coefficient). */
+    val value: String? = null,
+    val valueSub: String? = null,
+)
 
 data class SubjectAverage(
     val subject: Subject,
     val average: String,
     val classAverage: String? = null,
     val grades: List<GradeEntry> = emptyList(),
+    val coefficient: Double? = null,
 )
 
 data class GradeOverview(
@@ -83,6 +93,8 @@ data class GradeOverview(
     /** Moyenne générale de chaque période, pour la courbe d'évolution. */
     val evolution: List<PeriodAverage> = emptyList(),
     val classAverage: String? = null,
+    /** Nom de la période affichée (« 1er trimestre »). */
+    val periodName: String = "",
 )
 
 data class MessagePreview(
@@ -111,6 +123,40 @@ data class MessageDetail(
  */
 data class Freshness(val lastSyncMillis: Long? = null, val stale: Boolean = false)
 
+/** Un enfant d'un compte famille, résumé pour la vue d'ensemble de l'accueil. */
+data class ChildSummary(
+    val studentId: String,
+    val name: String,
+    val initials: String,
+    val className: String,
+    /** « Maths · 10:15 · dans 25 min », ou rien s'il n'y a plus de cours. */
+    val nextClass: String?,
+    val urgentHomework: Int,
+    val newGrades: Int,
+    val average: String?,
+    val selected: Boolean,
+)
+
+enum class SchoolLifeKind { Absence, Late, Sanction, Encouragement, Other }
+
+data class SchoolLifeEvent(
+    val kind: SchoolLifeKind,
+    val title: String,
+    val dateLabel: String,
+    val detail: String,
+    val justified: Boolean,
+)
+
+/** Absences, retards, sanctions et encouragements, décomptés comme l'établissement les compte. */
+data class SchoolLifeSummary(
+    val absences: Int = 0,
+    val unjustified: Int = 0,
+    val lates: Int = 0,
+    val sanctions: Int = 0,
+    val encouragements: Int = 0,
+    val events: List<SchoolLifeEvent> = emptyList(),
+)
+
 /** Compteurs affichés en pastille sur les onglets. */
 data class Badges(val newGrades: Int = 0, val urgentHomework: Int = 0, val unreadMessages: Int = 0)
 
@@ -119,9 +165,12 @@ data class HomeData(
     val dateLabel: String,
     /** Absent quand il n'y a plus de cours à venir. */
     val nextClass: NextClass?,
-    val today: List<ScheduleSlot>,
+    /** Les cours de la journée, annulés compris, pour la frise de l'accueil. */
+    val today: List<ScheduleEntry>,
     val reminder: Homework?,
     val highlights: List<Highlight> = emptyList(),
+    /** Un résumé par enfant pour un compte famille ; vide pour un élève. */
+    val family: List<ChildSummary> = emptyList(),
     val grades: GradeOverview,
     val allSubjects: List<Subject>,
 )

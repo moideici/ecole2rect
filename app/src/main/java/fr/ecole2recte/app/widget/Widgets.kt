@@ -4,15 +4,16 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
+import androidx.glance.LocalContext
 import androidx.glance.GlanceModifier
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.actionStartActivity
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
@@ -52,12 +53,12 @@ class NextClassWidget : GlanceAppWidget() {
         val snapshot = WidgetSnapshotStore(context).read()
         provideContent {
             Column(
-                GlanceModifier.fillMaxSize().background(Background).padding(14.dp).clickable(opens("agenda")),
+                GlanceModifier.fillMaxSize().background(Background).cornerRadius(20.dp).padding(14.dp).clickable(opens("agenda")),
             ) {
                 Text("PROCHAIN COURS", style = title("PROCHAIN COURS"))
                 val next = snapshot?.nextClass
                 when {
-                    snapshot == null -> Text("Active les notifications et widgets dans Plus.", style = normal())
+                    snapshot == null -> Text("Ouvre ecole2recte une fois pour remplir ce widget.", style = normal())
                     next == null -> Text("Plus de cours à venir", style = big("x"))
                     else -> {
                         Text(next.subject, style = big(next.subject))
@@ -80,11 +81,11 @@ class HomeworkWidget : GlanceAppWidget() {
         val snapshot = WidgetSnapshotStore(context).read()
         provideContent {
             Column(
-                GlanceModifier.fillMaxSize().background(Background).padding(14.dp).clickable(opens("agenda_homework")),
+                GlanceModifier.fillMaxSize().background(Background).cornerRadius(20.dp).padding(14.dp).clickable(opens("agenda_homework")),
             ) {
                 Text("DEVOIRS À FAIRE", style = title("DEVOIRS"))
                 when {
-                    snapshot == null -> Text("Active les notifications et widgets dans Plus.", style = normal())
+                    snapshot == null -> Text("Ouvre ecole2recte une fois pour remplir ce widget.", style = normal())
                     snapshot.tasks.isEmpty() -> Text("Rien à faire", style = big("x"))
                     else -> snapshot.tasks.take(4).forEach { task ->
                         Text("${task.subject} · ${task.due}", style = normal())

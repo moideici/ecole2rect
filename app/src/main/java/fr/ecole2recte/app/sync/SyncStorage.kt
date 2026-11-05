@@ -11,6 +11,9 @@ import org.json.JSONObject
 interface SyncPrefs {
     val isEnabled: Boolean
 
+    /** Ce qu'on veut recevoir. Par défaut tout, sans mode nuit (les tests n'ont pas d'heure). */
+    val rules: NotificationRules get() = NotificationRules(quietNight = false)
+
     /** Arrête la synchronisation et retient pourquoi. */
     fun disable(reason: String)
     fun recordSync(at: Long)
@@ -31,6 +34,38 @@ class SyncPreferences(context: Context) : SyncPrefs {
     val disabledReason: StateFlow<String?> = mutableReason.asStateFlow()
 
     override val isEnabled: Boolean get() = mutableEnabled.value
+
+    private val mutableRules = MutableStateFlow(
+        NotificationRules(
+            schedule = preferences.getBoolean("rule_schedule", true),
+            grades = preferences.getBoolean("rule_grades", true),
+            messages = preferences.getBoolean("rule_messages", true),
+            homework = preferences.getBoolean("rule_homework", true),
+            quietNight = preferences.getBoolean("rule_quiet_night", true),
+        ),
+    )
+    val rulesFlow: StateFlow<NotificationRules> = mutableRules.asStateFlow()
+    override val rules: NotificationRules get() = mutableRules.value
+
+    fun setRules(value: NotificationRules) {
+        preferences.edit()
+            .putBoolean("rule_schedule", value.schedule)
+            .putBoolean("rule_grades", value.grades)
+            .putBoolean("rule_messages", value.messages)
+            .putBoolean("rule_homework", value.homework)
+            .putBoolean("rule_quiet_night", value.quietNight)
+            .apply()
+        mutableRules.value = value
+    }
+
+    /** Intervalle entre deux vérifications, en heures : 2, 4 ou 8. */
+    private val mutableInterval = MutableStateFlow(preferences.getInt("interval_hours", 4))
+    val intervalHours: StateFlow<Int> = mutableInterval.asStateFlow()
+
+    fun setIntervalHours(hours: Int) {
+        preferences.edit().putInt("interval_hours", hours).apply()
+        mutableInterval.value = hours
+    }
 
     fun setEnabled(value: Boolean) {
         val editor = preferences.edit().putBoolean("enabled", value)
@@ -68,6 +103,9 @@ class NotificationState(context: Context) : NotificationStateStore {
             messages = json.strings("messages"),
             canceled = json.strings("canceled"),
             homework = json.strings("homework"),
+            lessons = json.optJSONObject("lessons")?.let { lessons ->
+                lessons.keys().asSequence().associateWith { lessons.getString(it) }
+            }.orEmpty(),
         )
     }.getOrNull()
 
@@ -77,6 +115,7 @@ class NotificationState(context: Context) : NotificationStateStore {
             .put("messages", JSONArray(ids.messages.toList()))
             .put("canceled", JSONArray(ids.canceled.toList()))
             .put("homework", JSONArray(ids.homework.toList()))
+            .put("lessons", JSONObject(ids.lessons))
         preferences.edit().putString(owner, json.toString()).apply()
     }
 

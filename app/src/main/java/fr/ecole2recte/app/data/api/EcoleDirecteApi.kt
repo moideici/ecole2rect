@@ -37,6 +37,9 @@ class EcoleDirecteApi(private val client: EcoleDirecteClient) {
             body = JSONObject().put("anneeScolaire", ""),
         ).raw()
 
+    fun schoolLife(studentId: String): String =
+        client.call("/eleves/$studentId/viescolaire.awp", "get").raw()
+
     /**
      * Une page de la boîte de réception. C'est la boîte du **titulaire de la connexion** :
      * celle de la famille pour un parent, pas celle de son enfant.
