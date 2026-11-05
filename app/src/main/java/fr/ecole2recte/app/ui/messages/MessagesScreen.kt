@@ -30,7 +30,7 @@ fun MessagesRoute() {
     val viewModel = appViewModel { MessagesViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     StateHost(state, onRetry = viewModel::refresh) { messages ->
-        PageScaffold("Messages", "${messages.count { it.unread }} messages non lus") {
+        PageScaffold("messages", "Messages", "${messages.count { it.unread }} messages non lus") {
             if (messages.isEmpty()) EmptyState("Aucun message", "Ta boîte de réception est vide.")
             messages.forEachIndexed { index, message ->
                 ListCard(Modifier.entrance(index)) {

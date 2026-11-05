@@ -15,12 +15,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,6 +33,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ecole2recte.app.domain.Subject
+import kotlinx.coroutines.flow.SharedFlow
 import fr.ecole2recte.app.ui.theme.AppTheme
 import fr.ecole2recte.app.ui.theme.Dimens
 
@@ -145,10 +150,23 @@ fun SubjectChip(subject: Subject) {
     }
 }
 
+/** Signal « l'utilisateur a retouché l'onglet déjà ouvert » : les listes remontent en haut. */
+val LocalScrollEvents = staticCompositionLocalOf<SharedFlow<String>?> { null }
+
+@Composable
+fun ScrollToTopOnReselect(route: String, state: LazyListState) {
+    val events = LocalScrollEvents.current ?: return
+    LaunchedEffect(events, route) {
+        events.collect { if (it == route) state.animateScrollToItem(0) }
+    }
+}
+
 /** Page à défilement : un en-tête puis une liste de cartes. */
 @Composable
-fun PageScaffold(title: String, subtitle: String, content: @Composable () -> Unit) {
-    LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
+fun PageScaffold(route: String, title: String, subtitle: String, content: @Composable () -> Unit) {
+    val listState = rememberLazyListState()
+    ScrollToTopOnReselect(route, listState)
+    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 20.dp)) {
         item { PageHeader(title, subtitle) }
         item { Column { content() } }
     }

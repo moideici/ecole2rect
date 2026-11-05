@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.data.demo
 
+import fr.ecole2recte.app.domain.Badges
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
@@ -55,6 +56,8 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
     override suspend fun homework(): List<Homework> = homework
 
     override suspend fun grades(): GradeOverview = grades
+
+    override suspend fun badges(): Badges = Badges(newGrades = 1, urgentHomework = 1, unreadMessages = 2)
 
     override suspend fun messages(): List<MessagePreview> = listOf(
         MessagePreview("Vie scolaire", "Réunion parents-professeurs..."),

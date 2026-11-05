@@ -11,4 +11,5 @@ interface SchoolRepository {
     suspend fun homework(): List<Homework>
     suspend fun grades(): GradeOverview
     suspend fun messages(): List<MessagePreview>
+    suspend fun badges(): Badges
 }

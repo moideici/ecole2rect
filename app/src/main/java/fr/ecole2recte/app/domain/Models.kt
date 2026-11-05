@@ -24,6 +24,9 @@ data class GradeOverview(val average: String, val trend: String, val bySubject: 
 
 data class MessagePreview(val sender: String, val preview: String, val unread: Boolean = true)
 
+/** Compteurs affichés en pastille sur les onglets. */
+data class Badges(val newGrades: Int = 0, val urgentHomework: Int = 0, val unreadMessages: Int = 0)
+
 data class HomeData(
     val greeting: String,
     val dateLabel: String,

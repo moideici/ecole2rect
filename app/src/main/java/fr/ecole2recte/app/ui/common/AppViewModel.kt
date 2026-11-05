@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import fr.ecole2recte.app.AppContainer
 import fr.ecole2recte.app.Ecole2recteApplication
+import fr.ecole2recte.app.domain.Badges
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
@@ -20,6 +21,11 @@ import fr.ecole2recte.app.session.ActiveProfile
 
 /** Profil dont les données sont affichées ; change quand on change de compte ou d'élève. */
 val LocalActiveProfile = staticCompositionLocalOf<ActiveProfile?> { null }
+
+/** Conteneur de dépendances de l'application. */
+@Composable
+fun rememberAppContainer(): AppContainer =
+    (LocalContext.current.applicationContext as Ecole2recteApplication).container
 
 /** Dépôt de données du profil actif. */
 @Composable
@@ -35,6 +41,8 @@ inline fun <reified VM : ViewModel> appViewModel(crossinline create: (AppContain
     val application = LocalContext.current.applicationContext as Ecole2recteApplication
     return viewModel(factory = viewModelFactory { initializer { create(application.container) } })
 }
+
+class BadgesViewModel(repository: SchoolRepository) : LoadingViewModel<Badges>(repository::badges)
 
 class HomeViewModel(repository: SchoolRepository) : LoadingViewModel<HomeData>(repository::home)
 

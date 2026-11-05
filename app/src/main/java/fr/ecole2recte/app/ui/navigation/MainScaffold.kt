@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -24,7 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -39,28 +44,48 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import fr.ecole2recte.app.domain.Badges
 import fr.ecole2recte.app.session.AccountSummary
 import fr.ecole2recte.app.session.ActiveProfile
 import fr.ecole2recte.app.session.ConnectionStatus
 import fr.ecole2recte.app.ui.accounts.AccountActions
 import fr.ecole2recte.app.ui.accounts.AccountButton
 import fr.ecole2recte.app.ui.accounts.AccountSheet
+import fr.ecole2recte.app.ui.agenda.AGENDA_HOMEWORK
+import fr.ecole2recte.app.ui.agenda.AGENDA_SCHEDULE
+import fr.ecole2recte.app.ui.agenda.AgendaScreen
+import fr.ecole2recte.app.ui.common.BadgesViewModel
 import fr.ecole2recte.app.ui.common.ConnectionBanner
 import fr.ecole2recte.app.ui.common.LocalActiveProfile
+import fr.ecole2recte.app.ui.common.LocalScrollEvents
+import fr.ecole2recte.app.ui.common.UiState
+import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.grades.GradesRoute
 import fr.ecole2recte.app.ui.home.HomeRoute
-import fr.ecole2recte.app.ui.homework.HomeworkRoute
 import fr.ecole2recte.app.ui.messages.MessagesRoute
-import fr.ecole2recte.app.ui.schedule.ScheduleRoute
+import fr.ecole2recte.app.ui.more.MoreScreen
 import fr.ecole2recte.app.ui.theme.AppTheme
+import kotlinx.coroutines.flow.MutableSharedFlow
 
-/** Onglets de la barre du bas. Le lot 4 redistribuera leur contenu. */
+/**
+ * Les cinq onglets de la barre du bas.
+ * Accueil : l'essentiel d'un coup d'œil · Agenda : emploi du temps et travail à faire ·
+ * Notes · Messages · Plus : compte, apparence, connexion.
+ */
 internal enum class AppTab(val route: String, val label: String, val icon: ImageVector) {
     Home("accueil", "Accueil", Icons.Outlined.Home),
-    Schedule("planning", "Planning", Icons.Outlined.CalendarMonth),
-    Homework("devoirs", "Devoirs", Icons.AutoMirrored.Outlined.Assignment),
+    Agenda("agenda", "Agenda", Icons.Outlined.CalendarMonth),
     Grades("notes", "Notes", Icons.AutoMirrored.Outlined.MenuBook),
     Messages("messages", "Messages", Icons.Outlined.ChatBubbleOutline),
+    More("plus", "Plus", Icons.Outlined.MoreHoriz),
+}
+
+private fun AppTab.badge(badges: Badges): Int = when (this) {
+    AppTab.Agenda -> badges.urgentHomework
+    AppTab.Grades -> badges.newGrades
+    AppTab.Messages -> badges.unreadMessages
+    else -> 0
 }
 
 private fun NavController.navigateToTab(tab: AppTab) {
@@ -101,53 +126,86 @@ private fun MainContent(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     var showAccounts by rememberSaveable { mutableStateOf(false) }
-    Scaffold(
-        containerColor = AppTheme.colors.background,
-        bottomBar = {
-            NavigationBar(containerColor = AppTheme.colors.surface) {
-                AppTab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true,
-                        onClick = { navController.navigateToTab(tab) },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label, fontSize = 12.sp) },
-                    )
-                }
-            }
-        },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            if (connection == ConnectionStatus.Offline) {
-                ConnectionBanner(connectionMessage, onRetryConnection)
-            }
-            Box(Modifier.fillMaxSize()) {
-                Surface(modifier = Modifier.fillMaxSize(), color = AppTheme.colors.background) {
-                    NavHost(
-                        navController = navController,
-                        startDestination = AppTab.Home.route,
-                        enterTransition = { fadeIn(tween(240, delayMillis = 80)) + slideInVertically(tween(280, delayMillis = 80)) { it / 24 } },
-                        exitTransition = { fadeOut(tween(80)) },
-                        popEnterTransition = { fadeIn(tween(240, delayMillis = 80)) + slideInVertically(tween(280, delayMillis = 80)) { it / 24 } },
-                        popExitTransition = { fadeOut(tween(80)) },
-                    ) {
-                        composable(AppTab.Home.route) {
-                            HomeRoute(
-                                onOpenSchedule = { navController.navigateToTab(AppTab.Schedule) },
-                                onOpenHomework = { navController.navigateToTab(AppTab.Homework) },
-                                onOpenGrades = { navController.navigateToTab(AppTab.Grades) },
-                            )
-                        }
-                        composable(AppTab.Schedule.route) { ScheduleRoute() }
-                        composable(AppTab.Homework.route) { HomeworkRoute() }
-                        composable(AppTab.Grades.route) { GradesRoute() }
-                        composable(AppTab.Messages.route) { MessagesRoute() }
+    var agendaPage by rememberSaveable { mutableIntStateOf(AGENDA_SCHEDULE) }
+    val scrollEvents = remember { MutableSharedFlow<String>(extraBufferCapacity = 1) }
+
+    val repository = rememberSchoolRepository()
+    val badgesViewModel = appViewModel { BadgesViewModel(repository) }
+    val badgesState by badgesViewModel.state.collectAsStateWithLifecycle()
+    val badges = (badgesState as? UiState.Content)?.value ?: Badges()
+
+    CompositionLocalProvider(LocalScrollEvents provides scrollEvents) {
+        Scaffold(
+            containerColor = AppTheme.colors.background,
+            bottomBar = {
+                NavigationBar(containerColor = AppTheme.colors.surface) {
+                    AppTab.entries.forEach { tab ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
+                        val count = tab.badge(badges)
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                // Retoucher l'onglet ouvert remonte en haut de sa liste.
+                                if (selected) scrollEvents.tryEmit(tab.route) else navController.navigateToTab(tab)
+                            },
+                            icon = {
+                                BadgedBox(badge = { if (count > 0) Badge { Text("$count") } }) {
+                                    Icon(tab.icon, contentDescription = tab.label)
+                                }
+                            },
+                            label = { Text(tab.label, fontSize = 12.sp) },
+                        )
                     }
                 }
-                AccountButton(
-                    profile = activeProfile,
-                    onClick = { showAccounts = true },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 18.dp),
-                )
+            },
+        ) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding)) {
+                if (connection == ConnectionStatus.Offline) {
+                    ConnectionBanner(connectionMessage, onRetryConnection)
+                }
+                Box(Modifier.fillMaxSize()) {
+                    Surface(modifier = Modifier.fillMaxSize(), color = AppTheme.colors.background) {
+                        NavHost(
+                            navController = navController,
+                            startDestination = AppTab.Home.route,
+                            enterTransition = { fadeIn(tween(240, delayMillis = 80)) + slideInVertically(tween(280, delayMillis = 80)) { it / 24 } },
+                            exitTransition = { fadeOut(tween(80)) },
+                            popEnterTransition = { fadeIn(tween(240, delayMillis = 80)) + slideInVertically(tween(280, delayMillis = 80)) { it / 24 } },
+                            popExitTransition = { fadeOut(tween(80)) },
+                        ) {
+                            composable(AppTab.Home.route) {
+                                HomeRoute(
+                                    onOpenSchedule = {
+                                        agendaPage = AGENDA_SCHEDULE
+                                        navController.navigateToTab(AppTab.Agenda)
+                                    },
+                                    onOpenHomework = {
+                                        agendaPage = AGENDA_HOMEWORK
+                                        navController.navigateToTab(AppTab.Agenda)
+                                    },
+                                    onOpenGrades = { navController.navigateToTab(AppTab.Grades) },
+                                )
+                            }
+                            composable(AppTab.Agenda.route) { AgendaScreen(agendaPage) { agendaPage = it } }
+                            composable(AppTab.Grades.route) { GradesRoute() }
+                            composable(AppTab.Messages.route) { MessagesRoute() }
+                            composable(AppTab.More.route) {
+                                MoreScreen(
+                                    profile = activeProfile,
+                                    connection = connection,
+                                    connectionMessage = connectionMessage,
+                                    onOpenAccounts = { showAccounts = true },
+                                    onRetryConnection = onRetryConnection,
+                                )
+                            }
+                        }
+                    }
+                    AccountButton(
+                        profile = activeProfile,
+                        onClick = { showAccounts = true },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 18.dp),
+                    )
+                }
             }
         }
     }

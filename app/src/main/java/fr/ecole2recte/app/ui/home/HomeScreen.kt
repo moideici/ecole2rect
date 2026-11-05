@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -39,6 +40,7 @@ import fr.ecole2recte.app.ui.common.PageHeader
 import fr.ecole2recte.app.ui.common.ProgressRing
 import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.rememberAnimatedDecimal
+import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
 import fr.ecole2recte.app.ui.common.SectionTitle
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.SubjectChip
@@ -75,7 +77,9 @@ private fun HomeScreen(
     onOpenHomework: () -> Unit,
     onOpenGrades: () -> Unit,
 ) {
-    LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
+    val listState = rememberLazyListState()
+    ScrollToTopOnReselect("accueil", listState)
+    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 20.dp)) {
         item {
             Column {
                 PageHeader(data.greeting, data.dateLabel)

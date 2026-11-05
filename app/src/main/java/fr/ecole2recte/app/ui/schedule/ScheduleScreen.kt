@@ -3,13 +3,14 @@ package fr.ecole2recte.app.ui.schedule
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,22 +22,25 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.ui.common.ListCard
-import fr.ecole2recte.app.ui.common.entrance
-import fr.ecole2recte.app.ui.common.PageScaffold
 import fr.ecole2recte.app.ui.common.ScheduleViewModel
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.theme.AppTheme
 
+/** Emploi du temps de la semaine, affiché dans l'onglet Agenda. */
 @Composable
-fun ScheduleRoute() {
+fun ScheduleList(listState: LazyListState) {
     val repository = rememberSchoolRepository()
     val viewModel = appViewModel { ScheduleViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     StateHost(state, onRetry = viewModel::refresh) { week ->
-        PageScaffold("Emploi du temps", week.label) {
-            week.entries.forEachIndexed { index, entry -> ScheduleRow(entry, Modifier.entrance(index)) }
+        LazyColumn(state = listState, contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp)) {
+            item {
+                Text(week.label, color = AppTheme.colors.muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
+            }
+            itemsIndexed(week.entries) { index, entry -> ScheduleRow(entry, Modifier.entrance(index)) }
         }
     }
 }
