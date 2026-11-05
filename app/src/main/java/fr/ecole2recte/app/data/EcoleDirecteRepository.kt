@@ -1,6 +1,7 @@
 package fr.ecole2recte.app.data
 
 import fr.ecole2recte.app.data.api.ApiDay
+import fr.ecole2recte.app.data.api.ApiGrade
 import fr.ecole2recte.app.data.api.ApiGrades
 import fr.ecole2recte.app.data.api.ApiHomework
 import fr.ecole2recte.app.data.api.ApiLesson
@@ -12,7 +13,10 @@ import fr.ecole2recte.app.data.cache.InMemoryResponseCache
 import fr.ecole2recte.app.data.cache.ResponseCache
 import fr.ecole2recte.app.domain.Badges
 import fr.ecole2recte.app.domain.Freshness
+import fr.ecole2recte.app.domain.GradeEntry
+import fr.ecole2recte.app.domain.GradeMath
 import fr.ecole2recte.app.domain.GradeOverview
+import fr.ecole2recte.app.domain.PeriodAverage
 import fr.ecole2recte.app.domain.Highlight
 import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
@@ -382,6 +386,22 @@ class EcoleDirecteRepository(
 
     private fun ApiLesson.toSubject() = Subject(subject.prettySubject(), teacher, room, colorFor(subject))
 
+    private fun ApiGrade.toEntry() = GradeEntry(
+        id = id,
+        subject = subject.prettySubject(),
+        colorIndex = colorFor(subject),
+        label = label,
+        value = value,
+        scale = scale,
+        coefficient = coefficient,
+        date = date,
+        classAverage = classAverage,
+        minimum = minimum,
+        maximum = maximum,
+        counted = counted,
+        periodCode = periodCode,
+    )
+
     private fun overview(payload: ApiGrades): GradeOverview {
         val periods = payload.periods
         val current = periods.firstOrNull { it.current && it.average != null }
@@ -389,9 +409,23 @@ class EcoleDirecteRepository(
             ?: periods.lastOrNull()
         val previous = current?.let { c -> periods.takeWhile { it.code != c.code }.lastOrNull { it.average != null } }
         val delta = if (current?.average != null && previous?.average != null) current.average - previous.average else null
-        val bySubject = payload.subjectAverages
-            .filter { current != null && it.periodCode == current.code && it.average != null }
-            .map { SubjectAverage(Subject(it.subject.prettySubject(), it.teacher, "", colorFor(it.subject)), decimal(it.average!!)) }
+
+        val periodGrades = payload.grades.filter { current != null && it.periodCode == current.code }.map { it.toEntry() }
+        val official = payload.subjectAverages.filter { current != null && it.periodCode == current.code }
+        val names = (official.map { it.subject.prettySubject() } + periodGrades.map { it.subject }).distinct()
+        val bySubject = names.mapNotNull { name ->
+            val line = official.firstOrNull { it.subject.prettySubject() == name }
+            val grades = periodGrades.filter { it.subject == name }
+            // La moyenne de l'établissement prime ; à défaut, la moyenne pondérée des notes connues.
+            val average = line?.average ?: GradeMath.weightedAverage(grades)
+            if (average == null && grades.isEmpty()) return@mapNotNull null
+            SubjectAverage(
+                subject = Subject(name, line?.teacher.orEmpty(), "", colorFor(line?.subject ?: name)),
+                average = average?.let(::decimal) ?: "–",
+                classAverage = line?.classAverage?.let(::decimal),
+                grades = grades,
+            )
+        }
         return GradeOverview(
             average = current?.average?.let(::decimal) ?: "–",
             trend = when {
@@ -400,6 +434,9 @@ class EcoleDirecteRepository(
                 else -> "↘ −${decimal(-delta)}"
             },
             bySubject = bySubject,
+            recent = payload.grades.filter { it.value != null }.take(6).map { it.toEntry() },
+            evolution = periods.mapNotNull { p -> p.average?.let { PeriodAverage(p.name, it) } },
+            classAverage = current?.classAverage?.let(::decimal),
         )
     }
 

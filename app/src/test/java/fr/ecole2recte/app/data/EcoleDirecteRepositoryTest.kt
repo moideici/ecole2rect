@@ -168,8 +168,13 @@ class EcoleDirecteRepositoryTest {
         val overview = repository(openStudent()).grades()
         assertEquals("15,8", overview.average)
         assertEquals("↗ +1,6", overview.trend)
-        assertEquals(listOf("Maths"), overview.bySubject.map { it.subject.name })
-        assertEquals("17,5", overview.bySubject.single().average)
+        // Une matière qui n'a qu'une absence reste visible, sans moyenne inventée.
+        assertEquals(listOf("Maths", "Anglais"), overview.bySubject.map { it.subject.name })
+        assertEquals("17,5", overview.bySubject.first().average)
+        assertEquals("–", overview.bySubject.last().average)
+        assertEquals(listOf("DS 1"), overview.bySubject.first().grades.map { it.label })
+        assertEquals(listOf("DS 1"), overview.recent.map { it.label })
+        assertEquals(listOf(14.2, 15.8), overview.evolution.map { it.average })
     }
 
     @Test

@@ -67,9 +67,23 @@ enum class HighlightKind { Canceled, Exam, Grade, Message }
 /** Une chose à savoir dès l'ouverture : cours annulé, évaluation proche, nouvelle note, message. */
 data class Highlight(val kind: HighlightKind, val title: String, val detail: String)
 
-data class SubjectAverage(val subject: Subject, val average: String)
+data class SubjectAverage(
+    val subject: Subject,
+    val average: String,
+    val classAverage: String? = null,
+    val grades: List<GradeEntry> = emptyList(),
+)
 
-data class GradeOverview(val average: String, val trend: String, val bySubject: List<SubjectAverage>)
+data class GradeOverview(
+    val average: String,
+    val trend: String,
+    val bySubject: List<SubjectAverage>,
+    /** Les notes les plus récentes, toutes périodes confondues. */
+    val recent: List<GradeEntry> = emptyList(),
+    /** Moyenne générale de chaque période, pour la courbe d'évolution. */
+    val evolution: List<PeriodAverage> = emptyList(),
+    val classAverage: String? = null,
+)
 
 data class MessagePreview(val sender: String, val preview: String, val unread: Boolean = true)
 
