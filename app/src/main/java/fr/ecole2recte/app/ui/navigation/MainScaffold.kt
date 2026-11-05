@@ -62,6 +62,7 @@ import fr.ecole2recte.app.ui.common.ConnectionBanner
 import fr.ecole2recte.app.ui.common.LocalActiveProfile
 import fr.ecole2recte.app.ui.common.LocalResumeTick
 import fr.ecole2recte.app.ui.common.LocalScrollEvents
+import fr.ecole2recte.app.data.SchoolModule
 import fr.ecole2recte.app.ui.common.StaleDataBar
 import fr.ecole2recte.app.ui.common.UiState
 import fr.ecole2recte.app.ui.common.appViewModel
@@ -86,6 +87,14 @@ internal enum class AppTab(val route: String, val label: String, val icon: Image
     Grades("notes", "Notes", Icons.AutoMirrored.Outlined.MenuBook),
     Messages("messages", "Messages", Icons.Outlined.ChatBubbleOutline),
     More("plus", "Plus", Icons.Outlined.MoreHoriz),
+}
+
+/** Un onglet disparaît quand l'établissement ferme le module qu'il montre (l'agenda quand les deux le sont). */
+internal fun AppTab.isAvailable(closed: Set<SchoolModule>): Boolean = when (this) {
+    AppTab.Agenda -> SchoolModule.Schedule !in closed || SchoolModule.Homework !in closed
+    AppTab.Grades -> SchoolModule.Grades !in closed
+    AppTab.Messages -> SchoolModule.Messages !in closed
+    else -> true
 }
 
 private fun AppTab.badge(badges: Badges): Int = when (this) {
@@ -139,6 +148,8 @@ private fun MainContent(
     var showAccounts by rememberSaveable { mutableStateOf(false) }
     var agendaPage by rememberSaveable { mutableIntStateOf(AGENDA_SCHEDULE) }
     val scrollEvents = remember { MutableSharedFlow<String>(extraBufferCapacity = 1) }
+    val closedModules = activeProfile?.closedModules.orEmpty()
+    val tabs = AppTab.entries.filter { it.isAvailable(closedModules) }
 
     // Raccourci, notification ou widget : ouvre l'onglet demandé, puis oublie la demande.
     val container = rememberAppContainer()
@@ -146,10 +157,12 @@ private fun MainContent(
     LaunchedEffect(pendingTab) {
         val requested = pendingTab ?: return@LaunchedEffect
         if (requested == "agenda_homework") {
-            agendaPage = AGENDA_HOMEWORK
-            navController.navigateToTab(AppTab.Agenda)
+            if (AppTab.Agenda in tabs) {
+                agendaPage = AGENDA_HOMEWORK
+                navController.navigateToTab(AppTab.Agenda)
+            }
         } else {
-            AppTab.entries.firstOrNull { it.route == requested }?.let(navController::navigateToTab)
+            tabs.firstOrNull { it.route == requested }?.let(navController::navigateToTab)
         }
         container.pendingTab.value = null
     }
@@ -170,7 +183,7 @@ private fun MainContent(
             containerColor = AppTheme.colors.background,
             bottomBar = {
                 NavigationBar(containerColor = AppTheme.colors.surface) {
-                    AppTab.entries.forEach { tab ->
+                    tabs.forEach { tab ->
                         val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
                         val count = tab.badge(badges)
                         NavigationBarItem(

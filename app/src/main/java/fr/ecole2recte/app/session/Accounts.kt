@@ -1,6 +1,8 @@
 package fr.ecole2recte.app.session
 
 import fr.ecole2recte.app.data.SavedLogin
+import fr.ecole2recte.app.data.SchoolModule
+import fr.ecole2recte.app.data.closedModules
 import fr.ecole2recte.app.data.Student
 import java.util.Locale
 
@@ -22,6 +24,8 @@ data class ActiveProfile(
     val firstName: String,
     val displayName: String,
     val initials: String,
+    /** Modules que l'établissement n'ouvre pas pour ce profil : l'application ne les appelle pas et les masque. */
+    val closedModules: Set<SchoolModule> = emptySet(),
 ) {
     /** Change quand on change de compte ou d'élève : sert à repartir d'un état vierge. */
     val key: String get() = "$identifier/${studentId.orEmpty()}"
@@ -68,6 +72,7 @@ internal fun SavedLogin.toActiveProfile(): ActiveProfile {
             firstName = titleCase(student.firstName),
             displayName = "${titleCase(student.firstName)} ${titleCase(student.lastName)}".trim(),
             initials = initialsOf(student.firstName, student.lastName, identifier),
+            closedModules = closedModules(student.modules.ifEmpty { profile?.modules.orEmpty() }),
         )
     } else {
         ActiveProfile(
@@ -76,6 +81,7 @@ internal fun SavedLogin.toActiveProfile(): ActiveProfile {
             firstName = profile?.firstName?.takeIf { it.isNotBlank() }?.let(::titleCase) ?: identifier,
             displayName = summary.displayName,
             initials = summary.initials,
+            closedModules = closedModules(profile?.modules.orEmpty()),
         )
     }
 }

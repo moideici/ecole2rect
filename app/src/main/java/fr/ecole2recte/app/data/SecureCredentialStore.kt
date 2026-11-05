@@ -15,6 +15,7 @@ data class AccountProfile(
     val lastName: String,
     val type: String,
     val students: List<Student> = emptyList(),
+    val modules: Map<String, Boolean> = emptyMap(),
 )
 
 data class SavedLogin(
@@ -192,12 +193,14 @@ class SecureCredentialStore(
                     .put("firstName", p.firstName)
                     .put("lastName", p.lastName)
                     .put("type", p.type)
+                    .put("modules", p.modules.toModulesJson())
                     .put(
                         "students",
                         JSONArray(
                             p.students.map { s ->
                                 JSONObject().put("id", s.id).put("firstName", s.firstName)
                                     .put("lastName", s.lastName).put("className", s.className)
+                                    .put("modules", s.modules.toModulesJson())
                             },
                         ),
                     ),
@@ -222,8 +225,9 @@ class SecureCredentialStore(
                 lastName = p.optString("lastName"),
                 type = p.optString("type"),
                 students = (0 until students.length()).mapNotNull { students.optJSONObject(it) }.map { s ->
-                    Student(s.optString("id"), s.optString("firstName"), s.optString("lastName"), s.optString("className"))
+                    Student(s.optString("id"), s.optString("firstName"), s.optString("lastName"), s.optString("className"), s.optJSONObject("modules").toModuleMap())
                 },
+                modules = p.optJSONObject("modules").toModuleMap(),
             )
         },
         activeStudentId = optString("activeStudentId").takeIf { it.isNotBlank() },

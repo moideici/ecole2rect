@@ -436,7 +436,7 @@ class SessionViewModel(
     ) {
         val sameAccount = previous?.takeIf { it.identifier.equals(identifier, ignoreCase = true) }
         val account = accounts.firstOrNull()
-        val profile = account?.let { AccountProfile(it.firstName, it.lastName, it.type, it.students) }
+        val profile = account?.let { AccountProfile(it.firstName, it.lastName, it.type, it.students, it.modules) }
             ?: sameAccount?.profile
         val activeStudent = sameAccount?.activeStudentId?.takeIf { id -> profile?.students?.any { it.id == id } == true }
         store.save(

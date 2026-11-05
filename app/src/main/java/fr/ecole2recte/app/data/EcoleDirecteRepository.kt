@@ -149,10 +149,13 @@ class EcoleDirecteRepository(
      */
     private suspend fun <T> resource(
         name: String,
+        module: SchoolModule,
         fetch: (EcoleDirecteApi, Target) -> String,
         parse: (Any?, ParseReport) -> T,
     ): T = memo(name) {
         try {
+            // Module fermé par l'établissement : aucune requête (elle compterait comme du trafic) et rien d'inventé.
+            if (module in closedModulesOfProfile()) return@memo parse(null, ParseReport())
             val raw = withApi(fetch)
             val report = ParseReport()
             val value = readJson(raw)
@@ -173,6 +176,13 @@ class EcoleDirecteRepository(
             markStale(name, stored.at, causeOf(error))
             parse(readJson(stored.json), ParseReport())
         }
+    }
+
+    /** Les modules que l'établissement n'ouvre pas pour ce profil, d'après la liste lue à la connexion. */
+    private suspend fun closedModulesOfProfile(): Set<SchoolModule> {
+        val account = session.await(profile.identifier).accounts.firstOrNull() ?: return emptySet()
+        val student = account.students.firstOrNull { it.id == profile.studentId }
+        return closedModules(student?.modules?.takeIf { it.isNotEmpty() } ?: account.modules)
     }
 
     /** La réponse brute en JSON, ou null si elle est vide, absente (`null`) ou illisible. */
@@ -221,6 +231,7 @@ class EcoleDirecteRepository(
 
     private suspend fun lessons(): List<ApiLesson> = resource(
         "lessons",
+        SchoolModule.Schedule,
         fetch = { api, target ->
             val monday = today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             api.timetable(target.studentId, monday, monday.plusDays(13))
@@ -230,22 +241,24 @@ class EcoleDirecteRepository(
 
     /** Le cahier de textes, avec les cases cochées sur l'appareil qui l'emportent sur celles du serveur. */
     private suspend fun homeworkItems(): List<ApiHomework> {
-        val items = resource("homework", { api, target -> api.homework(target.studentId) }, { data, report -> Parsers.homeworkSummary(data, report) })
+        val items = resource("homework", SchoolModule.Homework, { api, target -> api.homework(target.studentId) }, { data, report -> Parsers.homeworkSummary(data, report) })
         val overrides = homeworkStatus.overrides(owner)
         return if (overrides.isEmpty()) items else items.map { it.copy(done = overrides[it.id] ?: it.done) }
     }
 
     private suspend fun dayContent(date: String): ApiDay = resource(
         "day-$date",
+        SchoolModule.Homework,
         { api, target -> api.dayContent(target.studentId, date) },
         { data, _ -> Parsers.dayContent(data, date) },
     )
 
     private suspend fun gradesPayload(): ApiGrades =
-        resource("grades", { api, target -> api.grades(target.studentId) }, { data, report -> Parsers.grades(data, report) })
+        resource("grades", SchoolModule.Grades, { api, target -> api.grades(target.studentId) }, { data, report -> Parsers.grades(data, report) })
 
     private suspend fun inbox(page: Int = 0): List<ApiMessage> = resource(
         if (page == 0) "messages" else "messages-$page",
+        SchoolModule.Messages,
         { api, target -> api.messages(target.mailboxSegment, target.mailboxId, page, MESSAGES_PER_PAGE) },
         { data, report -> Parsers.messages(data, report) },
     )
@@ -353,6 +366,7 @@ class EcoleDirecteRepository(
     override suspend fun messageDetail(id: String): MessageDetail {
         val detail = resource(
             "message-$id",
+            SchoolModule.Messages,
             { api, target -> api.messageDetail(target.mailboxSegment, target.mailboxId, id) },
             { data, _ -> Parsers.messageDetail(data) },
         ) ?: throw EcoleDirecteException("Ce message est illisible pour le moment.")
@@ -376,7 +390,7 @@ class EcoleDirecteRepository(
     }
 
     override suspend fun schoolLife(): SchoolLifeSummary {
-        val events = resource("schoollife", { api, target -> api.schoolLife(target.studentId) }, { data, report -> Parsers.schoolLife(data, report) })
+        val events = resource("schoollife", SchoolModule.SchoolLife, { api, target -> api.schoolLife(target.studentId) }, { data, report -> Parsers.schoolLife(data, report) })
         val kinds = mapOf(
             "absence" to SchoolLifeKind.Absence,
             "retard" to SchoolLifeKind.Late,

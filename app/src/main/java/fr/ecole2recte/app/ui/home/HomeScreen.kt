@@ -57,6 +57,8 @@ import fr.ecole2recte.app.ui.common.rememberAnimatedDecimal
 import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
 import fr.ecole2recte.app.ui.common.SectionTitle
 import fr.ecole2recte.app.ui.common.RefreshOnResume
+import fr.ecole2recte.app.data.SchoolModule
+import fr.ecole2recte.app.ui.common.LocalActiveProfile
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.SubjectChip
 import fr.ecole2recte.app.ui.common.appViewModel
@@ -123,6 +125,7 @@ private fun HomeScreen(
 ) {
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("accueil", listState)
+    val closed = LocalActiveProfile.current?.closedModules.orEmpty()
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 20.dp)) {
         item { PageHeader(data.greeting, data.dateLabel) }
         layout.visible.forEachIndexed { rank, section ->
@@ -163,11 +166,11 @@ private fun HomeScreen(
                         }
                     }
                 }
-                HomeSection.Reminder -> data.reminder?.let { reminder ->
+                HomeSection.Reminder -> data.reminder?.takeIf { SchoolModule.Homework !in closed }?.let { reminder ->
                     item(key = "reminder-title") { SectionTitle("À ne pas oublier", "Tout voir", onClick = onOpenHomework) }
                     item(key = "reminder") { ReminderCard(reminder, Modifier.entrance(rank)) }
                 }
-                HomeSection.Grades -> {
+                HomeSection.Grades -> if (SchoolModule.Grades !in closed) {
                     item(key = "grades-title") { SectionTitle("Tes dernières notes", "Voir les notes", onClick = onOpenGrades) }
                     item(key = "grades") { GradesSummary(data.grades, Modifier.entrance(rank)) }
                 }

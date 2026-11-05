@@ -150,12 +150,14 @@ internal fun SavedSession.toJson(): JSONObject = JSONObject()
         JSONArray(
             accounts.map { a ->
                 JSONObject().put("id", a.id).put("type", a.type).put("firstName", a.firstName).put("lastName", a.lastName)
+                    .put("modules", a.modules.toModulesJson())
                     .put(
                         "students",
                         JSONArray(
                             a.students.map { s ->
                                 JSONObject().put("id", s.id).put("firstName", s.firstName)
                                     .put("lastName", s.lastName).put("className", s.className)
+                                    .put("modules", s.modules.toModulesJson())
                             },
                         ),
                     )
@@ -175,8 +177,9 @@ internal fun JSONObject.toSavedSession(): SavedSession? {
             firstName = a.optString("firstName"),
             lastName = a.optString("lastName"),
             students = (0 until studentsJson.length()).mapNotNull { studentsJson.optJSONObject(it) }.map { s ->
-                Student(s.optString("id"), s.optString("firstName"), s.optString("lastName"), s.optString("className"))
+                Student(s.optString("id"), s.optString("firstName"), s.optString("lastName"), s.optString("className"), s.optJSONObject("modules").toModuleMap())
             },
+            modules = a.optJSONObject("modules").toModuleMap(),
         )
     }
     if (accounts.isEmpty()) return null

@@ -442,8 +442,10 @@ class EcoleDirecteClient(
                                 lastName = student.optString("nom"),
                                 className = student.optJSONObject("classe")?.let { it.optString("libelle").ifBlank { it.optString("code") } }
                                     ?: student.optString("classe"),
+                                modules = parseModules(student.optJSONArray("modules")),
                             )
                         },
+                        modules = parseModules(account.optJSONArray("modules")),
                     ),
                 )
             }
@@ -516,7 +518,14 @@ sealed interface LoginResult {
 }
 
 /** Élève rattaché à un compte famille. */
-data class Student(val id: String, val firstName: String, val lastName: String, val className: String = "")
+data class Student(
+    val id: String,
+    val firstName: String,
+    val lastName: String,
+    val className: String = "",
+    /** Modules ouverts pour cet élève (`code → ouvert`), lus à la connexion. */
+    val modules: Map<String, Boolean> = emptyMap(),
+)
 
 data class Account(
     val id: String,
@@ -524,6 +533,8 @@ data class Account(
     val firstName: String,
     val lastName: String,
     val students: List<Student> = emptyList(),
+    /** Modules ouverts pour le compte (`code → ouvert`), lus à la connexion. */
+    val modules: Map<String, Boolean> = emptyMap(),
 )
 
 /** Résultat d'un appel métier réussi : le contenu de `data`. */
