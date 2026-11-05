@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.Ecole2recte" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#A2A6FF</item>
+        <item name="android:navigationBarColor">#0F131A</item>
+        <item name="android:statusBarColor">#0F131A</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
