@@ -72,6 +72,12 @@ fun MoreScreen(
                 }
             }
         }
+        item { Section("Accueil") }
+        item { HomeLayoutCard() }
+        item { Section("Couleurs") }
+        item { ColorsCard(profile) }
+        item { Section("Sécurité et confort") }
+        item { SecurityAndMotionCard() }
         item { Section("Connexion à ÉcoleDirecte") }
         item {
             ListCard {

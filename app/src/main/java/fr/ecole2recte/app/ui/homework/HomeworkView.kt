@@ -51,6 +51,7 @@ import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.theme.AppTheme
 import java.time.LocalDate
+import fr.ecole2recte.app.ui.theme.subjectColor
 
 /** Travail à faire, regroupé par échéance, filtrable par matière, avec cases à cocher. */
 @Composable
@@ -132,7 +133,7 @@ private fun HomeworkCard(task: Homework, modifier: Modifier, onToggle: () -> Uni
                     .size(26.dp),
             )
             Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                Text(task.subject, color = AppTheme.colors.subject[task.colorIndex], fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(task.subject, color = subjectColor(task.subject, task.colorIndex), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Text(
                     task.title,
                     color = if (task.done) AppTheme.colors.muted else AppTheme.colors.ink,
@@ -159,7 +160,7 @@ private fun HomeworkSheet(task: Homework, viewModel: HomeworkViewModel, onToggle
         Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp).semantics { contentDescription = "Détail du devoir" },
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(task.subject, color = AppTheme.colors.subject[task.colorIndex], fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(task.subject, color = subjectColor(task.subject, task.colorIndex), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Text("Pour ${task.due}", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         if (task.exam) Text("Évaluation prévue", color = AppTheme.colors.accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         when (val loaded = detail) {

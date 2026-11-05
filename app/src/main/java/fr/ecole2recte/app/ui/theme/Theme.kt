@@ -52,7 +52,10 @@ private val LightColors = AppColors(
     warningSurface = Color(0xFFFFF7ED),
     warningTitle = Color(0xFF8A4F12),
     warningText = Color(0xFF5F4A32),
-    subject = listOf(Color(0xFF7779E8), Color(0xFF63A6E9), Color(0xFFEFA36A), Color(0xFF5CBD92)),
+    subject = listOf(
+        Color(0xFF7779E8), Color(0xFF63A6E9), Color(0xFFEFA36A), Color(0xFF5CBD92), Color(0xFFE07A8F),
+        Color(0xFF9B7BD8), Color(0xFF3FB6B2), Color(0xFFD9B44A), Color(0xFF8AA0B5), Color(0xFFD9825B),
+    ),
     isDark = false,
 )
 
@@ -69,7 +72,10 @@ private val DarkColors = AppColors(
     warningSurface = Color(0xFF33281A),
     warningTitle = Color(0xFFFFC27A),
     warningText = Color(0xFFE9D6BE),
-    subject = listOf(Color(0xFF9A9CF5), Color(0xFF82BDF0), Color(0xFFF3B98C), Color(0xFF7FD3AD)),
+    subject = listOf(
+        Color(0xFF9A9CF5), Color(0xFF82BDF0), Color(0xFFF3B98C), Color(0xFF7FD3AD), Color(0xFFF09BAC),
+        Color(0xFFB9A0EC), Color(0xFF6FD3CF), Color(0xFFE8CB78), Color(0xFFADBFD0), Color(0xFFEBA37F),
+    ),
     isDark = true,
 )
 
@@ -81,6 +87,20 @@ object Dimens {
     val cardRadius: Dp = 15.dp
     val bigCardRadius: Dp = 22.dp
     val minTouchTarget: Dp = 48.dp
+}
+
+/** Les couleurs choisies par l'utilisateur pour les matières du profil affiché, par nom de matière. */
+val LocalSubjectColorOverrides = staticCompositionLocalOf<Map<String, Int>> { emptyMap() }
+
+fun subjectKey(name: String): String = name.trim().lowercase()
+
+/** La couleur d'une matière : le choix de l'utilisateur, à défaut la couleur attribuée d'office. */
+@Composable
+@ReadOnlyComposable
+fun subjectColor(name: String, defaultIndex: Int): Color {
+    val palette = AppTheme.colors.subject
+    val index = LocalSubjectColorOverrides.current[subjectKey(name)] ?: defaultIndex
+    return palette[Math.floorMod(index, palette.size)]
 }
 
 object AppTheme {

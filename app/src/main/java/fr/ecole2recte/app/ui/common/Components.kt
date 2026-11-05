@@ -38,6 +38,7 @@ import fr.ecole2recte.app.domain.Subject
 import kotlinx.coroutines.flow.SharedFlow
 import fr.ecole2recte.app.ui.theme.AppTheme
 import fr.ecole2recte.app.ui.theme.Dimens
+import fr.ecole2recte.app.ui.theme.subjectColor
 
 /** Bandeau affiché quand l'écran montre la dernière réponse enregistrée faute de réseau. */
 @Composable
@@ -101,8 +102,8 @@ fun ListCard(
 
 /** Pastille de couleur d'une matière. */
 @Composable
-fun SubjectDot(colorIndex: Int, size: Dp = 8.dp) {
-    Box(Modifier.size(size).background(AppTheme.colors.subject[colorIndex], RoundedCornerShape(size / 2)))
+fun SubjectDot(name: String, colorIndex: Int, size: Dp = 8.dp) {
+    Box(Modifier.size(size).background(subjectColor(name, colorIndex), RoundedCornerShape(size / 2)))
 }
 
 /** Écran ou section sans contenu. */
@@ -187,7 +188,7 @@ fun SectionTitle(title: String, action: String, onClick: () -> Unit) {
 @Composable
 fun SubjectChip(subject: Subject) {
     Box(Modifier.size(56.dp).background(Color.White.copy(alpha = .85f), RoundedCornerShape(17.dp)), contentAlignment = Alignment.Center) {
-        Text(subject.name.take(2), color = AppTheme.colors.subject[subject.colorIndex], fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(subject.name.take(2), color = subjectColor(subject.name, subject.colorIndex), fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
 }
 

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -42,13 +43,15 @@ import fr.ecole2recte.app.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 import java.util.Locale
 
-/** Vrai quand l'utilisateur a supprimé les animations dans les réglages Android. */
+/** Vrai quand l'utilisateur a supprimé les animations, dans Android ou dans les réglages de l'application. */
 @Composable
 fun rememberReduceMotion(): Boolean {
     val context = LocalContext.current
-    return remember {
+    val system = remember {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
+    val own by rememberAppContainer().settings.reduceMotion.collectAsState()
+    return system || own
 }
 
 /** Entrée en cascade : la carte monte et apparaît, décalée selon son rang dans la liste. */

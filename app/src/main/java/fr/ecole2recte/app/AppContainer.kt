@@ -6,6 +6,8 @@ import java.io.File
 import fr.ecole2recte.app.data.CredentialStore
 import fr.ecole2recte.app.data.HomeworkStatusStore
 import fr.ecole2recte.app.data.PrefsHomeworkStatusStore
+import fr.ecole2recte.app.data.PrefsTextStorage
+import fr.ecole2recte.app.data.SubjectColorStore
 import fr.ecole2recte.app.data.cache.FileResponseCache
 import fr.ecole2recte.app.data.cache.ResponseCache
 import fr.ecole2recte.app.settings.AppSettings
@@ -23,6 +25,7 @@ class AppContainer(context: Context) {
 
     /** Les données du profil actif. */
     val apiSession = ApiSession()
+    val subjectColors = SubjectColorStore(PrefsTextStorage(context, "ecole2recte_colors", "overrides"))
     val homeworkStatus: HomeworkStatusStore = PrefsHomeworkStatusStore(context)
     val responseCache: ResponseCache = FileResponseCache(File(context.filesDir, "cache"))
 

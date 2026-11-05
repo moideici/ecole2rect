@@ -69,6 +69,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
+import fr.ecole2recte.app.ui.theme.subjectColor
 
 private const val MODE_DAY = 0
 private const val MODE_WEEK = 1
@@ -224,7 +225,7 @@ private fun rememberClock(): LocalTime {
 @Composable
 private fun LessonRow(entry: ScheduleEntry, live: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val subject = entry.subject
-    val color = AppTheme.colors.subject[subject.colorIndex]
+    val color = subjectColor(subject.name, subject.colorIndex)
     Row(modifier.padding(horizontal = 18.dp, vertical = 5.dp), verticalAlignment = Alignment.Top) {
         Column(Modifier.width(48.dp).padding(top = 14.dp)) {
             Text(entry.start, color = AppTheme.colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -316,7 +317,7 @@ private fun WeekGrid(
                     byDate[day.toString()].orEmpty().forEach { entry ->
                         val top: Dp = hourHeight * ((minutes(entry.start) - first * 60) / 60f)
                         val height: Dp = hourHeight * ((minutes(entry.end) - minutes(entry.start)) / 60f)
-                        val color = AppTheme.colors.subject[entry.subject.colorIndex]
+                        val color = subjectColor(entry.subject.name, entry.subject.colorIndex)
                         Column(
                             Modifier
                                 .offset(y = top)

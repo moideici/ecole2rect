@@ -61,6 +61,8 @@ import fr.ecole2recte.app.ui.common.LocalScrollEvents
 import fr.ecole2recte.app.ui.common.StaleDataBar
 import fr.ecole2recte.app.ui.common.UiState
 import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.rememberAppContainer
+import fr.ecole2recte.app.ui.theme.LocalSubjectColorOverrides
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.ui.grades.GradesRoute
 import fr.ecole2recte.app.ui.home.HomeRoute
@@ -107,8 +109,11 @@ fun MainScaffold(
     accountActions: AccountActions,
 ) {
     // Un autre compte ou un autre élève repart d'un écran vierge : aucune donnée ne passe de l'un à l'autre.
+    val subjectColors = rememberAppContainer().subjectColors
+    val overrides by remember(activeProfile?.key) { subjectColors.overrides(activeProfile?.key.orEmpty()) }
+        .collectAsStateWithLifecycle(emptyMap())
     Crossfade(targetState = activeProfile?.key, animationSpec = tween(260), label = "account") { _ ->
-        CompositionLocalProvider(LocalActiveProfile provides activeProfile) {
+        CompositionLocalProvider(LocalActiveProfile provides activeProfile, LocalSubjectColorOverrides provides overrides) {
             MainContent(connection, connectionMessage, onRetryConnection, accounts, activeProfile, accountActions)
         }
     }

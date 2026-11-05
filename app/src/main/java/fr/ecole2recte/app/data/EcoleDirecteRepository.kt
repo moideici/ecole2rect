@@ -517,7 +517,7 @@ class EcoleDirecteRepository(
     private fun String.prettySubject() = trim().lowercase(french).capitalized()
 
     private companion object {
-        const val PALETTE_SIZE = 4
+        const val PALETTE_SIZE = 10
         const val MESSAGES_PER_PAGE = 50
     }
 }

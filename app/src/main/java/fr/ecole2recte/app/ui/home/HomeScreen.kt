@@ -28,9 +28,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,8 +51,11 @@ import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.SubjectChip
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
-import fr.ecole2recte.app.ui.personalization.ColorEditor
+import fr.ecole2recte.app.settings.HomeLayout
+import fr.ecole2recte.app.settings.HomeSection
+import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.theme.AppTheme
+import fr.ecole2recte.app.ui.theme.subjectColor
 
 @Composable
 fun HomeRoute(
@@ -67,27 +67,25 @@ fun HomeRoute(
     val repository = rememberSchoolRepository()
     val viewModel = appViewModel { HomeViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var showColorEditor by rememberSaveable { mutableStateOf(false) }
+    val layout by rememberAppContainer().settings.homeLayout.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { data ->
         HomeScreen(
             data = data,
-            onOpenColors = { showColorEditor = true },
+            layout = layout,
             onOpenSchedule = onOpenSchedule,
             onOpenHomework = onOpenHomework,
             onOpenGrades = onOpenGrades,
             onOpenMessages = onOpenMessages,
         )
-        if (showColorEditor) {
-            ColorEditor(subjects = data.allSubjects, onDismiss = { showColorEditor = false })
-        }
     }
 }
 
+/** L'accueil : l'en-tête, puis les blocs que l'utilisateur a choisis, dans l'ordre qu'il a choisi. */
 @Composable
 private fun HomeScreen(
     data: HomeData,
-    onOpenColors: () -> Unit,
+    layout: HomeLayout,
     onOpenSchedule: () -> Unit,
     onOpenHomework: () -> Unit,
     onOpenGrades: () -> Unit,
@@ -96,56 +94,50 @@ private fun HomeScreen(
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("accueil", listState)
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 20.dp)) {
-        item {
-            Column {
-                PageHeader(data.greeting, data.dateLabel)
-                if (data.nextClass != null) {
-                    NextClassCard(data.nextClass, Modifier.entrance(0))
-                } else {
-                    NoClassCard(Modifier.entrance(0))
+        item { PageHeader(data.greeting, data.dateLabel) }
+        layout.visible.forEachIndexed { rank, section ->
+            when (section) {
+                HomeSection.NextClass -> item(key = "next") {
+                    if (data.nextClass != null) NextClassCard(data.nextClass, Modifier.entrance(rank))
+                    else NoClassCard(Modifier.entrance(rank))
                 }
-            }
-        }
-        item { SectionTitle("Aujourd'hui", "Voir le planning", onClick = onOpenSchedule) }
-        item {
-            if (data.today.isEmpty()) {
-                Text("Pas de cours aujourd'hui.", color = AppTheme.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 22.dp))
-            } else {
-                ScheduleSummary(data.today, Modifier.entrance(1))
-            }
-        }
-        if (data.highlights.isNotEmpty()) {
-            item { SectionTitle("À savoir", "", onClick = {}) }
-            item {
-                Column {
-                    data.highlights.forEachIndexed { index, highlight ->
-                        HighlightCard(
-                            highlight,
-                            Modifier.entrance(index + 2),
-                            onClick = when (highlight.kind) {
-                                HighlightKind.Canceled, HighlightKind.Exam -> onOpenSchedule
-                                HighlightKind.Grade -> onOpenGrades
-                                HighlightKind.Message -> onOpenMessages
-                            },
-                        )
+                HomeSection.Today -> {
+                    item(key = "today-title") { SectionTitle("Aujourd'hui", "Voir le planning", onClick = onOpenSchedule) }
+                    item(key = "today") {
+                        if (data.today.isEmpty()) {
+                            Text("Pas de cours aujourd'hui.", color = AppTheme.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 22.dp))
+                        } else {
+                            ScheduleSummary(data.today, Modifier.entrance(rank))
+                        }
                     }
                 }
+                HomeSection.Highlights -> if (data.highlights.isNotEmpty()) {
+                    item(key = "highlights-title") { SectionTitle("À savoir", "", onClick = {}) }
+                    item(key = "highlights") {
+                        Column {
+                            data.highlights.forEachIndexed { index, highlight ->
+                                HighlightCard(
+                                    highlight,
+                                    Modifier.entrance(rank + index),
+                                    onClick = when (highlight.kind) {
+                                        HighlightKind.Canceled, HighlightKind.Exam -> onOpenSchedule
+                                        HighlightKind.Grade -> onOpenGrades
+                                        HighlightKind.Message -> onOpenMessages
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                HomeSection.Reminder -> data.reminder?.let { reminder ->
+                    item(key = "reminder-title") { SectionTitle("À ne pas oublier", "Tout voir", onClick = onOpenHomework) }
+                    item(key = "reminder") { ReminderCard(reminder, Modifier.entrance(rank)) }
+                }
+                HomeSection.Grades -> {
+                    item(key = "grades-title") { SectionTitle("Tes dernières notes", "Voir les notes", onClick = onOpenGrades) }
+                    item(key = "grades") { GradesSummary(data.grades, Modifier.entrance(rank)) }
+                }
             }
-        }
-        data.reminder?.let { reminder ->
-            item { SectionTitle("À ne pas oublier", "Tout voir", onClick = onOpenHomework) }
-            item { ReminderCard(reminder, Modifier.entrance(2)) }
-        }
-        item { SectionTitle("Tes dernières notes", "Voir les notes", onClick = onOpenGrades) }
-        item { GradesSummary(data.grades, Modifier.entrance(3)) }
-        item {
-            Text(
-                "Couleurs par matière",
-                modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 6.dp).clickable(onClick = onOpenColors).padding(8.dp),
-                color = AppTheme.colors.accent,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-            )
         }
     }
 }
@@ -238,7 +230,7 @@ private fun ScheduleSummary(slots: List<ScheduleSlot>, modifier: Modifier = Modi
             slots.forEach { slot ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(slot.time, color = AppTheme.colors.muted, fontSize = 12.sp, modifier = Modifier.size(45.dp, 20.dp))
-                    Box(Modifier.size(8.dp).background(AppTheme.colors.subject[slot.subject.colorIndex], RoundedCornerShape(4.dp)))
+                    Box(Modifier.size(8.dp).background(subjectColor(slot.subject.name, slot.subject.colorIndex), RoundedCornerShape(4.dp)))
                     Text(slot.subject.name, color = AppTheme.colors.ink, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
                     Text(slot.subject.room, color = AppTheme.colors.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
                 }
@@ -256,10 +248,10 @@ private fun ReminderCard(task: Homework, modifier: Modifier = Modifier) {
     ) {
         Row(Modifier.padding(19.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(34.dp).background(AppTheme.colors.subject[task.colorIndex].copy(alpha = .2f), RoundedCornerShape(10.dp)),
+                Modifier.size(34.dp).background(subjectColor(task.subject, task.colorIndex).copy(alpha = .2f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("!", color = AppTheme.colors.subject[task.colorIndex], fontWeight = FontWeight.Bold)
+                Text("!", color = subjectColor(task.subject, task.colorIndex), fontWeight = FontWeight.Bold)
             }
             Column(Modifier.padding(start = 13.dp)) {
                 Text("À NE PAS OUBLIER", color = Color.White.copy(alpha = .6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)

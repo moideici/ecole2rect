@@ -58,6 +58,7 @@ import fr.ecole2recte.app.ui.theme.AppTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import fr.ecole2recte.app.ui.theme.subjectColor
 
 @Composable
 fun GradesRoute() {
@@ -183,7 +184,7 @@ private fun shortDate(iso: String?): String =
 private fun GradeRow(grade: GradeEntry, showSubject: Boolean, modifier: Modifier, onClick: () -> Unit) {
     ListCard(modifier, onClick = onClick) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(9.dp).background(AppTheme.colors.subject[grade.colorIndex], RoundedCornerShape(5.dp)))
+            Box(Modifier.size(9.dp).background(subjectColor(grade.subject, grade.colorIndex), RoundedCornerShape(5.dp)))
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     if (showSubject) grade.subject else grade.label.ifBlank { "Évaluation" },
@@ -229,7 +230,7 @@ private fun SubjectCard(line: SubjectAverage, modifier: Modifier, onGrade: (Grad
     ListCard(modifier, onClick = { expanded = !expanded }) {
         Column {
             Row(Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(9.dp).background(AppTheme.colors.subject[line.subject.colorIndex], RoundedCornerShape(5.dp)))
+                Box(Modifier.size(9.dp).background(subjectColor(line.subject.name, line.subject.colorIndex), RoundedCornerShape(5.dp)))
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text(line.subject.name, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     line.classAverage?.let { Text("Classe : $it", color = AppTheme.colors.muted, fontSize = 12.sp) }
@@ -299,7 +300,7 @@ private fun Simulator(line: SubjectAverage) {
 @Composable
 private fun GradeDetail(grade: GradeEntry) {
     Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(grade.subject, color = AppTheme.colors.subject[grade.colorIndex], fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(grade.subject, color = subjectColor(grade.subject, grade.colorIndex), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Text(grade.label.ifBlank { "Évaluation" }, color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(

@@ -21,6 +21,7 @@ fun AppRoot() {
             onAccountRemoved = { id ->
                 it.responseCache.clear(id)
                 it.homeworkStatus.clear(id)
+                it.subjectColors.clear(id)
             },
         ) }
     val state by session.state.collectAsStateWithLifecycle()
