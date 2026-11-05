@@ -22,6 +22,8 @@ class EcoleDirecteRepositoryTest {
     private lateinit var server: MockWebServer
     private val paths = mutableListOf<String>()
     private var notesAnswers = ArrayDeque<String>()
+    private var messageBody = """{"code":200,"data":{}}"""
+    private val messageQueries = mutableListOf<String>()
     private var dayContent = """{"code":200,"data":{"matieres":[]}}"""
 
     // Jeudi 5 novembre 2026, 9 h 50 à Paris.
@@ -61,6 +63,10 @@ class EcoleDirecteRepositoryTest {
                     path.contains("/cahierdetexte/") -> dayContent
                     path.endsWith("/cahierdetexte.awp") -> homework
                     path.endsWith("/notes.awp") -> notesAnswers.removeFirstOrNull() ?: grades
+                    path.contains("/messages/") -> {
+                        messageQueries += request.requestUrl!!.encodedQuery.orEmpty()
+                        messageBody
+                    }
                     path.endsWith("/messages.awp") -> messages
                     else -> """{"code":404}"""
                 }
@@ -249,6 +255,29 @@ class EcoleDirecteRepositoryTest {
         val error = runCatching { repository(session).homework() }.exceptionOrNull()
         assertTrue(error is EcoleDirecteException)
         assertTrue(paths.isEmpty())
+    }
+
+    @Test
+    fun `la liste des messages porte la date et l'identifiant`() = runTest {
+        val page = repository(openStudent()).messagesPage(0)
+        assertEquals(listOf("1", "2"), page.items.map { it.id })
+        assertEquals("4 nov.", page.items.first().dateLabel)
+        assertEquals(false, page.hasMore)
+    }
+
+    @Test
+    fun `ouvrir un message lit son corps complet`() = runTest {
+        val corps = java.util.Base64.getEncoder().encodeToString("<p>Bonjour</p><p>Réunion jeudi</p>".toByteArray())
+        messageBody = """{"code":200,"data":{"id":1,"subject":"Réunion","from":{"nom":"VIE SCOLAIRE"},
+            "to":[{"civilite":"M.","prenom":"Jean","nom":"DUPONT"}],"date":"2026-11-04 10:00:00","content":"$corps",
+            "files":[{"id":4,"libelle":"Convocation.pdf","type":"FICHIER"}]}}"""
+        val detail = repository(openStudent()).messageDetail("1")
+        assertEquals("Réunion", detail.subject)
+        assertEquals("Bonjour" + (10).toChar() + (10).toChar() + "Réunion jeudi", detail.body)
+        assertEquals(listOf("M. Jean DUPONT"), detail.recipients)
+        assertEquals(listOf("Convocation.pdf"), detail.attachments)
+        assertTrue(paths.contains("/v3/eleves/10/messages/1.awp"))
+        assertEquals(listOf("verbe=get&v=4.75.0&mode=destinataire"), messageQueries)
     }
 
     // --- Mode hors ligne ---------------------------------------------------------------------

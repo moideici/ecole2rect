@@ -22,7 +22,9 @@ import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.HomeworkDetail
+import fr.ecole2recte.app.domain.MessageDetail
 import fr.ecole2recte.app.domain.MessagePreview
+import fr.ecole2recte.app.domain.MessagesPage
 import fr.ecole2recte.app.domain.NextClass
 import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.domain.ScheduleSlot
@@ -197,9 +199,9 @@ class EcoleDirecteRepository(
     private suspend fun gradesPayload(): ApiGrades =
         resource("grades", { api, target -> api.grades(target.studentId) }, Parsers::grades)
 
-    private suspend fun inbox(): List<ApiMessage> = resource(
-        "messages",
-        { api, target -> api.messages(target.mailboxSegment, target.mailboxId) },
+    private suspend fun inbox(page: Int = 0): List<ApiMessage> = resource(
+        if (page == 0) "messages" else "messages-$page",
+        { api, target -> api.messages(target.mailboxSegment, target.mailboxId, page, MESSAGES_PER_PAGE) },
         Parsers::messages,
     )
 
@@ -295,8 +297,48 @@ class EcoleDirecteRepository(
 
     override suspend fun grades(): GradeOverview = overview(gradesPayload())
 
-    override suspend fun messages(): List<MessagePreview> =
-        inbox().map { MessagePreview(sender = it.sender, preview = it.subject, unread = !it.read) }
+    override suspend fun messages(): List<MessagePreview> = messagesPage(0).items
+
+    override suspend fun messagesPage(page: Int): MessagesPage {
+        val messages = inbox(page)
+        return MessagesPage(
+            items = messages.map {
+                MessagePreview(
+                    sender = it.sender,
+                    preview = it.subject,
+                    unread = !it.read,
+                    id = it.id,
+                    dateLabel = dateLabel(it.date),
+                )
+            },
+            hasMore = messages.size >= MESSAGES_PER_PAGE,
+        )
+    }
+
+    override suspend fun messageDetail(id: String): MessageDetail {
+        val detail = resource(
+            "message-$id",
+            { api, target -> api.messageDetail(target.mailboxSegment, target.mailboxId, id) },
+            Parsers::messageDetail,
+        ) ?: throw EcoleDirecteException("Ce message est illisible pour le moment.")
+        return MessageDetail(
+            subject = detail.subject,
+            sender = detail.sender,
+            dateLabel = dateLabel(detail.date, long = true),
+            body = detail.body.ifBlank { "(message vide)" },
+            recipients = detail.recipients,
+            attachments = detail.attachments.map { it.name },
+        )
+    }
+
+    /** « 10:15 » pour aujourd'hui, « 4 nov. » sinon ; la forme longue ajoute le jour et l'heure. */
+    private fun dateLabel(iso: String?, long: Boolean = false): String {
+        if (iso == null) return ""
+        val moment = runCatching { LocalDateTime.parse(iso) }.getOrNull() ?: return ""
+        if (long) return moment.format(DateTimeFormatter.ofPattern("EEEE d MMMM 'à' HH:mm", french)).capitalized()
+        return if (moment.toLocalDate() == today()) moment.format(DateTimeFormatter.ofPattern("HH:mm"))
+        else moment.format(DateTimeFormatter.ofPattern("d MMM", french))
+    }
 
     override suspend fun badges(): Badges {
         val errors = mutableListOf<Throwable>()
@@ -476,5 +518,6 @@ class EcoleDirecteRepository(
 
     private companion object {
         const val PALETTE_SIZE = 4
+        const val MESSAGES_PER_PAGE = 50
     }
 }

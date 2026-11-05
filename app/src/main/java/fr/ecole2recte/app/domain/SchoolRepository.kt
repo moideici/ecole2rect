@@ -28,4 +28,10 @@ interface SchoolRepository {
     suspend fun grades(): GradeOverview
     suspend fun messages(): List<MessagePreview>
     suspend fun badges(): Badges
+
+    /** Une page de la boîte de réception (0 = la plus récente). */
+    suspend fun messagesPage(page: Int): MessagesPage
+
+    /** Le message ouvert. Côté ÉcoleDirecte, l'ouvrir le marque lu. */
+    suspend fun messageDetail(id: String): MessageDetail
 }

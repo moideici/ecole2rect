@@ -57,4 +57,11 @@ class EcoleDirecteApi(private val client: EcoleDirecteClient) {
                 ),
                 body = JSONObject().put("anneeMessages", ""),
         ).raw()
+
+    /**
+     * Le corps d'un message. Cet appel est celui du site : il **marque le message lu** côté
+     * ÉcoleDirecte. Le `mode` dit de quel côté on se place — destinataire pour les messages reçus.
+     */
+    fun messageDetail(segment: String, mailboxId: String, id: String): String =
+        client.call("/$segment/$mailboxId/messages/$id.awp", "get", query = mapOf("mode" to "destinataire")).raw()
 }

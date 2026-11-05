@@ -81,6 +81,17 @@ data class ApiMessage(
     val date: String?,
 )
 
+/** Un message ouvert : le corps complet, en texte, et ses pièces jointes. */
+data class ApiMessageDetail(
+    val id: String,
+    val subject: String,
+    val sender: String,
+    val date: String?,
+    val body: String,
+    val recipients: List<String>,
+    val attachments: List<ApiAttachment>,
+)
+
 object Parsers {
     /**
      * Un cours annulé reste dans la réponse (la salle est réservée) ; deux cours peuvent se
@@ -133,7 +144,7 @@ object Parsers {
     }
 
     /** Les listes de pièces jointes portent plusieurs noms selon l'endpoint. */
-    private fun attachmentsOf(source: JSONObject): List<ApiAttachment> {
+    internal fun attachmentsOf(source: JSONObject): List<ApiAttachment> {
         for (key in listOf("documents", "files", "fichiers", "piecesJointes")) {
             val found = source.opt(key).objects().mapNotNull { raw ->
                 val id = raw.str("id", "idDocument", "fichierId")
@@ -222,6 +233,24 @@ object Parsers {
             periods = periods,
             grades = grades,
             subjectAverages = averages.distinctBy { "${it.periodCode} ${it.subject}" },
+        )
+    }
+
+    /** Le détail d'un message : le corps arrive en base64 et contient du HTML. */
+    fun messageDetail(data: Any?): ApiMessageDetail? {
+        val root = data.asObject() ?: return null
+        val source = root.optJSONObject("message") ?: root
+        val id = source.str("id")
+        if (id.isEmpty()) return null
+        val encoded = source.str("content", "contenu")
+        return ApiMessageDetail(
+            id = id,
+            subject = source.str("subject", "objet").ifEmpty { "(sans objet)" },
+            sender = personName(source.optJSONObject("from")).ifEmpty { source.str("expediteur") },
+            date = source.dateTime("date", "dateEnvoi"),
+            body = if (encoded.isEmpty()) "" else plainText(base64DecodeOrRaw(encoded)),
+            recipients = source.opt("to").objects().map { personName(it) }.filter { it.isNotEmpty() },
+            attachments = attachmentsOf(source),
         )
     }
 

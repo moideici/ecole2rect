@@ -8,7 +8,9 @@ import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.HomeworkDetail
+import fr.ecole2recte.app.domain.MessageDetail
 import fr.ecole2recte.app.domain.MessagePreview
+import fr.ecole2recte.app.domain.MessagesPage
 import fr.ecole2recte.app.domain.NextClass
 import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.domain.ScheduleSlot
@@ -89,6 +91,11 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
     }
 
     override suspend fun grades(): GradeOverview = grades
+
+    override suspend fun messagesPage(page: Int) = MessagesPage(messages(), hasMore = false)
+
+    override suspend fun messageDetail(id: String) =
+        MessageDetail("Réunion parents-professeurs", "Vie scolaire", "4 nov.", "Bonjour,\n\nLa réunion aura lieu jeudi.", emptyList(), emptyList())
 
     override suspend fun badges(): Badges = Badges(newGrades = 1, urgentHomework = 1, unreadMessages = 2)
 

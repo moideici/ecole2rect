@@ -85,7 +85,25 @@ data class GradeOverview(
     val classAverage: String? = null,
 )
 
-data class MessagePreview(val sender: String, val preview: String, val unread: Boolean = true)
+data class MessagePreview(
+    val sender: String,
+    val preview: String,
+    val unread: Boolean = true,
+    val id: String = "",
+    /** « 10:15 » aujourd'hui, sinon « 4 nov. ». */
+    val dateLabel: String = "",
+)
+
+data class MessagesPage(val items: List<MessagePreview>, val hasMore: Boolean)
+
+data class MessageDetail(
+    val subject: String,
+    val sender: String,
+    val dateLabel: String,
+    val body: String,
+    val recipients: List<String>,
+    val attachments: List<String>,
+)
 
 /**
  * Ce que l'on sait de l'âge des données affichées. [stale] est vrai quand le réseau a échoué

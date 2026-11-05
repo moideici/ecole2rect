@@ -6,6 +6,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -17,6 +21,7 @@ import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.HomeworkDetail
+import fr.ecole2recte.app.domain.MessageDetail
 import fr.ecole2recte.app.domain.MessagePreview
 import fr.ecole2recte.app.domain.ScheduleWeek
 import fr.ecole2recte.app.domain.SchoolRepository
@@ -66,4 +71,45 @@ class HomeworkViewModel(private val repository: SchoolRepository) :
 
 class GradesViewModel(repository: SchoolRepository) : LoadingViewModel<GradeOverview>(repository::grades, repository::invalidate)
 
-class MessagesViewModel(repository: SchoolRepository) : LoadingViewModel<List<MessagePreview>>(repository::messages, repository::invalidate)
+class MessagesViewModel(private val repository: SchoolRepository) :
+    LoadingViewModel<List<MessagePreview>>(repository::messages, repository::invalidate) {
+    private val mutableMore = MutableStateFlow<List<MessagePreview>>(emptyList())
+    private val mutableHasMore = MutableStateFlow(true)
+    private val mutableLoadingMore = MutableStateFlow(false)
+    private val mutableRead = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Les pages suivantes, ajoutées à la première. */
+    val more: StateFlow<List<MessagePreview>> = mutableMore.asStateFlow()
+    val hasMore: StateFlow<Boolean> = mutableHasMore.asStateFlow()
+    val loadingMore: StateFlow<Boolean> = mutableLoadingMore.asStateFlow()
+
+    /** Messages ouverts pendant cette visite : lus tout de suite à l'écran, en attendant le serveur. */
+    val readHere: StateFlow<Set<String>> = mutableRead.asStateFlow()
+
+    private var nextPage = 1
+
+    fun loadMore() {
+        if (mutableLoadingMore.value || !mutableHasMore.value) return
+        mutableLoadingMore.value = true
+        viewModelScope.launch {
+            try {
+                val page = repository.messagesPage(nextPage)
+                mutableMore.value = mutableMore.value + page.items
+                mutableHasMore.value = page.hasMore
+                nextPage++
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Le bouton « Charger plus » reste disponible pour réessayer.
+            } finally {
+                mutableLoadingMore.value = false
+            }
+        }
+    }
+
+    suspend fun open(message: MessagePreview): MessageDetail {
+        val detail = repository.messageDetail(message.id)
+        mutableRead.value = mutableRead.value + message.id
+        return detail
+    }
+}
