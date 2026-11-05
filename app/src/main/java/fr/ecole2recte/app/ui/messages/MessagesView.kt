@@ -49,6 +49,7 @@ import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
 import fr.ecole2recte.app.ui.common.RefreshOnResume
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.linkified
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
@@ -83,6 +84,9 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
     var searching by remember { mutableStateOf(false) }
     var unreadOnly by remember { mutableStateOf(false) }
     var opened by remember { mutableStateOf<MessagePreview?>(null) }
+    val canSend by rememberAppContainer().settings.sendMessages.collectAsStateWithLifecycle()
+    var composing by remember { mutableStateOf(false) }
+    var sentNotice by remember { mutableStateOf(false) }
 
     val all = remember(first, more, readHere) { (first + more).map { if (it.id in readHere) it.copy(unread = false) else it } }
     val shown = remember(all, query, unreadOnly) {
@@ -100,6 +104,17 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
                 "Messages",
                 if (unreadCount == 0) "Tout est lu" else if (unreadCount == 1) "1 message non lu" else "$unreadCount messages non lus",
             )
+        }
+        if (canSend) {
+            item {
+                Text(
+                    if (sentNotice) "Message envoyé. Nouveau message" else "Nouveau message",
+                    color = AppTheme.colors.accent,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable { composing = true }.padding(horizontal = 22.dp, vertical = 8.dp),
+                )
+            }
         }
         item {
             Row(
@@ -157,6 +172,14 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
     opened?.let { message ->
         ModalBottomSheet(onDismissRequest = { opened = null }, containerColor = AppTheme.colors.surface) {
             MessageSheet(message, viewModel)
+        }
+    }
+    if (composing && canSend) {
+        ModalBottomSheet(onDismissRequest = { composing = false }, containerColor = AppTheme.colors.surface) {
+            ComposeSheet(viewModel, onSent = {
+                composing = false
+                sentNotice = true
+            })
         }
     }
 }

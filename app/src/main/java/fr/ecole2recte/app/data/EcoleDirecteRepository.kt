@@ -21,7 +21,10 @@ import fr.ecole2recte.app.data.api.ParseReport
 import fr.ecole2recte.app.domain.Attachment
 import fr.ecole2recte.app.domain.AttachmentFile
 import fr.ecole2recte.app.domain.AttachmentSource
+import fr.ecole2recte.app.data.api.Recipients
 import fr.ecole2recte.app.domain.Freshness
+import fr.ecole2recte.app.domain.MessageDraft
+import fr.ecole2recte.app.domain.Recipient
 import fr.ecole2recte.app.domain.HomeworkWrite
 import fr.ecole2recte.app.domain.GradePeriod
 import fr.ecole2recte.app.domain.StaleCause
@@ -407,6 +410,35 @@ class EcoleDirecteRepository(
             attachments = detail.attachments.map { it.name },
             files = detail.attachments.map { Attachment(it.id, it.name, it.type, AttachmentSource.Message) },
         )
+    }
+
+    override suspend fun recipients(): List<Recipient> {
+        if (!writes.messageSending()) throw EcoleDirecteException("L'envoi de messages est désactivé dans Plus.")
+        val groups = listOf("professeurs" to ("Enseignants" to "P"), "administrations" to ("Administration" to "A"))
+        val found = mutableListOf<Recipient>()
+        var failure: EcoleDirecteException? = null
+        for ((path, info) in groups) {
+            try {
+                val raw = withApi { api, _ -> api.contacts(path) }
+                found += Recipients.parse(readJson(raw), info.first, info.second)
+            } catch (error: EcoleDirecteException) {
+                failure = error
+            }
+        }
+        if (found.isEmpty() && failure != null) throw failure
+        return found
+    }
+
+    override suspend fun sendMessage(draft: MessageDraft, confirmed: Boolean) {
+        // Trois verrous, dans cet ordre, avant toute requête : confirmation, autorisation, message complet.
+        if (!confirmed) throw EcoleDirecteException("L'envoi doit être confirmé par l'utilisateur.")
+        if (!writes.messageSending()) throw EcoleDirecteException("L'envoi de messages est désactivé dans Plus.")
+        draft.problems().firstOrNull()?.let { throw EcoleDirecteException(it) }
+        val year = today().let { if (it.monthValue >= 8) "${it.year}-${it.year + 1}" else "${it.year - 1}-${it.year}" }
+        // Une seule tentative : un envoi qui échoue n'est jamais renvoyé par l'application.
+        withApi { api, target ->
+            api.sendMessage(target.mailboxSegment, target.mailboxId, draft.subject, draft.recipients, draft.body, year)
+        }
     }
 
     override suspend fun downloadAttachment(attachment: Attachment): AttachmentFile {

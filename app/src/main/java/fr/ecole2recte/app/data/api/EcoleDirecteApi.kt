@@ -90,6 +90,35 @@ class EcoleDirecteApi(private val client: EcoleDirecteClient) {
         return client.download("/telechargement.awp", query)
     }
 
+    /** Les contacts d'un groupe (`professeurs`, `administrations`). Lecture. */
+    fun contacts(group: String): String = client.call("/messagerie/contacts/$group.awp", "get").raw()
+
+    /**
+     * Envoie un message. **Écriture** : appelée seulement après la confirmation de l'utilisateur.
+     * Le texte part en HTML encodé en base64, comme le site ; la forme des destinataires vient de la
+     * documentation de la communauté et n'a jamais été essayée sur un vrai compte.
+     */
+    fun sendMessage(
+        segment: String,
+        mailboxId: String,
+        subject: String,
+        recipients: List<fr.ecole2recte.app.domain.Recipient>,
+        text: String,
+        schoolYear: String,
+    ) {
+        val to = org.json.JSONArray(
+            recipients.map { person ->
+                JSONObject().put("id", person.id.toLongOrNull() ?: person.id).put("type", person.type).put("isSelected", true)
+            },
+        )
+        val message = JSONObject()
+            .put("subject", subject.trim())
+            .put("content", Recipients.encodedContent(text))
+            .put("to", to)
+            .put("files", org.json.JSONArray())
+        client.call("/$segment/$mailboxId/messages.awp", "post", body = JSONObject().put("message", message).put("anneeMessages", schoolYear))
+    }
+
     fun messageDetail(segment: String, mailboxId: String, id: String): String =
         client.call("/$segment/$mailboxId/messages/$id.awp", "get", query = mapOf("mode" to "destinataire")).raw()
 }

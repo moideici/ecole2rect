@@ -47,6 +47,16 @@ interface SchoolRepository {
     /** Le message ouvert. Côté ÉcoleDirecte, l'ouvrir le marque lu. */
     suspend fun messageDetail(id: String): MessageDetail
 
+    /** Les personnes à qui l'on peut écrire. Seulement si l'envoi de messages est autorisé dans Plus. */
+    suspend fun recipients(): List<Recipient> = emptyList()
+
+    /**
+     * Envoie un message. **Écriture**, jamais rejouée : exige `confirmed` (l'utilisateur a relu les
+     * destinataires, l'objet et le texte et touché « Envoyer ») et l'autorisation donnée dans Plus.
+     */
+    suspend fun sendMessage(draft: MessageDraft, confirmed: Boolean): Unit =
+        throw UnsupportedOperationException("L'envoi n'est pas disponible ici.")
+
     /** Télécharge une pièce jointe (lecture seule). Appelé seulement après confirmation de l'utilisateur. */
     suspend fun downloadAttachment(attachment: Attachment): AttachmentFile =
         throw UnsupportedOperationException("Le téléchargement n'est pas disponible ici.")

@@ -141,4 +141,9 @@ class MessagesViewModel(private val repository: SchoolRepository) :
     }
 
     suspend fun download(attachment: fr.ecole2recte.app.domain.Attachment) = repository.downloadAttachment(attachment)
+
+    suspend fun recipients() = repository.recipients()
+
+    /** Appelé seulement depuis le bouton « Envoyer » de la confirmation. */
+    suspend fun send(draft: fr.ecole2recte.app.domain.MessageDraft) = repository.sendMessage(draft, confirmed = true)
 }
