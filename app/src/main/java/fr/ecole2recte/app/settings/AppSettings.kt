@@ -40,6 +40,36 @@ class AppSettings(context: Context) {
         mutableAppLock.value = enabled
     }
 
+    /** Envoie aussi à ÉcoleDirecte les devoirs cochés « faits ». Éteint par défaut. */
+    private val mutableSyncHomework = MutableStateFlow(preferences.getBoolean("sync_homework", false))
+    val syncHomework: StateFlow<Boolean> = mutableSyncHomework.asStateFlow()
+    val syncHomeworkAcknowledged: Boolean get() = preferences.getBoolean("sync_homework_ack", false)
+
+    fun setSyncHomework(enabled: Boolean) {
+        val editor = preferences.edit().putBoolean("sync_homework", enabled)
+        if (enabled) editor.putBoolean("sync_homework_ack", true)
+        editor.apply()
+        mutableSyncHomework.value = enabled
+    }
+
+    /** Autorise l'écriture et l'envoi de messages depuis l'application. Éteint par défaut. */
+    private val mutableSendMessages = MutableStateFlow(preferences.getBoolean("send_messages", false))
+    val sendMessages: StateFlow<Boolean> = mutableSendMessages.asStateFlow()
+    val sendMessagesAcknowledged: Boolean get() = preferences.getBoolean("send_messages_ack", false)
+
+    fun setSendMessages(enabled: Boolean) {
+        val editor = preferences.edit().putBoolean("send_messages", enabled)
+        if (enabled) editor.putBoolean("send_messages_ack", true)
+        editor.apply()
+        mutableSendMessages.value = enabled
+    }
+
+    /** Ce qui est autorisé en écriture, lu au moment de l'action : un réglage éteint coupe l'écriture aussitôt. */
+    val writeAccess: fr.ecole2recte.app.data.WriteAccess = object : fr.ecole2recte.app.data.WriteAccess {
+        override fun homeworkSync() = mutableSyncHomework.value
+        override fun messageSending() = mutableSendMessages.value
+    }
+
     /** L'avis du premier lancement (application non officielle, usage des identifiants) a été accepté. */
     private val mutableNoticeAccepted = MutableStateFlow(preferences.getBoolean("notice_accepted", false))
     val noticeAccepted: StateFlow<Boolean> = mutableNoticeAccepted.asStateFlow()

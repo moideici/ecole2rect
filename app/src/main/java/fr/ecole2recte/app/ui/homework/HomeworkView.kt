@@ -2,6 +2,8 @@ package fr.ecole2recte.app.ui.homework
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -82,7 +84,22 @@ private fun HomeworkContent(tasks: List<Homework>, listState: LazyListState, vie
         EmptyState("Rien à faire", "Aucun devoir à venir pour le moment.")
         return
     }
+    val notice by viewModel.notice.collectAsStateWithLifecycle()
     LazyColumn(state = listState, contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)) {
+        notice?.let { message ->
+            item(key = "notice") {
+                Text(
+                    "$message  Fermer",
+                    color = AppTheme.colors.warningTitle,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp)
+                        .background(AppTheme.colors.warningSurface, RoundedCornerShape(12.dp))
+                        .clickable(onClick = viewModel::dismissNotice)
+                        .padding(12.dp),
+                )
+            }
+        }
         if (subjects.size > 1) {
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

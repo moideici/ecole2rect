@@ -28,6 +28,18 @@ data class HomeworkDetail(
     val lessonContent: String = "",
 )
 
+/** Ce qu'a donné le fait de cocher un devoir. */
+enum class HomeworkWrite {
+    /** Gardé sur le téléphone seulement (la synchronisation est éteinte). */
+    LocalOnly,
+
+    /** Enregistré aussi chez ÉcoleDirecte. */
+    Synced,
+
+    /** Gardé sur le téléphone, mais ÉcoleDirecte n'a pas pu l'enregistrer : aucun nouvel essai automatique. */
+    SyncFailed,
+}
+
 /** D'où vient une pièce jointe : ÉcoleDirecte ne les range pas au même endroit. */
 enum class AttachmentSource { Homework, Message }
 

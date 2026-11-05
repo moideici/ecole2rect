@@ -80,6 +80,8 @@ fun MoreScreen(
         item { ColorsCard(profile) }
         item { Section("Sécurité et confort") }
         item { SecurityAndMotionCard() }
+        item { Section("Écriture vers ÉcoleDirecte") }
+        item { WriteAccessCard() }
         item { Section("Connexion à ÉcoleDirecte") }
         item {
             ListCard {

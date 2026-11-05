@@ -9,6 +9,9 @@ interface HomeworkStatusStore {
     fun overrides(owner: CacheOwner): Map<String, Boolean>
     fun set(owner: CacheOwner, id: String, done: Boolean)
 
+    /** Oublie la case d'un devoir : le serveur redevient la référence pour lui. */
+    fun remove(owner: CacheOwner, id: String)
+
     /** Efface tout ce qui appartient à ce compte. */
     fun clear(identifier: String)
 }
@@ -20,6 +23,10 @@ class InMemoryHomeworkStatusStore : HomeworkStatusStore {
 
     override fun set(owner: CacheOwner, id: String, done: Boolean) {
         values.getOrPut(owner) { HashMap() }[id] = done
+    }
+
+    override fun remove(owner: CacheOwner, id: String) {
+        values[owner]?.remove(id)
     }
 
     override fun clear(identifier: String) {
@@ -40,6 +47,12 @@ class PrefsHomeworkStatusStore(context: Context) : HomeworkStatusStore {
     override fun set(owner: CacheOwner, id: String, done: Boolean) {
         val json = JSONObject(overrides(owner).mapValues { it.value })
         json.put(id, done)
+        preferences.edit().putString(key(owner), json.toString()).apply()
+    }
+
+    override fun remove(owner: CacheOwner, id: String) {
+        val json = JSONObject(overrides(owner).mapValues { it.value })
+        json.remove(id)
         preferences.edit().putString(key(owner), json.toString()).apply()
     }
 

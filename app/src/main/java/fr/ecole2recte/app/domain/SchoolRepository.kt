@@ -26,8 +26,11 @@ interface SchoolRepository {
     /** Énoncé complet et pièces jointes d'un devoir. */
     suspend fun homeworkDetail(homework: Homework): HomeworkDetail
 
-    /** Coche ou décoche un devoir. Pour l'instant sur l'appareil seulement. */
-    suspend fun setHomeworkDone(id: String, done: Boolean)
+    /**
+     * Coche ou décoche un devoir sur l'appareil, puis, seulement si l'utilisateur l'a autorisé dans
+     * Plus, chez ÉcoleDirecte (une seule écriture, jamais rejouée toute seule).
+     */
+    suspend fun setHomeworkDone(id: String, done: Boolean): HomeworkWrite
     suspend fun grades(): GradeOverview
 
     /** Les notes d'une période du bulletin ; `null` : la période en cours. Sans nouvelle requête (même bulletin). */

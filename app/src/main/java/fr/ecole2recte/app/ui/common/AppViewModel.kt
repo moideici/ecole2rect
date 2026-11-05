@@ -61,9 +61,23 @@ class HomeworkViewModel(private val repository: SchoolRepository) :
     /** Coche ou décoche un devoir : la liste se met à jour tout de suite, sans nouvel appel réseau. */
     fun toggleDone(task: Homework) {
         viewModelScope.launch {
-            repository.setHomeworkDone(task.id, !task.done)
+            val written = repository.setHomeworkDone(task.id, !task.done)
+            mutableNotice.value = if (written == fr.ecole2recte.app.domain.HomeworkWrite.SyncFailed) SYNC_FAILED else null
             refresh()
         }
+    }
+
+    private val mutableNotice = MutableStateFlow<String?>(null)
+
+    /** Un message à montrer quand la case n'a pu être enregistrée que sur le téléphone. */
+    val notice: StateFlow<String?> = mutableNotice.asStateFlow()
+
+    fun dismissNotice() {
+        mutableNotice.value = null
+    }
+
+    companion object {
+        const val SYNC_FAILED = "Coché sur ce téléphone, mais ÉcoleDirecte n'a pas pu l'enregistrer. Rien ne sera renvoyé tout seul."
     }
 
     suspend fun detail(task: Homework): HomeworkDetail = repository.homeworkDetail(task)

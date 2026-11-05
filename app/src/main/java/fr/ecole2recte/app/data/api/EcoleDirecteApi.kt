@@ -23,6 +23,18 @@ class EcoleDirecteApi(private val client: EcoleDirecteClient) {
                 .put("avecTrous", false),
         ).raw()
 
+    /**
+     * Coche ou décoche un devoir. **Écriture** : appelée seulement quand l'utilisateur a activé la
+     * synchronisation des devoirs. Même appel que le site (`PUT cahierdetexte.awp`, deux listes d'identifiants).
+     */
+    fun markHomework(studentId: String, homeworkId: String, done: Boolean) {
+        val id: Any = homeworkId.toLongOrNull() ?: homeworkId
+        val body = JSONObject()
+            .put("idDevoirsEffectues", org.json.JSONArray(if (done) listOf(id) else emptyList<Any>()))
+            .put("idDevoirsNonEffectues", org.json.JSONArray(if (done) emptyList<Any>() else listOf(id)))
+        client.call("/Eleves/$studentId/cahierdetexte.awp", "put", body = body)
+    }
+
     fun homework(studentId: String): String =
         client.call("/Eleves/$studentId/cahierdetexte.awp", "get").raw()
 

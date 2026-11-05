@@ -44,7 +44,7 @@ class AppContainer(context: Context) {
 
     /** Un seul dépôt par profil, partagé par tous les écrans. */
     private val repositories = ProfileRepositories { profile ->
-        EcoleDirecteRepository(apiSession, profile, responseCache, homeworkStatus)
+        EcoleDirecteRepository(apiSession, profile, responseCache, homeworkStatus, writes = settings.writeAccess)
     }
 
     fun schoolRepositoryFor(profile: ActiveProfile?): SchoolRepository =

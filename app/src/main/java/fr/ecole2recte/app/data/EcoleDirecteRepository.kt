@@ -22,6 +22,7 @@ import fr.ecole2recte.app.domain.Attachment
 import fr.ecole2recte.app.domain.AttachmentFile
 import fr.ecole2recte.app.domain.AttachmentSource
 import fr.ecole2recte.app.domain.Freshness
+import fr.ecole2recte.app.domain.HomeworkWrite
 import fr.ecole2recte.app.domain.GradePeriod
 import fr.ecole2recte.app.domain.StaleCause
 import fr.ecole2recte.app.domain.GradeEntry
@@ -84,6 +85,8 @@ class EcoleDirecteRepository(
     private val clock: Clock = Clock.systemDefaultZone(),
     private val ttlMs: Long = 90_000,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Ce que l'utilisateur a autorisé à écrire chez ÉcoleDirecte (rien par défaut). */
+    private val writes: WriteAccess = NoWrites,
 ) : SchoolRepository {
     private class Target(val studentId: String, val mailboxSegment: String, val mailboxId: String)
 
@@ -351,8 +354,19 @@ class EcoleDirecteRepository(
         )
     }
 
-    override suspend fun setHomeworkDone(id: String, done: Boolean) {
+    override suspend fun setHomeworkDone(id: String, done: Boolean): HomeworkWrite {
+        // Toujours sur le téléphone d'abord : cocher ne dépend jamais du réseau.
         homeworkStatus.set(owner, id, done)
+        if (!writes.homeworkSync()) return HomeworkWrite.LocalOnly
+        return try {
+            withApi { api, target -> api.markHomework(target.studentId, id, done) }
+            // ÉcoleDirecte a la même case : le serveur redevient la référence, le prochain chargement la relira.
+            homeworkStatus.remove(owner, id)
+            invalidate()
+            HomeworkWrite.Synced
+        } catch (error: EcoleDirecteException) {
+            HomeworkWrite.SyncFailed
+        }
     }
 
     override suspend fun grades(): GradeOverview = overview(gradesPayload())

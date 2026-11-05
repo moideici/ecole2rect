@@ -87,8 +87,9 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
     override suspend fun homeworkDetail(homework: Homework) =
         HomeworkDetail(content = homework.title, attachments = emptyList())
 
-    override suspend fun setHomeworkDone(id: String, done: Boolean) {
+    override suspend fun setHomeworkDone(id: String, done: Boolean): fr.ecole2recte.app.domain.HomeworkWrite {
         if (done) doneIds += id else doneIds -= id
+        return fr.ecole2recte.app.domain.HomeworkWrite.LocalOnly
     }
 
     override suspend fun grades(): GradeOverview = grades
