@@ -59,6 +59,15 @@ class AppSettings(context: Context) {
         mutableAppLock.value = enabled
     }
 
+    /** Délai d'absence après lequel le verrou est redemandé au retour dans l'application. */
+    private val mutableLockDelay = MutableStateFlow(fr.ecole2recte.app.security.LockDelay.parse(preferences.getString("lock_delay", null)))
+    val lockDelay: StateFlow<fr.ecole2recte.app.security.LockDelay> = mutableLockDelay.asStateFlow()
+
+    fun setLockDelay(delay: fr.ecole2recte.app.security.LockDelay) {
+        preferences.edit().putString("lock_delay", delay.name).apply()
+        mutableLockDelay.value = delay
+    }
+
     /** Envoie aussi à ÉcoleDirecte les devoirs cochés « faits ». Éteint par défaut. */
     private val mutableSyncHomework = MutableStateFlow(preferences.getBoolean("sync_homework", false))
     val syncHomework: StateFlow<Boolean> = mutableSyncHomework.asStateFlow()

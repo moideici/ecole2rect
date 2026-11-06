@@ -2,7 +2,6 @@ package fr.ecole2recte.app
 
 import android.content.Intent
 import android.os.Bundle
-import android.os.SystemClock
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,7 +23,6 @@ import fr.ecole2recte.app.ui.theme.Ecole2recteTheme
 class MainActivity : FragmentActivity() {
     private var locked by mutableStateOf(false)
     private var lockMessage by mutableStateOf<String?>(null)
-    private var leftAt = 0L
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -77,16 +75,14 @@ class MainActivity : FragmentActivity() {
 
     override fun onStop() {
         super.onStop()
-        leftAt = SystemClock.elapsedRealtime()
+        AppLock.timer.onBackground()
     }
 
     override fun onStart() {
         super.onStart()
         val settings = (application as Ecole2recteApplication).container.settings
-        // Revenir après une courte absence ne redemande pas le verrou ; une longue absence, si.
-        if (settings.appLock.value && leftAt != 0L && SystemClock.elapsedRealtime() - leftAt > RELOCK_AFTER_MS) {
-            locked = true
-        }
+        // Revenir après une courte absence ne redemande pas le verrou ; après le délai choisi (immédiat, 1, 5 ou 15 min), si.
+        if (AppLock.timer.onForeground(settings.appLock.value, settings.lockDelay.value)) locked = true
     }
 
     private fun unlock() {
@@ -97,9 +93,5 @@ class MainActivity : FragmentActivity() {
             onSuccess = { locked = false },
             onFailure = { lockMessage = it },
         )
-    }
-
-    private companion object {
-        const val RELOCK_AFTER_MS = 30_000L
     }
 }

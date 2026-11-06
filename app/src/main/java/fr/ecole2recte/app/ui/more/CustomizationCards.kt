@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.security.AppLock
+import fr.ecole2recte.app.security.LockDelay
 import fr.ecole2recte.app.security.findFragmentActivity
 import fr.ecole2recte.app.session.ActiveProfile
 import fr.ecole2recte.app.ui.common.HomeViewModel
@@ -90,6 +91,7 @@ fun SecurityAndMotionCard() {
     val lockEnabled by settings.appLock.collectAsStateWithLifecycle()
     val reduceMotion by settings.reduceMotion.collectAsStateWithLifecycle()
     val hidePreview by settings.hidePreview.collectAsStateWithLifecycle()
+    val lockDelay by settings.lockDelay.collectAsStateWithLifecycle()
     var message by remember { mutableStateOf<String?>(null) }
     ListCard {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -108,6 +110,25 @@ fun SecurityAndMotionCard() {
                 Switch(checked = lockEnabled, onCheckedChange = { toggleLock(context, lockEnabled, settings::setAppLock) { text -> message = text } })
             }
             message?.let { Text(it, color = AppTheme.colors.error, fontSize = 13.sp) }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Reverrouiller", color = if (lockEnabled) AppTheme.colors.ink else AppTheme.colors.muted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LockDelay.entries.forEach { choice ->
+                        androidx.compose.material3.FilterChip(
+                            selected = lockDelay == choice,
+                            enabled = lockEnabled,
+                            onClick = { settings.setLockDelay(choice) },
+                            label = { Text(choice.label, fontSize = 13.sp) },
+                        )
+                    }
+                }
+                Text(
+                    "Délai d'absence après lequel le verrou est redemandé en revenant dans l'application.",
+                    color = AppTheme.colors.muted,
+                    fontSize = 12.sp,
+                )
+            }
             Row(
                 Modifier.fillMaxWidth().clickable(enabled = lockEnabled) { settings.setHidePreview(!hidePreview) },
                 verticalAlignment = Alignment.CenterVertically,
