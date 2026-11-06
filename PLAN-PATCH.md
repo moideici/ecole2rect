@@ -121,3 +121,27 @@ tests, et il s'arrête dès qu'une lettre demande une écriture vers ÉcoleDirec
 1. Rebrancher le téléphone : j'installe la copie de test et je regarde le journal.
 2. Tu essaies : emploi du temps, notes, widgets, compte parent.
 3. Tu me dis oui / non / plus tard pour A à L ; un sous-agent applique seulement les « oui ».
+
+## 5. Lot 1 — recherche, messages, devoirs, rappel du soir, notes
+
+Écrit, compilé et testé (343 tests unitaires dont 55 nouveaux, `assembleDebug` et `lintDebug` OK). **Rien de ce lot n'a été essayé
+sur un téléphone** (non branché) : « fait » veut dire écrit et testé, pas vu à l'écran. Aucune nouvelle écriture vers ÉcoleDirecte,
+aucune télémétrie, aucune requête de plus : la recherche ne lit que le cache.
+
+| # | Demande | État | Ce qui a été fait | À vérifier sur le téléphone |
+|---|---|---|---|---|
+| 1 | Recherche globale | **fait** | `domain/Search.kt` (logique pure, casse et accents ignorés, tous les mots doivent se retrouver) ; `ui/search/SearchScreen.kt` ; barre « Rechercher » à l'accueil et dans Plus ; raccourci d'application « Rechercher » ; résultats groupés (devoirs, messages, notes, cours), un toucher ouvre l'onglet. Elle lit uniquement les réponses **déjà enregistrées** (`SchoolRepository.searchCorpus`), jamais le réseau | la barre, le clavier, un résultat qui ouvre le bon onglet |
+| 2 | Lu / non lu en local | **fait** | Icône sur chaque ligne de message ; marque gardée par profil (`data/LocalMarks.kt`), jamais envoyée ; ouvrir un message (qui le marque lu chez ÉcoleDirecte, comportement inchangé) efface la marque. **Limite** : la pastille de l'onglet, les notifications et les widgets suivent toujours ÉcoleDirecte, pas la marque locale | l'icône et la persistance |
+| 3 | Filtres des devoirs | **fait** | Puces « Tous / À faire / Faits / Contrôles » avec compteurs, mémorisées par profil (`ui/homework/HomeworkFilter.kt`). Défaut : « Tous » (comportement d'avant) | les puces |
+| 4 | Rappel du soir | **fait** | `NotificationRules.eveningHour` (16 à 20 h, défaut 18 h), réglage dans Plus > notifications. `NotificationPlanner.plan(..., hour)` : avant l'heure, ni notification ni mémorisation ; au premier passage après l'heure, une notification, puis plus rien pour ce devoir. Aucun nouveau job ni réveil exact : l'heure n'est donc **pas garantie** (premier passage de la synchro, toutes les 4 h ou plus), et le mode nuit 22 h–7 h reste prioritaire | un rappel réel un soir |
+| 5 | Raccourcis et ouverture depuis une notification | **vérifié, un ajout** | Agenda, Devoirs, Messages existaient déjà ; ajout de « Rechercher » (4 raccourcis, les deux `shortcuts.xml` et leur test restent d'accord). Les notifications ouvraient déjà le bon onglet (`EventKind.tab` → extra `tab` → `pendingTab`) : un test garantit que chaque cible existe | un raccourci et une notification |
+| 6a | Simulateur | **fait** | Carte « Simulateur » dans Notes (matière au choix) et dans chaque matière dépliée : « pour atteindre X » (hors d'atteinte / déjà acquis dits clairement) et « si j'obtiens Y » ; logique pure `domain/GradeSimulation.kt` | le clavier décimal |
+| 6b | « Comment la moyenne est calculée » | **fait** | Écran (lien dans Notes et dans Plus) **et** `docs/MOYENNES.md`, même texte, un test vérifie qu'ils ne divergent pas. L'écran dit « officielle » ou « calculée par l'app (peut différer) » pour la moyenne générale (`AverageSource`) et pour chaque matière | la lisibilité |
+| 6c | Courbes | **fait** | `LineChart` en Canvas, sans bibliothèque : moyennes officielles par période, et par matière (moyenne cumulée + chaque note), valeurs écrites, carrés pour les notes, description pour lecteur d'écran, couleurs du thème clair/sombre | le rendu clair et sombre |
+| 6d | Comparaison à la classe | **fait** | « ▲ +1,5 vs classe » / « ▼ −2,0 vs classe » sous chaque note quand la moyenne de la classe existe | — |
+| 6e | Notes « Nouveau » | **fait** | Pastille pendant 3 jours après la première vue par l'app, par profil ; le **tout premier passage** d'un profil ne marque rien (sinon tout l'historique serait nouveau) ; horloge injectée dans les tests. La « première vue » est la première ouverture de l'écran Notes qui montre la note | la pastille après une vraie nouvelle note |
+| 6f | Moyenne par période | **déjà là, complété** | Les puces de période et le choix par les dates existaient (lot I) et restent le comportement par défaut ; chaque puce affiche maintenant sa moyenne générale quand elle est connue | — |
+
+Pas fait, volontairement : ouvrir directement le devoir ou le message trouvé par la recherche (on ouvre l'onglet), prise en compte des
+marques « lu » locales dans la pastille de l'onglet, recherche dans le contenu des messages (seuls l'expéditeur et l'objet sont en cache),
+simulateur de la moyenne générale (les coefficients de matière ne sont pas toujours connus).

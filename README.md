@@ -12,14 +12,22 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
 
 - **Accueil** : prochain cours relié au reste de la journée, devoir à ne pas oublier,
   « à savoir » classé par urgence, dernières notes.
-- **Agenda** : emploi du temps avec heures, pauses et cours doubles ; travail à faire,
-  cases « fait » gardées sur le téléphone.
+- **Agenda** : emploi du temps avec heures, pauses et cours doubles ; travail à faire
+  (filtres À faire / Faits / Contrôles / Tous), cases « fait » gardées sur le téléphone.
 - **Notes** : moyennes par matière et par période, appréciations, valeurs textuelles
-  (Abs, Disp, NE), moyenne de la classe et extrêmes, simulateur d'objectif.
-- **Messages** : boîte de réception, pièces jointes ouvertes seulement après confirmation.
+  (Abs, Disp, NE), moyenne de la classe et extrêmes (avec l'écart de chaque note à la classe),
+  simulateur d'objectif, courbes d'évolution, pastille « Nouveau » pendant trois jours. Une moyenne est
+  toujours étiquetée **officielle** (fournie par ÉcoleDirecte) ou **calculée par l'app** (estimation, souvent
+  un peu plus basse) : voir [Comment la moyenne est calculée](docs/MOYENNES.md).
+- **Messages** : boîte de réception, pièces jointes ouvertes seulement après confirmation,
+  « lu / non lu » modifiable **sur le téléphone seulement** (rien n'est écrit chez ÉcoleDirecte).
+- **Recherche** : une barre à l'accueil et dans Plus cherche dans les devoirs, messages (expéditeur, objet),
+  notes et cours déjà enregistrés sur le téléphone ; elle n'envoie aucune requête.
 - **Comptes** : plusieurs comptes, élèves d'un compte famille, vue d'ensemble de la famille.
 - **Notifications** (désactivées par défaut) : cours annulé ou modifié, nouvelle note,
-  message, devoir pour demain ; réglables une à une, discrètes sur l'écran verrouillé.
+  message, rappel du soir des devoirs pour demain (à partir de l'heure choisie, 16 à 20 h) ;
+  réglables une à une, discrètes sur l'écran verrouillé. Raccourcis d'application : Agenda, Devoirs,
+  Messages, Rechercher.
 - **Widgets** : six widgets qui s'adaptent à leur taille.
 - **Hors ligne** : la dernière réponse valide s'affiche, avec la raison du repli.
 
