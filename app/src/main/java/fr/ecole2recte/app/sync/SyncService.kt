@@ -126,7 +126,8 @@ class SyncService(
         val profiles = syncProfiles(saved, activeProfile)
         val today = LocalDate.now(clock)
         val rules = prefs.rules
-        val quiet = rules.isQuiet(java.time.LocalTime.now(clock).hour)
+        val hour = java.time.LocalTime.now(clock).hour
+        val quiet = rules.isQuiet(hour)
         val toPost = mutableListOf<NotificationEvent>()
         var widgetSnapshot: WidgetSnapshot? = null
 
@@ -150,10 +151,10 @@ class SyncService(
                 val label = profile.firstName.takeIf { family }.orEmpty()
                 val ownerKey = "${saved.identifier.lowercase()}|${profile.studentId.orEmpty()}"
                 val ownMessages = if (family) emptyList() else inbox?.items.orEmpty()
-                plan(ownerKey, NotificationPlanner.snapshot(grades, ownMessages, week, homework, today), today, rules, label, quiet, toPost)
+                plan(ownerKey, NotificationPlanner.snapshot(grades, ownMessages, week, homework, today), today, rules, hour, label, quiet, toPost)
                 if (main && family) {
                     val mailbox = NotificationPlanner.snapshot(GradeOverview("–", "", emptyList()), inbox?.items.orEmpty(), ScheduleWeek("", emptyList(), "", ""), emptyList(), today)
-                    plan("${saved.identifier.lowercase()}|mailbox", mailbox, today, rules, "", quiet, toPost)
+                    plan("${saved.identifier.lowercase()}|mailbox", mailbox, today, rules, hour, "", quiet, toPost)
                 }
                 if (main && inbox != null) {
                     widgetSnapshot = fr.ecole2recte.app.widget.WidgetLogic.snapshot(
@@ -188,11 +189,12 @@ class SyncService(
         snapshot: SyncSnapshot,
         today: LocalDate,
         rules: NotificationRules,
+        hour: Int,
         label: String,
         quiet: Boolean,
         out: MutableList<NotificationEvent>,
     ) {
-        val plan = NotificationPlanner.plan(state.load(owner), snapshot, today, rules)
+        val plan = NotificationPlanner.plan(state.load(owner), snapshot, today, rules, hour)
         // De nuit : on ne dérange pas et on ne retient rien, les nouveautés partiront au matin.
         if (plan.events.isNotEmpty() && quiet) return
         out += plan.events.map { it.copy(owner = label) }

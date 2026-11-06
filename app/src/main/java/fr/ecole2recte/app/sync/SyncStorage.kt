@@ -48,6 +48,7 @@ class SyncPreferences(context: Context) : SyncPrefs {
             messages = preferences.getBoolean("rule_messages", true),
             homework = preferences.getBoolean("rule_homework", true),
             quietNight = preferences.getBoolean("rule_quiet_night", true),
+            eveningHour = NotificationRules.clampEveningHour(preferences.getInt("rule_evening_hour", NotificationRules.DEFAULT_EVENING_HOUR)),
         ),
     )
     val rulesFlow: StateFlow<NotificationRules> = mutableRules.asStateFlow()
@@ -60,8 +61,9 @@ class SyncPreferences(context: Context) : SyncPrefs {
             .putBoolean("rule_messages", value.messages)
             .putBoolean("rule_homework", value.homework)
             .putBoolean("rule_quiet_night", value.quietNight)
+            .putInt("rule_evening_hour", NotificationRules.clampEveningHour(value.eveningHour))
             .apply()
-        mutableRules.value = value
+        mutableRules.value = value.copy(eveningHour = NotificationRules.clampEveningHour(value.eveningHour))
     }
 
     /** Intervalle entre deux vérifications, en heures : 4, 8 ou 12 (jamais moins de 4, même si une ancienne version a gardé 2). */

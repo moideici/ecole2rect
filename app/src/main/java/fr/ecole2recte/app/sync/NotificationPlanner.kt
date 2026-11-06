@@ -53,10 +53,12 @@ data class NotificationRules(
     val schedule: Boolean = true,
     val grades: Boolean = true,
     val messages: Boolean = true,
-    /** Devoir à rendre pour demain. */
+    /** Devoir à rendre pour demain, non fait : un rappel du soir. */
     val homework: Boolean = true,
     /** Aucune notification entre 22 h et 7 h : elles attendent le matin. */
     val quietNight: Boolean = true,
+    /** Heure à partir de laquelle le rappel des devoirs pour demain peut partir (16 à 20 h). */
+    val eveningHour: Int = DEFAULT_EVENING_HOUR,
 ) {
     fun allows(kind: EventKind): Boolean = when (kind) {
         EventKind.Canceled, EventKind.Changed -> schedule
@@ -67,6 +69,19 @@ data class NotificationRules(
 
     /** Vrai entre 22 h et 7 h quand le mode nuit est demandé. */
     fun isQuiet(hour: Int): Boolean = quietNight && (hour >= 22 || hour < 7)
+
+    /** Vrai quand le rappel du soir peut partir à [hour] ; `null` : l'heure n'est pas connue, pas de restriction. */
+    fun reminderOpen(hour: Int?): Boolean = hour == null || hour >= eveningHour
+
+    companion object {
+        const val DEFAULT_EVENING_HOUR = 18
+
+        /** Les heures proposées dans Plus. */
+        val EVENING_HOURS = listOf(16, 17, 18, 19, 20)
+
+        /** Ramène une valeur lue (réglage ancien ou abîmé) à l'une des heures proposées. */
+        fun clampEveningHour(hour: Int): Int = hour.coerceIn(EVENING_HOURS.first(), EVENING_HOURS.last())
+    }
 }
 
 /** Ce qui a déjà été notifié, pour ne jamais notifier deux fois la même chose. */
@@ -100,6 +115,11 @@ data class PlanResult(val events: List<NotificationEvent>, val next: NotifiedIds
  * Le premier passage (`previous == null`) n'envoie **rien** : il se contente de retenir ce qui
  * existe déjà, sinon l'activation des notifications déverserait toute la boîte et tout le
  * bulletin d'un coup.
+ *
+ * Le rappel des devoirs pour demain est un rappel **du soir** : avant l'heure choisie
+ * ([NotificationRules.eveningHour]) il n'envoie rien **et ne retient rien**, de sorte que le premier
+ * passage après cette heure le déclenche une fois, sans doublon ensuite. Aucune heure exacte n'est
+ * garantie : il part au premier passage de la synchronisation qui suit l'heure choisie.
  */
 object NotificationPlanner {
     private const val HISTORY = 400
@@ -127,6 +147,8 @@ object NotificationPlanner {
         snapshot: SyncSnapshot,
         today: LocalDate = LocalDate.now(),
         rules: NotificationRules = NotificationRules(),
+        /** Heure locale (0 à 23) du passage ; `null` : pas de restriction horaire pour le rappel du soir. */
+        hour: Int? = null,
     ): PlanResult {
         val gradeIds = snapshot.grades.associateBy { it.id }
         val messageIds = snapshot.unreadMessages.associateBy { messageKey(it) }
@@ -134,7 +156,10 @@ object NotificationPlanner {
         val homeworkIds = snapshot.homeworkTomorrow.associateBy { homeworkKey(it) }
 
         val fingerprints = snapshot.lessons.associate { lessonKey(it) to fingerprint(it) }
-        val current = NotifiedIds(gradeIds.keys, messageIds.keys, canceledIds.keys, homeworkIds.keys, fingerprints)
+        // Avant l'heure du rappel, les devoirs pour demain ne sont ni annoncés ni retenus : ils seront vus ce soir.
+        val reminderOpen = rules.reminderOpen(hour)
+        val homeworkSeen = if (reminderOpen) homeworkIds.keys else emptySet()
+        val current = NotifiedIds(gradeIds.keys, messageIds.keys, canceledIds.keys, homeworkSeen, fingerprints)
         if (previous == null) return PlanResult(emptyList(), current)
 
         val events = buildList {
@@ -142,7 +167,7 @@ object NotificationPlanner {
                 val when_ = if (entry.date == today.toString()) "aujourd'hui" else "demain"
                 add(NotificationEvent(EventKind.Canceled, key, "Cours annulé : ${entry.subject.name}", "$when_ à ${entry.start}"))
             }
-            homeworkIds.filterKeys { it !in previous.homework }.forEach { (key, task) ->
+            homeworkIds.filterKeys { reminderOpen && it !in previous.homework }.forEach { (key, task) ->
                 add(
                     NotificationEvent(
                         EventKind.Homework,

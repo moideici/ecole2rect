@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.sync.AndroidNotifier
+import fr.ecole2recte.app.sync.NotificationRules
 import fr.ecole2recte.app.sync.SyncIntervals
 import fr.ecole2recte.app.sync.SyncScheduler
 import fr.ecole2recte.app.ui.common.ListCard
@@ -101,7 +102,25 @@ fun NotificationsSection() {
                     RuleRow("Emploi du temps", "Cours annulé, salle ou professeur changé, cours rétabli", rules.schedule) { prefs.setRules(rules.copy(schedule = it)) }
                     RuleRow("Nouvelles notes", "Matière, note et coefficient", rules.grades) { prefs.setRules(rules.copy(grades = it)) }
                     RuleRow("Messages", "Expéditeur et objet", rules.messages) { prefs.setRules(rules.copy(messages = it)) }
-                    RuleRow("Devoirs pour demain", "Un rappel quand un devoir n'est pas fait", rules.homework) { prefs.setRules(rules.copy(homework = it)) }
+                    RuleRow("Devoirs pour demain", "Un rappel du soir quand un devoir n'est pas fait", rules.homework) { prefs.setRules(rules.copy(homework = it)) }
+                    if (rules.homework) {
+                        Text("Rappel à partir de", color = AppTheme.colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, top = 2.dp, bottom = 4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            NotificationRules.EVENING_HOURS.forEach { hour ->
+                                FilterChip(
+                                    selected = rules.eveningHour == hour,
+                                    onClick = { prefs.setRules(rules.copy(eveningHour = hour)) },
+                                    label = { Text("$hour h", fontSize = 13.sp) },
+                                )
+                            }
+                        }
+                        Text(
+                            "Le rappel part au premier passage de la vérification après cette heure (pas d'heure exacte), une seule fois par devoir.",
+                            color = AppTheme.colors.muted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                        )
+                    }
                     RuleRow("Pas de notification la nuit", "De 22 h à 7 h : elles arrivent au matin", rules.quietNight) { prefs.setRules(rules.copy(quietNight = it)) }
                     Text("Vérifier toutes les", color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
