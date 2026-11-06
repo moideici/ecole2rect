@@ -81,5 +81,6 @@ class Ecole2recteApplication : Application() {
         }
         // Les pièces jointes ouvertes lors d'un lancement précédent ne restent pas sur le téléphone.
         fr.ecole2recte.app.ui.common.AttachmentFiles.at(this).clear()
+        fr.ecole2recte.app.export.ExportFiles.at(this).clear()
     }
 }

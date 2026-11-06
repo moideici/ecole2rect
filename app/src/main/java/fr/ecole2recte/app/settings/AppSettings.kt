@@ -122,7 +122,15 @@ class AppSettings(context: Context) {
         mutableScheduleWeekView.value = week
     }
 
-    private val mutableHomeLayout =MutableStateFlow(HomeLayout.parse(preferences.getString("home_layout", null)))
+    /** Le réglage « mon emploi du temps alterne » de chaque profil (un enfant peut alterner, pas l'autre). */
+    fun alternation(profileKey: String): fr.ecole2recte.app.export.Alternation =
+        fr.ecole2recte.app.export.Alternation.parse(preferences.getString("alternation_$profileKey", null))
+
+    fun setAlternation(profileKey: String, value: fr.ecole2recte.app.export.Alternation) {
+        preferences.edit().putString("alternation_$profileKey", value.serialize()).apply()
+    }
+
+    private val mutableHomeLayout = MutableStateFlow(HomeLayout.parse(preferences.getString("home_layout", null)))
     val homeLayout: StateFlow<HomeLayout> = mutableHomeLayout.asStateFlow()
 
     fun setHomeLayout(layout: HomeLayout) {

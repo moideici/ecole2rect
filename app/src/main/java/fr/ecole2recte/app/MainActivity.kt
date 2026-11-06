@@ -67,7 +67,10 @@ class MainActivity : FragmentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         // L'application se ferme pour de bon : on efface les pièces jointes qu'elle a ouvertes.
-        if (isFinishing) fr.ecole2recte.app.ui.common.AttachmentFiles.at(this).clear()
+        if (isFinishing) {
+            fr.ecole2recte.app.ui.common.AttachmentFiles.at(this).clear()
+            fr.ecole2recte.app.export.ExportFiles.at(this).clear()
+        }
     }
 
     override fun onStop() {

@@ -23,6 +23,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.ZoomIn
 import androidx.compose.material.icons.outlined.ZoomOut
 import androidx.compose.material3.FilterChip
@@ -96,6 +97,7 @@ private fun ScheduleContent(week: ScheduleWeek, listState: LazyListState, exams:
     val weekView by settings.scheduleWeekView.collectAsStateWithLifecycle()
     val zoom by settings.scheduleZoom.collectAsStateWithLifecycle()
     var selected by remember { mutableStateOf<ScheduleEntry?>(null) }
+    var exporting by remember { mutableStateOf(false) }
     val byDate = remember(week) { week.entries.groupBy { it.date } }
     val weekStart = remember(week) { runCatching { LocalDate.parse(week.weekStart) }.getOrNull() }
     val today = remember(week) { runCatching { LocalDate.parse(week.today) }.getOrNull() }
@@ -119,12 +121,20 @@ private fun ScheduleContent(week: ScheduleWeek, listState: LazyListState, exams:
             FilterChip(weekView, { settings.setScheduleWeekView(true) }, label = { Text("Semaine", fontSize = 13.sp) })
             Spacer(Modifier.weight(1f))
             ZoomControls(zoom, settings::setScheduleZoom)
+            IconButton(onClick = { exporting = true }, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Outlined.Share, contentDescription = "Exporter l'emploi du temps", tint = AppTheme.colors.ink)
+            }
         }
         ExamCountdownCard(exams, compact = true)
         if (!weekView) {
             DayView(days, byDate, today, zoom, settings::setScheduleZoom, listState) { selected = it }
         } else {
             WeekPane(days, byDate, today, zoom, settings::setScheduleZoom) { selected = it }
+        }
+    }
+    if (exporting) {
+        ModalBottomSheet(onDismissRequest = { exporting = false }, containerColor = AppTheme.colors.surface) {
+            ExportSheetContent(week.entries, weekStart)
         }
     }
     selected?.let { entry ->

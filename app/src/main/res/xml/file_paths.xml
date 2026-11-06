@@ -2,4 +2,6 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Seul le dossier des pièces jointes ouvertes est partagé, et seulement le temps de l'ouverture. -->
     <cache-path name="attachments" path="attachments/" />
+    <!-- Les PDF et ICS exportés, remis à l'application choisie par l'utilisateur ; effacés au lancement et à la fermeture. -->
+    <cache-path name="exports" path="exports/" />
 </paths>
