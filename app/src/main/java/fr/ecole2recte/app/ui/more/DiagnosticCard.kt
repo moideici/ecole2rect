@@ -59,18 +59,7 @@ fun DiagnosticCard(profile: ActiveProfile?) {
         }
     }
     if (open) {
-        val report = remember {
-            buildString {
-                appendLine(sessionLines(container, profile))
-                val sections = profile?.let { DataDiagnostic(container.responseCache).sections(CacheOwner(it.identifier, it.studentId)) }.orEmpty()
-                if (sections.isEmpty()) appendLine("\nAucune réponse enregistrée pour l'instant.")
-                sections.forEach { section ->
-                    appendLine()
-                    appendLine("== ${section.name} (${section.ageLabel})" + (section.rejected?.takeIf { it > 0 }?.let { " — $it entrée(s) écartée(s)" } ?: ""))
-                    append(section.shape)
-                }
-            }
-        }
+        val report = remember { diagnosticText(container, profile) }
         ModalBottomSheet(onDismissRequest = { open = false }, containerColor = AppTheme.colors.surface) {
             Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Diagnostic des données", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -120,6 +109,18 @@ fun DiagnosticCard(profile: ActiveProfile?) {
                 }
             }
         }
+    }
+}
+
+/** Le diagnostic complet (session + forme des réponses), partagé par la carte Diagnostic et le signalement. */
+internal fun diagnosticText(container: fr.ecole2recte.app.AppContainer, profile: ActiveProfile?): String = buildString {
+    appendLine(sessionLines(container, profile))
+    val sections = profile?.let { DataDiagnostic(container.responseCache).sections(CacheOwner(it.identifier, it.studentId)) }.orEmpty()
+    if (sections.isEmpty()) appendLine("\nAucune réponse enregistrée pour l'instant.")
+    sections.forEach { section ->
+        appendLine()
+        appendLine("== ${section.name} (${section.ageLabel})" + (section.rejected?.takeIf { it > 0 }?.let { " — $it entrée(s) écartée(s)" } ?: ""))
+        append(section.shape)
     }
 }
 
