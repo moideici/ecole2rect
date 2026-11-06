@@ -1,6 +1,7 @@
 package fr.ecole2recte.app.settings
 
 import android.content.Context
+import fr.ecole2recte.app.ui.schedule.ScheduleZoom
 import fr.ecole2recte.app.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -101,7 +102,27 @@ class AppSettings(context: Context) {
         mutableApiVersion.value = clean
     }
 
-    private val mutableHomeLayout = MutableStateFlow(HomeLayout.parse(preferences.getString("home_layout", null)))
+    /** Échelle verticale de l'agenda (pincement ou boutons + / −), gardée d'une ouverture à l'autre. */
+    private val mutableScheduleZoom = MutableStateFlow(ScheduleZoom.clamp(preferences.getFloat("schedule_zoom", ScheduleZoom.DEFAULT)))
+    val scheduleZoom: StateFlow<Float> = mutableScheduleZoom.asStateFlow()
+
+    fun setScheduleZoom(zoom: Float) {
+        val clean = ScheduleZoom.clamp(zoom)
+        if (clean == mutableScheduleZoom.value) return
+        preferences.edit().putFloat("schedule_zoom", clean).apply()
+        mutableScheduleZoom.value = clean
+    }
+
+    /** L'agenda s'ouvre sur la vue semaine plutôt que sur la vue jour. */
+    private val mutableScheduleWeekView = MutableStateFlow(preferences.getBoolean("schedule_week_view", false))
+    val scheduleWeekView: StateFlow<Boolean> = mutableScheduleWeekView.asStateFlow()
+
+    fun setScheduleWeekView(week: Boolean) {
+        preferences.edit().putBoolean("schedule_week_view", week).apply()
+        mutableScheduleWeekView.value = week
+    }
+
+    private val mutableHomeLayout =MutableStateFlow(HomeLayout.parse(preferences.getString("home_layout", null)))
     val homeLayout: StateFlow<HomeLayout> = mutableHomeLayout.asStateFlow()
 
     fun setHomeLayout(layout: HomeLayout) {

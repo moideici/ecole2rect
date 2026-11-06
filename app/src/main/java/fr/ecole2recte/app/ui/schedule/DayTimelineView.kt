@@ -48,11 +48,13 @@ fun DayTimelineView(
     now: LocalTime?,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    /** Échelle verticale choisie par l'utilisateur (voir [ScheduleZoom]) ; l'accueil garde 1,0. */
+    zoom: Float = 1f,
     onSelect: (ScheduleEntry) -> Unit = {},
 ) {
     val timeline = buildDayTimeline(entries)
     if (timeline.lessons.isEmpty()) return
-    val perMinute: Dp = if (compact) 0.95.dp else 1.2.dp
+    val perMinute: Dp = ((if (compact) 0.95f else DAY_DP_PER_MINUTE) * ScheduleZoom.clamp(zoom)).dp
     val axisWidth = 44.dp
     val total = perMinute * (timeline.toMin - timeline.fromMin)
     val nowMin = now?.let { it.hour * 60 + it.minute }
@@ -167,12 +169,13 @@ fun DayTimelineView(
                         "Permanence".takeIf { entry.kind.equals("PERMANENCE", ignoreCase = true) },
                         lesson.multiLabel.takeIf { it.isNotEmpty() },
                         "Annulé".takeIf { canceled },
+                        "Modifié".takeIf { !canceled && lesson.entries.any { it.modified } },
                         "Évaluation".takeIf { entry.exam },
                     )
                     if (tags.isNotEmpty() && height >= if (compact) 62.dp else 54.dp) {
                         Text(
                             tags.joinToString(" · "),
-                            color = if (canceled) AppTheme.colors.error else AppTheme.colors.accent,
+                            color = if (canceled || lesson.entries.any { it.modified }) AppTheme.colors.error else AppTheme.colors.accent,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
