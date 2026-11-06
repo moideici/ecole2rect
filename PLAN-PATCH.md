@@ -176,3 +176,34 @@ aucune requête de plus.
 Pas fait, volontairement : déplacement d'un cours **d'un jour à l'autre** (non rapproché : rien ne prouve que c'est le même cours),
 vacances et jours fériés dans l'ICS (inconnus), exceptions (cours ajouté / déplacé) dans la semaine type, réglage de la semaine 1
 partagé entre profils, contrôles tirés de `isDevoir`.
+
+## 7. Lot 3 — hors ligne, fiabilité, confort, sécurité, premier lancement
+
+Écrit, compilé et testé (492 tests unitaires dont 64 nouveaux, `assembleDebug` et `lintDebug` OK). **Rien de ce lot n'a été
+essayé sur un téléphone** (non branché, aucun test instrumenté lancé) : « fait » veut dire écrit et testé, pas vu à l'écran.
+Aucune écriture vers ÉcoleDirecte, aucune télémétrie, aucune requête de plus : le tirage « trop rapide » en émet **moins**.
+
+| # | Demande | État | Ce qui a été fait | À vérifier sur le téléphone |
+|---|---|---|---|---|
+| 1 | Bandeau d'ancienneté | **fait** | `FreshnessBanner` (composant partagé, haut de tous les écrans) + `domain/FreshnessLabel.kt` (pur) : « Hors ligne · Données du 5 nov. à 18 h (il y a 3 h) », « d'aujourd'hui à 15 h 30 », « d'hier ». S'affiche quand la lecture vient du cache (`Freshness.stale`). « Hors ligne » seulement si c'est vraiment le réseau ; sinon la cause (compte verrouillé, version refusée…) | le bandeau en mode avion |
+| 2 | Tirer pour rafraîchir | **fait** | Existait déjà sur accueil, agenda (cours et devoirs), notes, messages. Nouveau : `RefreshGate` — moins de 90 s après la dernière lecture, **aucune requête** et un message doux (« Déjà à jour : lu il y a 20 s. Réessaie dans 70 s… ») | le message en bas d'écran |
+| 3 | Erreurs précises | **fait** | `data/FailureAdvice.kt` : mot de passe refusé, compte verrouillé, ÉcoleDirecte indisponible, pas de réseau, version d'API refusée (517), vérification de sécurité requise, session expirée, réponse inexploitable ; chaque cas a un titre, une explication et une action (Réessayer, Reconnecter, Ouvrir Plus > Diagnostic, ou rien pour un compte verrouillé : on n'insiste pas). Utilisé par les écrans de données (`UiState.Error` enrichi), le bandeau et l'écran de connexion | un compte verrouillé / un mot de passe changé (réels) |
+| 4 | Journal des synchronisations | **fait** | `sync/SyncJournal.kt` : 30 derniers passages, une ligne de nombres et d'un code (début, durée, résultat typé, nouveautés), jamais de donnée personnelle ; alimenté par `SyncService` (un passage désactivé ou sans compte n'écrit rien) ; carte « Journal des synchronisations » dans Plus > Diagnostic | un vrai passage en arrière-plan |
+| 5 | Mode « montrer à quelqu'un » | **fait** | `domain/PrivacyMode.kt` (pur) transforme les modèles d'affichage : moyennes, notes, appréciations, courbes, simulateur caché, accueil (note mise en avant, moyenne des enfants), recherche ; option messages (expéditeur, objet masqués, ouverture bloquée). Œil en haut de l'écran + réglage dans Plus. Les données enregistrées ne sont pas modifiées | l'œil, le rendu des ••• |
+| 6 | Taille du texte | **fait** | Petit (0,88) / Normal / Grand (1,15) / Très grand (1,3), multiplié à la taille système via `LocalDensity`, borné à 0,7–3,0 ; aperçu dans Plus > Apparence | les écrans à « Très grand » (débordements possibles) |
+| 7 | Noir pur | **fait** | `ThemeMode.Black` : fond #000000, cartes presque noires | l'écran OLED |
+| 8 | Dates en français | **fait** | `domain/FrenchFormat.kt` centralise dates, heures et nombres ; les usages dispersés (agenda, notes, exports, notifications, diagnostic, journal de plantage) l'utilisent ; test avec une langue arabe par défaut. **Non touché** : `widget/` (hors lot) garde ses `Locale.FRENCH` explicites et un `"%02d".format` | — |
+| 9 | Verrou après un délai | **fait** | `security/LockTimer.kt` (horloge injectée, testé) : Immédiatement / 1 / 5 / 15 minutes (1 minute par défaut, avant : 30 s). L'écran du code de l'appareil qui passe devant n'est pas compté comme une absence (sinon boucle en mode immédiat) | « immédiat » avec empreinte, puis avec code |
+| 10 | Cinq thèmes de couleurs | **fait** | `ui/theme/ThemePalette.kt` : Indigo (défaut), Océan, Forêt, Coucher de soleil, Ardoise, chacun en clair / sombre / noir ; aperçu et choix dans Plus > Apparence, mémorisé. **Contraste AA (≥ 4,5) vérifié par test sur les 15 combinaisons** (texte, accent, erreur, positif, boutons, avertissements). Couleurs de matière : la teinte reste, mais en texte elle est assombrie/éclairci juste assez (`subjectTextColor`, ≥ 4,5) ; en pastille ≥ 1,9 (clair) / 3 (sombre). L'accent clair d'Indigo passe de #5C62E8 à #5A60E6 (4,48 → 4,61 sur le fond) | le rendu des cinq thèmes |
+| 11 | Présentation de 3 pages | **fait** | `ui/login/Onboarding.kt` : après l'avis légal, avant la connexion ; balayage, Passer, points décrits pour TalkBack, sans animation si « réduire les animations » ; rejouable (Plus > À propos > Revoir la présentation) ; mémorisée | le balayage |
+
+### Pour la couche widget (non modifiée)
+- Couleurs : `ThemeSelection.palette(context, systemDark)` (package `settings`) rend une `ThemePalette` (ARGB : `ink`, `muted`, `background`,
+  `surface`, `accent`, `accentFill`, `onAccent`, `positive`, `error`, `inverseSurface`, `warning*`, `subject`) selon le thème et le mode choisis ;
+  `ThemePalettes.of(theme, appearance)` pour une combinaison précise ; `Contrast.readableOn(couleur, fond)` pour un texte coloré.
+- Vie privée : `PrivacySelection.mode(context)` donne le `PrivacyMode` ; `mode.grade("14/20")` rend « ••• ». **Les widgets affichent encore les notes
+  quand le mode est actif.**
+- Dates : `FrenchFormat` (domain) pour tout nouveau formatage.
+
+Pas fait, volontairement : widgets et notifications dans le mode « montrer », rotation d'écran (qui reverrouille déjà, comportement d'avant),
+rafraîchissement automatique au tirage pendant un échec réseau (le tirage reste une demande de l'utilisateur, jamais une boucle).

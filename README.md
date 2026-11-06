@@ -33,7 +33,15 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
   réglables une à une, discrètes sur l'écran verrouillé. Raccourcis d'application : Agenda, Devoirs,
   Messages, Rechercher.
 - **Widgets** : six widgets qui s'adaptent à leur taille.
-- **Hors ligne** : la dernière réponse valide s'affiche, avec la raison du repli.
+- **Hors ligne et fiabilité** : la dernière réponse valide s'affiche sous un bandeau d'ancienneté
+  (« Hors ligne · Données du 5 nov. à 18 h (il y a 3 h) ») avec la vraie raison du repli (pas de réseau, compte
+  verrouillé, version d'API refusée…) et l'action utile ; tirer vers le bas rafraîchit chaque écran, sans requête
+  si la dernière lecture a moins de 90 s ; les erreurs disent le cas (mot de passe refusé, compte verrouillé,
+  ÉcoleDirecte indisponible, vérification de sécurité requise…).
+- **Apparence et confort** : clair, sombre ou noir pur (OLED), cinq thèmes de couleurs (Indigo, Océan, Forêt,
+  Coucher de soleil, Ardoise) aux contrastes vérifiés, taille du texte réglable, dates toujours en français,
+  verrouillage biométrique avec délai (immédiat, 1, 5 ou 15 minutes), mode « montrer à quelqu'un » qui masque
+  notes (et messages en option) par •••, présentation de trois pages au premier lancement.
 
 ## Tes données
 
@@ -43,7 +51,8 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
 - Le cache des réponses est chiffré avec la même clé ; les pièces jointes ouvertes sont
   effacées à la fermeture.
 - Le diagnostic (Plus > Diagnostic) décrit la forme des réponses, **jamais une valeur** : on peut
-  le copier dans un ticket sans exposer un nom, une note ou un message.
+  le copier dans un ticket sans exposer un nom, une note ou un message. Le journal des synchronisations
+  (30 derniers passages : heure, durée, résultat, nombre de nouveautés) n'en contient pas non plus.
 - Une option masque l'aperçu de l'application dans la liste des applications récentes.
 
 ## Garde-fous envers le service
@@ -72,6 +81,8 @@ derrière des réglages désactivés par défaut, avec une confirmation.
 - La durée de vie du jeton n'est pas documentée : le téléphone la mesure et adapte le rejeu.
 - Les widgets, les notifications de fond et le verrouillage biométrique ne sont vérifiables que
   sur un vrai téléphone.
+- Le mode « montrer à quelqu'un » ne masque pas (encore) les widgets ni les notifications ; la taille du
+  texte « très grand » peut faire déborder certains écrans.
 
 ## Développer
 
