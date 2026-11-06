@@ -31,6 +31,7 @@ import fr.ecole2recte.app.domain.StaleCause
 import fr.ecole2recte.app.domain.GradeEntry
 import fr.ecole2recte.app.domain.GradeMath
 import fr.ecole2recte.app.domain.GradeOverview
+import fr.ecole2recte.app.domain.AverageSource
 import fr.ecole2recte.app.domain.PeriodAverage
 import fr.ecole2recte.app.domain.SearchCorpus
 import fr.ecole2recte.app.domain.Highlight
@@ -735,13 +736,20 @@ class EcoleDirecteRepository(
                 appreciation = line?.appreciation.orEmpty(),
                 minimum = line?.minimum?.let(::decimal),
                 maximum = line?.maximum?.let(::decimal),
+                averageOfficial = line?.average != null,
             )
         }
         // Moyenne générale : celle de l'établissement, sinon la moyenne des matières (pondérée par
         // leur coefficient quand il est connu), sinon celle de toutes les notes.
-        val general = current?.average
-            ?: weightedSubjects(official)
-            ?: GradeMath.weightedAverage(periodGrades)
+        val fromSubjects = if (current?.average == null) weightedSubjects(official) else null
+        val fromGrades = if (current?.average == null && fromSubjects == null) GradeMath.weightedAverage(periodGrades) else null
+        val general = current?.average ?: fromSubjects ?: fromGrades
+        val source = when {
+            current?.average != null -> AverageSource.Official
+            fromSubjects != null -> AverageSource.FromSubjects
+            fromGrades != null -> AverageSource.FromGrades
+            else -> AverageSource.None
+        }
         val previous = current?.let { c -> periods.takeWhile { it.code != c.code }.lastOrNull { it.average != null } }
         val delta = if (general != null && previous?.average != null) general - previous.average else null
         return GradeOverview(
@@ -758,8 +766,9 @@ class EcoleDirecteRepository(
             classAverage = current?.classAverage?.let(::decimal),
             periodName = current?.name.orEmpty(),
             periodCode = current?.code.orEmpty(),
-            periods = periods.map { GradePeriod(it.code, it.name, selected = it.code == current?.code) },
+            periods = periods.map { GradePeriod(it.code, it.name, selected = it.code == current?.code, average = it.average?.let(::decimal)) },
             appreciation = current?.appreciation.orEmpty(),
+            averageSource = source,
         )
     }
 

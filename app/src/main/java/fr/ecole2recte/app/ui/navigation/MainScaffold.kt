@@ -69,6 +69,7 @@ import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.theme.LocalSubjectColorOverrides
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
+import fr.ecole2recte.app.ui.grades.AverageMethodScreen
 import fr.ecole2recte.app.ui.grades.GradesRoute
 import fr.ecole2recte.app.ui.home.HomeRoute
 import fr.ecole2recte.app.ui.messages.MessagesRoute
@@ -100,6 +101,9 @@ internal fun AppTab.isAvailable(closed: Set<SchoolModule>): Boolean = when (this
 
 /** L'écran de recherche : une destination à part, pas un onglet. */
 internal const val SEARCH_ROUTE = "recherche"
+
+/** « Comment la moyenne est calculée ? » : une destination à part, ouverte depuis Notes et Plus. */
+internal const val METHOD_ROUTE = "moyennes"
 
 private fun AppTab.badge(badges: Badges): Int = when (this) {
     AppTab.Agenda -> badges.urgentHomework
@@ -241,7 +245,8 @@ private fun MainContent(
                                 )
                             }
                             composable(AppTab.Agenda.route) { AgendaScreen(agendaPage) { agendaPage = it } }
-                            composable(AppTab.Grades.route) { GradesRoute() }
+                            composable(AppTab.Grades.route) { GradesRoute(onOpenMethod = { navController.navigate(METHOD_ROUTE) { launchSingleTop = true } }) }
+                            composable(METHOD_ROUTE) { AverageMethodScreen(onClose = { navController.popBackStack() }) }
                             composable(AppTab.Messages.route) { MessagesRoute() }
                             composable(SEARCH_ROUTE) {
                                 // Un résultat ouvre l'onglet concerné (même chemin qu'un raccourci ou une notification).
@@ -250,6 +255,7 @@ private fun MainContent(
                             composable(AppTab.More.route) {
                                 MoreScreen(
                                     onOpenSearch = { navController.navigate(SEARCH_ROUTE) { launchSingleTop = true } },
+                                    onOpenMethod = { navController.navigate(METHOD_ROUTE) { launchSingleTop = true } },
                                     profile = activeProfile,
                                     connection = connection,
                                     connectionMessage = connectionMessage,

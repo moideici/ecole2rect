@@ -101,6 +101,33 @@ data class Highlight(
     val valueSub: String? = null,
 )
 
+/**
+ * D'où vient une moyenne affichée. Voir `docs/MOYENNES.md` : l'application lit la moyenne de
+ * l'établissement quand elle existe, sinon elle la calcule, et ce calcul peut différer de la vraie.
+ */
+enum class AverageSource(val shortLabel: String, val label: String) {
+    /** Lue telle quelle dans la réponse d'ÉcoleDirecte. */
+    Official("officielle", "Moyenne officielle, fournie par ÉcoleDirecte"),
+
+    /** Calculée par l'app à partir des moyennes de matières officielles, pondérées par le coefficient de matière si connu. */
+    FromSubjects(
+        "calculée",
+        "Calculée par l'app à partir des moyennes de matières (peut différer de la vraie, qui dépend de coefficients et de notes que l'app ne voit pas)",
+    ),
+
+    /** Calculée par l'app à partir des notes visibles, ramenées sur 20 et pondérées par leur coefficient. */
+    FromGrades(
+        "calculée",
+        "Calculée par l'app à partir des notes visibles (peut être inférieure à la vraie : notes non publiées, coefficients de matière inconnus)",
+    ),
+
+    /** Aucune moyenne disponible. */
+    None("", ""),
+    ;
+
+    val isOfficial: Boolean get() = this == Official
+}
+
 data class SubjectAverage(
     val subject: Subject,
     val average: String,
@@ -112,10 +139,12 @@ data class SubjectAverage(
     /** Moyennes la plus basse et la plus haute de la classe dans cette matière. */
     val minimum: String? = null,
     val maximum: String? = null,
+    /** Vrai quand [average] est celle de l'établissement ; faux quand l'app l'a calculée avec les notes visibles. */
+    val averageOfficial: Boolean = false,
 )
 
-/** Une période du bulletin (trimestre, semestre) que l'on peut afficher. */
-data class GradePeriod(val code: String, val name: String, val selected: Boolean)
+/** Une période du bulletin (trimestre, semestre) que l'on peut afficher, avec sa moyenne générale si elle est connue. */
+data class GradePeriod(val code: String, val name: String, val selected: Boolean, val average: String? = null)
 
 data class GradeOverview(
     val average: String,
@@ -135,6 +164,8 @@ data class GradeOverview(
     val periods: List<GradePeriod> = emptyList(),
     /** Appréciation générale du professeur principal pour la période affichée. */
     val appreciation: String = "",
+    /** D'où vient [average] : l'établissement ou un calcul de l'app. */
+    val averageSource: AverageSource = AverageSource.None,
 )
 
 data class MessagePreview(

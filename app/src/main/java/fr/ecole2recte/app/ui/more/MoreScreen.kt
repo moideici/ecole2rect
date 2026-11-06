@@ -41,6 +41,7 @@ fun MoreScreen(
     onOpenAccounts: () -> Unit,
     onRetryConnection: () -> Unit,
     onOpenSearch: () -> Unit = {},
+    onOpenMethod: () -> Unit = {},
 ) {
     val settings = rememberAppContainer().settings
     val themeMode by settings.themeMode.collectAsStateWithLifecycle()
@@ -76,6 +77,15 @@ fun MoreScreen(
                             label = { Text(label, fontSize = 13.sp) },
                         )
                     }
+                }
+            }
+        }
+        item { Section("Notes") }
+        item {
+            ListCard(onClick = onOpenMethod) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("Comment la moyenne est calculée", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Moyenne officielle ou calculée par l'app : ce qui compte, ce qui peut différer.", color = AppTheme.colors.muted, fontSize = 13.sp)
                 }
             }
         }

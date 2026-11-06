@@ -77,4 +77,27 @@ object GradeMath {
         val points = used.sumOf { on20(it.value!!, it.scale) * it.coefficient } + value * coefficient
         return points / weight
     }
+
+    /**
+     * L'écart entre la note et la moyenne de la classe à ce devoir, dans l'unité de la note (la
+     * moyenne de classe est donnée sur le même barème que la note). `null` sans note ou sans moyenne de classe.
+     */
+    fun classGap(grade: GradeEntry): Double? {
+        val value = grade.value ?: return null
+        val classAverage = grade.classAverage ?: return null
+        return value - classAverage
+    }
+
+    /** « ▲ +1,5 vs classe », « ▼ −2,0 vs classe » ou « = classe » : le signe et la flèche disent le sens, pas seulement la couleur. */
+    fun classGapLabel(gap: Double): String {
+        val rounded = Math.round(gap * 10) / 10.0
+        return when {
+            rounded == 0.0 -> "= classe"
+            rounded > 0 -> "▲ +${decimal(rounded)} vs classe"
+            else -> "▼ −${decimal(-rounded)} vs classe"
+        }
+    }
+
+    /** Un nombre avec une décimale et la virgule française : 14,5. */
+    fun decimal(value: Double): String = String.format(java.util.Locale.FRENCH, "%.1f", value)
 }
