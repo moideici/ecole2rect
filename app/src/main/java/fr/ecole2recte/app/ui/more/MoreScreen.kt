@@ -43,8 +43,6 @@ fun MoreScreen(
     onOpenSearch: () -> Unit = {},
     onOpenMethod: () -> Unit = {},
 ) {
-    val settings = rememberAppContainer().settings
-    val themeMode by settings.themeMode.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("plus", listState)
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -67,19 +65,7 @@ fun MoreScreen(
         item { Spacer(Modifier.height(10.dp)) }
         item { ReportCard(profile) }
         item { Section("Apparence") }
-        item {
-            ListCard {
-                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(ThemeMode.System to "Système", ThemeMode.Light to "Clair", ThemeMode.Dark to "Sombre").forEach { (mode, label) ->
-                        FilterChip(
-                            selected = themeMode == mode,
-                            onClick = { settings.setThemeMode(mode) },
-                            label = { Text(label, fontSize = 13.sp) },
-                        )
-                    }
-                }
-            }
-        }
+        item { AppearanceCard() }
         item { Section("Notes") }
         item {
             ListCard(onClick = onOpenMethod) {

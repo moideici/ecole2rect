@@ -70,6 +70,7 @@ import fr.ecole2recte.app.settings.HomeSection
 import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.theme.AppTheme
 import fr.ecole2recte.app.ui.theme.subjectColor
+import fr.ecole2recte.app.ui.theme.subjectTextColor
 
 @Composable
 fun HomeRoute(
@@ -344,7 +345,7 @@ private fun ReminderCard(task: Homework, modifier: Modifier = Modifier) {
                 Modifier.size(34.dp).background(subjectColor(task.subject, task.colorIndex).copy(alpha = .2f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("!", color = subjectColor(task.subject, task.colorIndex), fontWeight = FontWeight.Bold)
+                Text("!", color = subjectTextColor(task.subject, task.colorIndex), fontWeight = FontWeight.Bold)
             }
             Column(Modifier.padding(start = 13.dp)) {
                 Text("À NE PAS OUBLIER", color = Color.White.copy(alpha = .6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)

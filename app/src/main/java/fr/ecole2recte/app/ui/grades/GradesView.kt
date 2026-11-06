@@ -73,6 +73,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import fr.ecole2recte.app.ui.theme.subjectColor
+import fr.ecole2recte.app.ui.theme.subjectTextColor
 
 @Composable
 fun GradesRoute(onOpenMethod: () -> Unit = {}) {
@@ -394,7 +395,7 @@ private fun SubjectCurve(subject: String, all: List<GradeEntry>) {
 @Composable
 private fun GradeDetail(grade: GradeEntry) {
     Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(grade.subject, color = subjectColor(grade.subject, grade.colorIndex), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(grade.subject, color = subjectTextColor(grade.subject, grade.colorIndex), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Text(grade.label.ifBlank { "Évaluation" }, color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(

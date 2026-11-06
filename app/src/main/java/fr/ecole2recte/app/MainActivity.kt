@@ -53,8 +53,10 @@ class MainActivity : FragmentActivity() {
         locked = settings.appLock.value
         setContent {
             val mode by settings.themeMode.collectAsStateWithLifecycle()
+            val colorTheme by settings.colorTheme.collectAsStateWithLifecycle()
+            val textScale by settings.textScale.collectAsStateWithLifecycle()
             val lockEnabled by settings.appLock.collectAsStateWithLifecycle()
-            Ecole2recteTheme(mode) {
+            Ecole2recteTheme(mode, colorTheme, textScale) {
                 if (locked && lockEnabled) {
                     LockScreen(message = lockMessage, onUnlock = ::unlock)
                 } else {

@@ -8,7 +8,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -40,51 +44,29 @@ class AppColors(
 )
 
 /** Les dix couleurs de matière, claires puis sombres : partagées avec les widgets. */
-val LightSubjectColors = listOf(
-        Color(0xFF7779E8), Color(0xFF63A6E9), Color(0xFFEFA36A), Color(0xFF5CBD92), Color(0xFFE07A8F),
-        Color(0xFF9B7BD8), Color(0xFF3FB6B2), Color(0xFFD9B44A), Color(0xFF8AA0B5), Color(0xFFD9825B),
+val LightSubjectColors = LIGHT_SUBJECT_ARGB.map { Color(it) }
+
+val DarkSubjectColors = DARK_SUBJECT_ARGB.map { Color(it) }
+
+/** Les couleurs de l'application pour une palette (un thème dans un aspect). */
+fun ThemePalette.toAppColors(): AppColors = AppColors(
+    ink = Color(ink),
+    muted = Color(muted),
+    background = Color(background),
+    surface = Color(surface),
+    accent = Color(accent),
+    accentFill = Color(accentFill),
+    positive = Color(positive),
+    error = Color(error),
+    inverseSurface = Color(inverseSurface),
+    warningSurface = Color(warningSurface),
+    warningTitle = Color(warningTitle),
+    warningText = Color(warningText),
+    subject = subject.map { Color(it) },
+    isDark = isDark,
 )
 
-val DarkSubjectColors = listOf(
-        Color(0xFF9A9CF5), Color(0xFF82BDF0), Color(0xFFF3B98C), Color(0xFF7FD3AD), Color(0xFFF09BAC),
-        Color(0xFFB9A0EC), Color(0xFF6FD3CF), Color(0xFFE8CB78), Color(0xFFADBFD0), Color(0xFFEBA37F),
-)
-
-private val LightColors = AppColors(
-    ink = Color(0xFF18202B),
-    muted = Color(0xFF5B6675),
-    background = Color(0xFFF5F7FB),
-    surface = Color.White,
-    accent = Color(0xFF5C62E8),
-    accentFill = Color(0xFF5C62E8),
-    positive = Color(0xFF1F7F59),
-    error = Color(0xFFB3404C),
-    inverseSurface = Color(0xFF202935),
-    warningSurface = Color(0xFFFFF7ED),
-    warningTitle = Color(0xFF8A4F12),
-    warningText = Color(0xFF5F4A32),
-    subject = LightSubjectColors,
-    isDark = false,
-)
-
-private val DarkColors = AppColors(
-    ink = Color(0xFFE9EDF3),
-    muted = Color(0xFFA5AFBD),
-    background = Color(0xFF0F131A),
-    surface = Color(0xFF1A212B),
-    accent = Color(0xFFA2A6FF),
-    accentFill = Color(0xFF4A50D6),
-    positive = Color(0xFF5FD3A2),
-    error = Color(0xFFFF8C96),
-    inverseSurface = Color(0xFF2A3342),
-    warningSurface = Color(0xFF33281A),
-    warningTitle = Color(0xFFFFC27A),
-    warningText = Color(0xFFE9D6BE),
-    subject = DarkSubjectColors,
-    isDark = true,
-)
-
-private val LocalAppColors = staticCompositionLocalOf { LightColors }
+private val LocalAppColors = staticCompositionLocalOf { ThemePalettes.of(ColorTheme.Indigo, Appearance.Light).toAppColors() }
 
 /** Espacements et rayons communs. */
 object Dimens {
@@ -108,6 +90,18 @@ fun subjectColor(name: String, defaultIndex: Int): Color {
     return palette[Math.floorMod(index, palette.size)]
 }
 
+/**
+ * La couleur d'une matière quand elle sert de TEXTE : la même teinte, assombrie (ou éclaircie en
+ * mode sombre) juste assez pour atteindre le contraste AA (4,5) sur la surface. Les pastilles et
+ * aplats gardent la couleur d'origine ([subjectColor]).
+ */
+@Composable
+@ReadOnlyComposable
+fun subjectTextColor(name: String, defaultIndex: Int): Color {
+    val colors = AppTheme.colors
+    return Color(Contrast.readableOn(subjectColor(name, defaultIndex).toArgb(), colors.surface.toArgb()))
+}
+
 object AppTheme {
     val colors: AppColors
         @Composable
@@ -115,21 +109,19 @@ object AppTheme {
         get() = LocalAppColors.current
 }
 
-/** Mode d'affichage choisi par l'utilisateur (réglage ajouté au lot 14 ; système par défaut). */
-enum class ThemeMode { System, Light, Dark }
-
 @Composable
-fun Ecole2recteTheme(mode: ThemeMode = ThemeMode.System, content: @Composable () -> Unit) {
-    val dark = when (mode) {
-        ThemeMode.System -> isSystemInDarkTheme()
-        ThemeMode.Light -> false
-        ThemeMode.Dark -> true
-    }
-    val colors = if (dark) DarkColors else LightColors
-    val scheme = if (dark) {
+fun Ecole2recteTheme(
+    mode: ThemeMode = ThemeMode.System,
+    colorTheme: ColorTheme = ColorTheme.Default,
+    textScale: TextScale = TextScale.Normal,
+    content: @Composable () -> Unit,
+) {
+    val palette = ThemePalettes.of(colorTheme, mode.appearance(isSystemInDarkTheme()))
+    val colors = palette.toAppColors()
+    val scheme = if (palette.isDark) {
         darkColorScheme(
             primary = colors.accent,
-            onPrimary = Color(0xFF10131F),
+            onPrimary = Color(palette.onAccent),
             background = colors.background,
             onBackground = colors.ink,
             surface = colors.surface,
@@ -155,7 +147,10 @@ fun Ecole2recteTheme(mode: ThemeMode = ThemeMode.System, content: @Composable ()
             onSecondaryContainer = colors.ink,
         )
     }
-    CompositionLocalProvider(LocalAppColors provides colors) {
+    // La taille du texte choisie dans l'application s'ajoute à celle du système.
+    val base = LocalDensity.current
+    val density = remember(base, textScale) { Density(base.density, textScale.effective(base.fontScale)) }
+    CompositionLocalProvider(LocalAppColors provides colors, LocalDensity provides density) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
 }

@@ -2,6 +2,8 @@ package fr.ecole2recte.app.settings
 
 import android.content.Context
 import fr.ecole2recte.app.ui.schedule.ScheduleZoom
+import fr.ecole2recte.app.ui.theme.ColorTheme
+import fr.ecole2recte.app.ui.theme.TextScale
 import fr.ecole2recte.app.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,16 +13,32 @@ const val DEFAULT_API_VERSION = "4.75.0"
 
 /** Réglages de l'application, non secrets, gardés sur l'appareil. */
 class AppSettings(context: Context) {
-    private val preferences = context.getSharedPreferences("ecole2recte_settings", Context.MODE_PRIVATE)
+    private val preferences = context.getSharedPreferences(ThemeSelection.PREFS, Context.MODE_PRIVATE)
 
-    private val mutableThemeMode = MutableStateFlow(
-        runCatching { ThemeMode.valueOf(preferences.getString("theme_mode", null) ?: "") }.getOrDefault(ThemeMode.System),
-    )
+    private val mutableThemeMode = MutableStateFlow(ThemeMode.parse(preferences.getString(ThemeSelection.MODE_KEY, null)))
     val themeMode: StateFlow<ThemeMode> = mutableThemeMode.asStateFlow()
 
     fun setThemeMode(mode: ThemeMode) {
-        preferences.edit().putString("theme_mode", mode.name).apply()
+        preferences.edit().putString(ThemeSelection.MODE_KEY, mode.name).apply()
         mutableThemeMode.value = mode
+    }
+
+    /** Le thème de couleurs (Indigo par défaut), décliné en clair, sombre et noir. */
+    private val mutableColorTheme = MutableStateFlow(ColorTheme.parse(preferences.getString(ThemeSelection.COLOR_THEME_KEY, null)))
+    val colorTheme: StateFlow<ColorTheme> = mutableColorTheme.asStateFlow()
+
+    fun setColorTheme(theme: ColorTheme) {
+        preferences.edit().putString(ThemeSelection.COLOR_THEME_KEY, theme.name).apply()
+        mutableColorTheme.value = theme
+    }
+
+    /** La taille du texte choisie dans l'application, en plus de celle du système. */
+    private val mutableTextScale = MutableStateFlow(TextScale.parse(preferences.getString("text_scale", null)))
+    val textScale: StateFlow<TextScale> = mutableTextScale.asStateFlow()
+
+    fun setTextScale(scale: TextScale) {
+        preferences.edit().putString("text_scale", scale.name).apply()
+        mutableTextScale.value = scale
     }
 
     /** Supprime les animations de l'application, en plus du réglage Android du même nom. */
