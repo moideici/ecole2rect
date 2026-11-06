@@ -83,13 +83,50 @@ class SyncService(
     private val tokenLog: TokenLifetimeLog = InMemoryTokenLog(),
     /** Pause entre deux enfants d'un compte famille : les lectures ne partent jamais en rafale. */
     private val pauseBetweenChildrenMs: Long = 2_000,
+    /** Le journal des passages (heure, durée, résultat, nouveautés) ; aucune donnée personnelle. */
+    private val journal: SyncJournal? = null,
 ) {
+    /** Ce que le passage en cours a rencontré, pour le journal. Réinitialisé à chaque [run]. */
+    private class Trace {
+        var failure: SyncResultCode? = null
+        var newItems = 0
+    }
+
+    private var trace = Trace()
+
     private sealed interface Opened {
         class Ready(val client: EcoleDirecteClient, val accounts: List<Account>) : Opened
         class Stop(val outcome: SyncOutcome) : Opened
     }
 
     suspend fun run(): SyncOutcome {
+        val startedAt = clock.millis()
+        val current = Trace().also { trace = it }
+        val outcome = try {
+            runPass()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Throwable) {
+            record(startedAt, SyncResultCode.Error, 0)
+            throw error
+        }
+        val code = when (outcome) {
+            SyncOutcome.Disabled, SyncOutcome.NoAccount -> null // rien ne s'est passé : rien à journaliser
+            SyncOutcome.Done -> SyncResultCode.Done
+            SyncOutcome.NeedsInteraction -> SyncResultCode.NeedsInteraction
+            SyncOutcome.Failed, SyncOutcome.Stopped -> current.failure ?: SyncResultCode.Error
+        }
+        if (code != null) record(startedAt, code, if (code == SyncResultCode.Done) current.newItems else 0)
+        return outcome
+    }
+
+    private fun record(startedAt: Long, code: SyncResultCode, newItems: Int) {
+        val ended = clock.millis()
+        // Le journal ne doit jamais faire échouer une synchronisation.
+        runCatching { journal?.record(SyncJournalEntry(startedAt, (ended - startedAt).coerceAtLeast(0), code, newItems)) }
+    }
+
+    private suspend fun runPass(): SyncOutcome {
         if (!prefs.isEnabled) return SyncOutcome.Disabled
         val saved = store.active() ?: return SyncOutcome.NoAccount
 
@@ -162,6 +199,7 @@ class SyncService(
                     )
                 }
             }
+            trace.newItems = if (quiet) 0 else toPost.size
             if (toPost.isNotEmpty() && !quiet) notifier.post(toPost)
             widgetSnapshot?.let { widgets.publish(it) }
             keepSession(saved, session)
@@ -170,8 +208,8 @@ class SyncService(
             return SyncOutcome.Done
         } catch (error: EcoleDirecteException) {
             stoppedByReconnect?.let { return it }
-            if (error.kind == FailureKind.StaleVersion) return stop(stopReason(FailureKind.StaleVersion))
-            return failed()
+            if (error.kind == FailureKind.StaleVersion) return stop(stopReason(FailureKind.StaleVersion), FailureKind.StaleVersion)
+            return failed(error.kind)
         }
     }
 
@@ -217,8 +255,8 @@ class SyncService(
             is LoginResult.Failure -> return Opened.Stop(
                 when (result.kind) {
                     FailureKind.InvalidCredentials, FailureKind.Blocked, FailureKind.SecurityRefused, FailureKind.StaleVersion ->
-                        stop(stopReason(result.kind))
-                    else -> failed()
+                        stop(stopReason(result.kind), result.kind)
+                    else -> failed(result.kind)
                 },
             )
         }
@@ -236,7 +274,8 @@ class SyncService(
         store.update(saved.identifier) { it.copy(session = snapshot.newest(it.session)) }
     }
 
-    private fun stop(reason: String): SyncOutcome {
+    private fun stop(reason: String, kind: FailureKind?): SyncOutcome {
+        trace.failure = kind?.let(SyncResultCode::fromFailure) ?: SyncResultCode.TooManyFailures
         prefs.disable(reason)
         return SyncOutcome.Stopped
     }
@@ -250,11 +289,13 @@ class SyncService(
     }
 
     /** Un échec : on attend le prochain passage, mais pas indéfiniment. */
-    private fun failed(): SyncOutcome {
+    private fun failed(kind: FailureKind): SyncOutcome {
+        trace.failure = SyncResultCode.fromFailure(kind)
         if (prefs.recordFailure() < MAX_CONSECUTIVE_FAILURES) return SyncOutcome.Failed
         return stop(
             "La synchronisation a échoué $MAX_CONSECUTIVE_FAILURES fois de suite : elle s'est arrêtée pour ne pas " +
                 "multiplier les connexions. Ouvre l'application pour vérifier ta connexion, puis réactive-la.",
+            null,
         )
     }
 

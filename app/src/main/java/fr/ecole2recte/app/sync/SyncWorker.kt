@@ -32,6 +32,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             widgets = WidgetUpdater(applicationContext),
             clientFactory = { EcoleDirecteClient(apiVersion = container.settings.apiVersion.value) },
             tokenLog = container.tokenLog,
+            journal = container.syncJournal,
         ).run()
         // Arrêtée (identifiants refusés, trop d'échecs, vérification à faire, version refusée) : plus aucun passage.
         if (outcome == SyncOutcome.Stopped || outcome == SyncOutcome.Disabled || outcome == SyncOutcome.NeedsInteraction) {

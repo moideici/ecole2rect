@@ -161,6 +161,7 @@ class SyncServiceTest {
         state: MemoryState,
         recorder: Recorder,
         tokenLog: TokenLifetimeLog = InMemoryTokenLog(),
+        journal: SyncJournal? = null,
     ) = SyncService(
         store = store,
         cache = InMemoryResponseCache(),
@@ -173,6 +174,7 @@ class SyncServiceTest {
         clock = clock,
         tokenLog = tokenLog,
         pauseBetweenChildrenMs = 0,
+        journal = journal,
     )
 
     private fun keptSession(idleMs: Long, ageMs: Long = 3_600_000) = SavedSession(
@@ -245,6 +247,90 @@ class SyncServiceTest {
         val service = service(MemoryStore(saved), MemoryPrefs(), MemoryState(), Recorder())
         server.shutdown()
         assertEquals(SyncOutcome.Failed, service.run())
+    }
+
+    private class MemoryJournalStorage : JournalStorage {
+        var text = ""
+        override fun read() = text
+        override fun write(text: String) {
+            this.text = text
+        }
+    }
+
+    @Test
+    fun `le journal garde une ligne par passage, sans donnee personnelle`() = runTest {
+        val journal = SyncJournal(MemoryJournalStorage())
+        val store = MemoryStore(saved)
+        val prefs = MemoryPrefs()
+        val state = MemoryState()
+        loginBodies += accountBody
+        service(store, prefs, state, Recorder(), journal = journal).run()
+        notes = """[{"id":1,"libelleMatiere":"MATHS","devoir":"DS 1","valeur":"16","noteSur":"20","codePeriode":"A1","date":"2026-11-04"},
+            {"id":2,"libelleMatiere":"ANGLAIS","devoir":"Oral","valeur":"14","noteSur":"20","codePeriode":"A1","date":"2026-11-05"}]"""
+        loginBodies += accountBody
+        service(store, prefs, state, Recorder(), journal = journal).run()
+
+        val entries = journal.entries()
+        assertEquals(2, entries.size)
+        assertEquals(SyncResultCode.Done, entries[0].result)
+        assertEquals(1, entries[0].newItems) // la nouvelle note (le plus récent d'abord)
+        assertEquals(0, entries[1].newItems)
+        assertEquals(clock.millis(), entries[0].startedAt)
+        val stored = (journal.entries().joinToString { it.describe() })
+        assertFalse(stored.contains("Anglais", ignoreCase = true))
+        assertFalse(stored.contains("jdupont"))
+    }
+
+    @Test
+    fun `le journal dit pourquoi un passage s'est arrete`() = runTest {
+        val journal = SyncJournal(MemoryJournalStorage())
+        loginBodies += """{"code":505,"message":"refusé"}"""
+        service(MemoryStore(saved), MemoryPrefs(), MemoryState(), Recorder(), journal = journal).run()
+        assertEquals(SyncResultCode.PasswordRefused, journal.entries().single().result)
+        assertEquals(SyncResultCode.Group.Stopped, journal.entries().single().result.group)
+    }
+
+    @Test
+    fun `le journal distingue le reseau, la verification et la version refusee`() = runTest {
+        val journal = SyncJournal(MemoryJournalStorage())
+        val offline = service(MemoryStore(saved), MemoryPrefs(), MemoryState(), Recorder(), journal = journal)
+        server.shutdown()
+        offline.run()
+        assertEquals(SyncResultCode.NoNetwork, journal.entries().first().result)
+
+        val stale = SyncJournal(MemoryJournalStorage())
+        val second = MockWebServer()
+        second.start()
+        second.enqueue(MockResponse().setBody("{}").addHeader("X-GTK", "gtk"))
+        second.enqueue(MockResponse().setBody("""{"code":517}"""))
+        val factory = { EcoleDirecteClient(apiBase = second.url("/v3").toString().trimEnd('/')) }
+        SyncService(
+            store = MemoryStore(saved), cache = InMemoryResponseCache(), homeworkStatus = InMemoryHomeworkStatusStore(),
+            prefs = MemoryPrefs(), state = MemoryState(), notifier = Recorder(), widgets = Recorder(),
+            clientFactory = factory, clock = clock, pauseBetweenChildrenMs = 0, journal = stale,
+        ).run()
+        assertEquals(SyncResultCode.ApiVersionRefused, stale.entries().single().result)
+        second.shutdown()
+    }
+
+    @Test
+    fun `trois echecs de suite sont journalises puis l'arret`() = runTest {
+        val journal = SyncJournal(MemoryJournalStorage())
+        val service = service(MemoryStore(saved), MemoryPrefs(), MemoryState(), Recorder(), journal = journal)
+        server.shutdown()
+        repeat(3) { service.run() }
+        assertEquals(
+            listOf(SyncResultCode.TooManyFailures, SyncResultCode.NoNetwork, SyncResultCode.NoNetwork),
+            journal.entries().map { it.result },
+        )
+    }
+
+    @Test
+    fun `un passage desactive ou sans compte n'ecrit rien dans le journal`() = runTest {
+        val journal = SyncJournal(MemoryJournalStorage())
+        service(MemoryStore(saved), MemoryPrefs(enabled = false), MemoryState(), Recorder(), journal = journal).run()
+        service(MemoryStore(), MemoryPrefs(), MemoryState(), Recorder(), journal = journal).run()
+        assertTrue(journal.entries().isEmpty())
     }
 
     @Test

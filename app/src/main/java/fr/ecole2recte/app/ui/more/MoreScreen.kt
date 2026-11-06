@@ -130,6 +130,7 @@ fun MoreScreen(
         item { AboutCard() }
         item { Section("Diagnostic") }
         item { DiagnosticCard(profile) }
+        item { SyncJournalCard() }
         item {
             Text(
                 "ecole2recte ${BuildConfig.VERSION_NAME}",

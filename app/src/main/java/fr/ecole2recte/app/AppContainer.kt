@@ -34,6 +34,9 @@ class AppContainer(context: Context) {
     val settings: AppSettings = AppSettings(context)
     val syncPreferences = SyncPreferences(context)
 
+    /** Les dernières synchronisations (heure, durée, résultat), sans donnée personnelle. */
+    val syncJournal = fr.ecole2recte.app.sync.SyncJournal(fr.ecole2recte.app.sync.PrefsJournalStorage(context))
+
     /** Le dernier plantage, gardé sur le téléphone pour pouvoir le signaler. */
     val crashLog = fr.ecole2recte.app.diagnostic.CrashLog(File(context.filesDir, "last_crash.txt"))
 
