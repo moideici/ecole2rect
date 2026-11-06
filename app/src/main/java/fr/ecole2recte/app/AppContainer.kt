@@ -40,6 +40,9 @@ class AppContainer(context: Context) {
     /** Le dernier plantage, gardé sur le téléphone pour pouvoir le signaler. */
     val crashLog = fr.ecole2recte.app.diagnostic.CrashLog(File(context.filesDir, "last_crash.txt"))
 
+    /** Vrai quand l'utilisateur rejoue la présentation depuis Plus > À propos. */
+    val replayOnboarding = MutableStateFlow(false)
+
     /** Onglet demandé par un raccourci, une notification ou un widget ; consommé par l'écran principal. */
     val pendingTab = MutableStateFlow<String?>(null)
 

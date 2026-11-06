@@ -124,6 +124,15 @@ class AppSettings(context: Context) {
         mutableNoticeAccepted.value = true
     }
 
+    /** La présentation de trois pages (après l'avis légal) a été vue ou passée. Rejouable depuis Plus > À propos. */
+    private val mutableOnboardingSeen = MutableStateFlow(preferences.getBoolean("onboarding_seen", false))
+    val onboardingSeen: StateFlow<Boolean> = mutableOnboardingSeen.asStateFlow()
+
+    fun markOnboardingSeen() {
+        preferences.edit().putBoolean("onboarding_seen", true).apply()
+        mutableOnboardingSeen.value = true
+    }
+
     /**
      * Masque l'aperçu de l'application dans la liste des applications récentes (et bloque les
      * captures d'écran) quand le verrou est actif. Éteint par défaut : il empêche aussi les captures.
