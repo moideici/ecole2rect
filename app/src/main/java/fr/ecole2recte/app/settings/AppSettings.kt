@@ -13,7 +13,11 @@ const val DEFAULT_API_VERSION = "4.75.0"
 
 /** Réglages de l'application, non secrets, gardés sur l'appareil. */
 class AppSettings(context: Context) {
+    private val appContext = context.applicationContext
     private val preferences = context.getSharedPreferences(ThemeSelection.PREFS, Context.MODE_PRIVATE)
+
+    /** Les widgets lisent ces réglages à chaque dessin : on les redessine tout de suite quand l'un d'eux change. */
+    private fun refreshWidgets() = fr.ecole2recte.app.widget.WidgetRefresh.requestAll(appContext)
 
     private val mutableThemeMode = MutableStateFlow(ThemeMode.parse(preferences.getString(ThemeSelection.MODE_KEY, null)))
     val themeMode: StateFlow<ThemeMode> = mutableThemeMode.asStateFlow()
@@ -21,6 +25,7 @@ class AppSettings(context: Context) {
     fun setThemeMode(mode: ThemeMode) {
         preferences.edit().putString(ThemeSelection.MODE_KEY, mode.name).apply()
         mutableThemeMode.value = mode
+        refreshWidgets()
     }
 
     /** Le thème de couleurs (Indigo par défaut), décliné en clair, sombre et noir. */
@@ -30,6 +35,7 @@ class AppSettings(context: Context) {
     fun setColorTheme(theme: ColorTheme) {
         preferences.edit().putString(ThemeSelection.COLOR_THEME_KEY, theme.name).apply()
         mutableColorTheme.value = theme
+        refreshWidgets()
     }
 
     /** La taille du texte choisie dans l'application, en plus de celle du système. */
@@ -66,6 +72,7 @@ class AppSettings(context: Context) {
     fun setPrivacyMode(enabled: Boolean) {
         preferences.edit().putBoolean(PrivacySelection.MODE_KEY, enabled).apply()
         mutablePrivacyMode.value = enabled
+        refreshWidgets()
     }
 
     private val mutablePrivacyHideMessages = MutableStateFlow(preferences.getBoolean(PrivacySelection.MESSAGES_KEY, false))
@@ -74,6 +81,7 @@ class AppSettings(context: Context) {
     fun setPrivacyHideMessages(enabled: Boolean) {
         preferences.edit().putBoolean(PrivacySelection.MESSAGES_KEY, enabled).apply()
         mutablePrivacyHideMessages.value = enabled
+        refreshWidgets()
     }
 
     /** Délai d'absence après lequel le verrou est redemandé au retour dans l'application. */

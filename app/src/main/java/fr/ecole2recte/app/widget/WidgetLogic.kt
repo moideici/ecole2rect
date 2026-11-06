@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.widget
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
@@ -15,8 +16,6 @@ import fr.ecole2recte.app.sync.WidgetTask
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.format.TextStyle
-import java.util.Locale
 
 /** Un jour de la semaine résumé pour le widget « Semaine ». */
 data class WeekDay(val label: String, val lessons: Int, val canceled: Int, val first: String, val last: String)
@@ -41,9 +40,9 @@ object WidgetLogic {
         val minutes = Duration.between(now, begins).toMinutes()
         return when {
             begins.toLocalDate() == now.toLocalDate() && minutes < 60 -> "dans $minutes min"
-            begins.toLocalDate() == now.toLocalDate() -> "dans ${minutes / 60} h ${"%02d".format(minutes % 60)}"
+            begins.toLocalDate() == now.toLocalDate() -> "dans ${FrenchFormat.hoursMinutes(minutes.toInt())}"
             begins.toLocalDate() == now.toLocalDate().plusDays(1) -> "demain ${slot.start}"
-            else -> "${begins.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.FRENCH)} ${slot.start}"
+            else -> "${FrenchFormat.weekdayFull(begins.toLocalDate())} ${slot.start}"
         }
     }
 
@@ -65,7 +64,7 @@ object WidgetLogic {
                 val day = LocalDate.parse(date)
                 val real = list.filter { !it.canceled }
                 WeekDay(
-                    label = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.FRENCH).removeSuffix(".").replaceFirstChar { it.uppercase() } + " " + day.dayOfMonth,
+                    label = FrenchFormat.weekdayShort(day) + " " + day.dayOfMonth,
                     lessons = real.size,
                     canceled = list.size - real.size,
                     first = real.minOfOrNull { it.start }.orEmpty(),
@@ -93,6 +92,9 @@ object WidgetLogic {
         grades: GradeOverview?,
         inbox: List<MessagePreview>,
     ): WidgetSnapshot {
+        // Du lundi de la semaine en cours jusqu'à six jours après aujourd'hui : le widget « Semaine complète »
+        // montre aussi les jours déjà passés de la semaine.
+        val from = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)).toString()
         val limit = today.plusDays(6).toString()
         return WidgetSnapshot(
             updatedAt = updatedAt,
@@ -103,8 +105,8 @@ object WidgetLogic {
                 WidgetTask(it.subject, it.title, it.due, it.colorIndex, it.dueDate, it.exam)
             },
             lessons = week?.entries.orEmpty()
-                .filter { it.date >= today.toString() && it.date <= limit && it.start.isNotBlank() && it.end.isNotBlank() }
-                .take(80)
+                .filter { it.date >= from && it.date <= limit && it.start.isNotBlank() && it.end.isNotBlank() }
+                .take(120)
                 .map {
                     WidgetSlot(it.date, it.start, it.end, it.subject.name, it.subject.room, it.subject.teacher, it.canceled, it.subject.colorIndex)
                 },
@@ -112,8 +114,8 @@ object WidgetLogic {
                 val value = it.value!!
                 WidgetGradeItem(
                     it.subject,
-                    (if (value % 1.0 == 0.0) value.toInt().toString() else String.format(Locale.FRENCH, "%.1f", value)) + "/" + it.scale.toInt(),
-                    if (it.coefficient % 1.0 == 0.0) it.coefficient.toInt().toString() else String.format(Locale.FRENCH, "%.1f", it.coefficient),
+                    (if (value % 1.0 == 0.0) value.toInt().toString() else FrenchFormat.decimal(value)) + "/" + it.scale.toInt(),
+                    if (it.coefficient % 1.0 == 0.0) it.coefficient.toInt().toString() else FrenchFormat.decimal(it.coefficient),
                     it.label,
                     it.colorIndex,
                 )
