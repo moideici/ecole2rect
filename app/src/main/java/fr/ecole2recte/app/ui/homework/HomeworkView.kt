@@ -42,8 +42,10 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import fr.ecole2recte.app.domain.CalendarExport
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.HomeworkDetail
+import fr.ecole2recte.app.ui.common.AddToCalendarRow
 import fr.ecole2recte.app.ui.common.AttachmentList
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.HomeworkViewModel
@@ -237,6 +239,7 @@ private fun HomeworkSheet(task: Homework, viewModel: HomeworkViewModel, onToggle
                 },
             )
         }
+        AddToCalendarRow(remember(task) { CalendarExport.homework(task) })
         Text(
             if (task.done) "Remettre à faire" else "Marquer comme fait",
             modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 14.dp),

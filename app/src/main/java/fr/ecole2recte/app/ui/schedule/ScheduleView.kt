@@ -48,8 +48,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import fr.ecole2recte.app.domain.CalendarExport
 import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.domain.ScheduleWeek
+import fr.ecole2recte.app.ui.common.AddToCalendarRow
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.ScheduleViewModel
 import fr.ecole2recte.app.ui.common.RefreshOnResume
@@ -61,6 +63,7 @@ import fr.ecole2recte.app.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.TemporalAdjusters
@@ -281,6 +284,7 @@ private fun LessonDetail(entry: ScheduleEntry) {
         if (subject.room.isNotBlank()) DetailLine("Salle", subject.room)
         if (subject.teacher.isNotBlank()) DetailLine("Professeur", subject.teacher)
         if (entry.note.isNotBlank()) DetailLine("Note", entry.note)
+        AddToCalendarRow(remember(entry) { CalendarExport.lesson(entry, ZoneId.systemDefault()) })
     }
 }
 
