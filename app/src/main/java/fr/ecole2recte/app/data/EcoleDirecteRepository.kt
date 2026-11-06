@@ -36,6 +36,8 @@ import fr.ecole2recte.app.domain.PeriodAverage
 import fr.ecole2recte.app.domain.SearchCorpus
 import fr.ecole2recte.app.domain.ExamCountdown
 import fr.ecole2recte.app.domain.Highlight
+import fr.ecole2recte.app.domain.LessonChangeKind
+import fr.ecole2recte.app.domain.ScheduleChanges
 import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
@@ -165,6 +167,8 @@ class EcoleDirecteRepository(
         module: SchoolModule,
         fetch: (EcoleDirecteApi, Target) -> String,
         parse: (Any?, ParseReport) -> T,
+        /** Appelé juste avant d'enregistrer une réponse neuve, avec la précédente (`null` si aucune). */
+        onStore: ((previous: String?, fresh: String) -> Unit)? = null,
     ): T = memo(name) {
         try {
             // Module fermé par l'établissement : aucune requête (elle compterait comme du trafic) et rien d'inventé.
@@ -181,6 +185,7 @@ class EcoleDirecteRepository(
                 markFresh(name)
                 return@memo parsed
             }
+            onStore?.let { hook -> runCatching { hook(responseCache.get(owner, name)?.json, raw) } }
             responseCache.put(owner, name, raw, clock.millis())
             markFresh(name)
             parsed
@@ -250,7 +255,31 @@ class EcoleDirecteRepository(
             api.timetable(target.studentId, monday, monday.plusDays(13))
         },
         parse = { data, report -> Parsers.timetable(data, report) },
+        onStore = ::rememberLessonChanges,
     )
+
+    /**
+     * Quand une lecture neuve de l'emploi du temps change des cours à venir (déplacé, remplacé, salle,
+     * professeur…), garde l'ancienne réponse à part : l'agenda s'en sert pour barrer l'ancienne valeur.
+     * Rien d'autre n'est conservé et rien n'est envoyé nulle part.
+     */
+    private fun rememberLessonChanges(previous: String?, fresh: String) {
+        if (previous == null || previous == fresh) return
+        val before = Parsers.timetable(readJson(previous)).map { it.toEntry() }
+        val after = Parsers.timetable(readJson(fresh)).map { it.toEntry() }
+        val upcoming = after.map { it.date }.filter { it >= today().toString() }.toSet()
+        if (ScheduleChanges.diff(before, after, upcoming).any { it.kind != LessonChangeKind.Restored }) {
+            responseCache.put(owner, LESSONS_BEFORE, previous, clock.millis())
+        }
+    }
+
+    /** Les cours à venir, avec ce qu'ils étaient avant leur dernier changement. */
+    private fun withChangeHistory(entries: List<ScheduleEntry>): List<ScheduleEntry> {
+        val stored = responseCache.get(owner, LESSONS_BEFORE) ?: return entries
+        val before = Parsers.timetable(readJson(stored.json)).map { it.toEntry() }
+        val upcoming = entries.map { it.date }.filter { it >= today().toString() }.toSet()
+        return ScheduleChanges.annotate(before, entries, upcoming)
+    }
 
     /** Le cahier de textes, avec les cases cochées sur l'appareil qui l'emportent sur celles du serveur. */
     private suspend fun homeworkItems(): List<ApiHomework> {
@@ -337,7 +366,7 @@ class EcoleDirecteRepository(
         }
         return ScheduleWeek(
             label = "Semaine du ${monday.format(DateTimeFormatter.ofPattern("d MMMM", french))}",
-            entries = window.map { it.toEntry() },
+            entries = withChangeHistory(window.map { it.toEntry() }),
             weekStart = monday.toString(),
             today = today().toString(),
         )
@@ -817,6 +846,9 @@ class EcoleDirecteRepository(
     private companion object {
         const val PALETTE_SIZE = 10
         const val MESSAGES_PER_PAGE = 50
+
+        /** Nom, dans le cache, de la lecture de l'emploi du temps d'avant le dernier changement. */
+        const val LESSONS_BEFORE = "lessons-before"
         const val MAX_SEARCH_PAGES = 20
     }
 }

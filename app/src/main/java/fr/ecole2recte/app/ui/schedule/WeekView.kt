@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fr.ecole2recte.app.domain.ScheduleChanges
 import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.ui.theme.AppTheme
 import fr.ecole2recte.app.ui.theme.subjectColor
@@ -180,7 +181,7 @@ private fun WeekDayColumnView(
             val entry = lesson.first
             val color = subjectColor(entry.subject.name, entry.subject.colorIndex)
             val canceled = lesson.entries.all { it.canceled }
-            val modified = !canceled && lesson.entries.any { it.modified }
+            val modified = !canceled && (lesson.entries.any { it.modified } || entry.before != null)
             val height = perMinute * lesson.duration
             val laneWidth = columnWidth / lesson.lanes
             val content = blockContent(height.value, laneWidth.value)
@@ -240,7 +241,7 @@ private fun WeekDayColumnView(
                 }
                 val tag = when {
                     canceled -> "Annulé"
-                    modified -> "Modifié"
+                    modified -> ScheduleChanges.tag(entry) ?: "Modifié"
                     else -> null
                 }
                 if (content.showTag && tag != null) {

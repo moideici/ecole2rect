@@ -45,10 +45,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.CalendarExport
+import fr.ecole2recte.app.domain.ChangeLine
+import fr.ecole2recte.app.domain.ScheduleChanges
 import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.domain.ScheduleWeek
 import fr.ecole2recte.app.domain.UpcomingExam
@@ -284,12 +287,27 @@ private fun LessonDetail(entry: ScheduleEntry) {
     Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(subject.name, color = AppTheme.colors.ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text("$day · ${entry.start} — ${entry.end}", color = AppTheme.colors.muted, fontSize = 14.sp)
+        ScheduleChanges.tag(entry)?.let {
+            Text("$it depuis la dernière lecture de l'emploi du temps.", color = AppTheme.colors.error, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+        ScheduleChanges.lines(entry).forEach { ChangedLine(it) }
         if (entry.canceled) Text("Ce cours est annulé.", color = AppTheme.colors.error, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         if (entry.exam) Text("Une évaluation est prévue.", color = AppTheme.colors.accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         if (subject.room.isNotBlank()) DetailLine("Salle", subject.room)
         if (subject.teacher.isNotBlank()) DetailLine("Professeur", subject.teacher)
         if (entry.note.isNotBlank()) DetailLine("Note", entry.note)
         AddToCalendarRow(remember(entry) { CalendarExport.lesson(entry, ZoneId.systemDefault()) })
+    }
+}
+
+/** Une valeur qui a changé : l'ancienne barrée, puis la nouvelle. */
+@Composable
+private fun ChangedLine(line: ChangeLine) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(line.label, color = AppTheme.colors.muted, fontSize = 14.sp, modifier = Modifier.width(96.dp))
+        Text(line.old, color = AppTheme.colors.muted, fontSize = 14.sp, textDecoration = TextDecoration.LineThrough)
+        Text("  →  ", color = AppTheme.colors.muted, fontSize = 14.sp)
+        Text(line.new, color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
 

@@ -68,6 +68,8 @@ data class ScheduleEntry(
     val modified: Boolean = false,
     /** `typeCours` d'ÉcoleDirecte : COURS, PERMANENCE… */
     val kind: String = "",
+    /** Ce que ce cours était avant d'être déplacé, remplacé ou modifié (l'agenda barre l'ancienne valeur). */
+    val before: LessonBefore? = null,
 )
 
 /**

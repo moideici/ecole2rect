@@ -4,7 +4,11 @@ import fr.ecole2recte.app.domain.GradeEntry
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.MessagePreview
+import fr.ecole2recte.app.domain.LessonChange
+import fr.ecole2recte.app.domain.LessonChangeKind
+import fr.ecole2recte.app.domain.ScheduleChanges
 import fr.ecole2recte.app.domain.ScheduleEntry
+import fr.ecole2recte.app.domain.Subject
 import fr.ecole2recte.app.domain.ScheduleWeek
 import java.time.LocalDate
 import java.util.Locale
@@ -162,8 +166,19 @@ object NotificationPlanner {
         val current = NotifiedIds(gradeIds.keys, messageIds.keys, canceledIds.keys, homeworkSeen, fingerprints)
         if (previous == null) return PlanResult(emptyList(), current)
 
+        // Ce qui a bougé depuis le dernier passage, pour aujourd'hui et demain seulement. On compare avec
+        // les cours retenus la fois d'avant (début, matière, salle, professeur, fin) : pas de premier passage,
+        // et rien tant qu'on n'a pas de quoi comparer.
+        val changes = if (previous.lessons.isEmpty()) {
+            emptyList()
+        } else {
+            ScheduleChanges.diff(rememberedLessons(previous.lessons), snapshot.lessons, setOf(today.toString(), today.plusDays(1).toString()))
+        }
+        // Un cours annulé puis reprogrammé le même jour est annoncé comme déplacé, pas aussi comme annulé.
+        val movedAway = changes.filter { it.kind == LessonChangeKind.Moved }.map { canceledKey(it.before) }.toSet()
+
         val events = buildList {
-            canceledIds.filterKeys { it !in previous.canceled }.forEach { (key, entry) ->
+            canceledIds.filterKeys { it !in previous.canceled && it !in movedAway }.forEach { (key, entry) ->
                 val when_ = if (entry.date == today.toString()) "aujourd'hui" else "demain"
                 add(NotificationEvent(EventKind.Canceled, key, "Cours annulé : ${entry.subject.name}", "$when_ à ${entry.start}"))
             }
@@ -198,17 +213,7 @@ object NotificationPlanner {
             messageIds.filterKeys { it !in previous.messages }.forEach { (key, message) ->
                 add(NotificationEvent(EventKind.Message, key, message.sender.ifBlank { "Nouveau message" }, message.preview))
             }
-            // Un cours qui change : seulement pour aujourd'hui et demain, et pas au premier passage
-            // après une mise à jour (rien à comparer encore).
-            if (previous.lessons.isNotEmpty()) {
-                val soon = setOf(today.toString(), today.plusDays(1).toString())
-                snapshot.lessons.filter { it.date in soon }.forEach { entry ->
-                    val before = previous.lessons[lessonKey(entry)] ?: return@forEach
-                    val after = fingerprint(entry)
-                    if (before == after) return@forEach
-                    describeChange(before, after, entry, today)?.let { add(it) }
-                }
-            }
+            changes.forEach { add(describeChange(it, today)) }
         }.filter { rules.allows(it.kind) }
         // On garde aussi ce qui a déjà été notifié et qui a disparu : un message relu puis redevenu
         // non lu, ou un cours annulé puis rétabli, ne doit pas notifier une seconde fois.
@@ -230,25 +235,46 @@ object NotificationPlanner {
     private fun fingerprint(entry: ScheduleEntry) =
         "${entry.canceled}|${entry.modified}|${entry.subject.room}|${entry.subject.teacher}|${entry.end}"
 
-    /** Dit en une phrase ce qui a changé ; `null` pour un cours qui vient d'être annulé (déjà couvert ailleurs). */
-    private fun describeChange(before: String, after: String, entry: ScheduleEntry, today: LocalDate): NotificationEvent? {
-        val old = before.split('|')
-        val new = after.split('|')
-        if (old.size < 5 || new.size < 5) return null
+    /** Relit les cours retenus (clé `jour|début|matière`, empreinte `annulé|modifié|salle|professeur|fin`). */
+    private fun rememberedLessons(map: Map<String, String>): List<ScheduleEntry> = map.mapNotNull { (key, print) ->
+        val k = key.split('|', limit = 3)
+        val p = print.split('|')
+        if (k.size < 3 || p.size < 5) return@mapNotNull null
+        ScheduleEntry(
+            subject = Subject(k[2], p[3], p[2], 0),
+            whenLabel = "",
+            canceled = p[0] == "true",
+            date = k[0],
+            start = k[1],
+            end = p[4],
+            modified = p[1] == "true",
+        )
+    }
+
+    /** Dit en une phrase ce qui a changé : « 10:00 → 14:00 », « salle B12 → C03 », « professeur A → B ». */
+    private fun describeChange(change: LessonChange, today: LocalDate): NotificationEvent {
+        val entry = change.after
         val day = if (entry.date == today.toString()) "aujourd'hui" else "demain"
-        val where = "$day à ${entry.start}"
-        val changes = mutableListOf<String>()
-        when {
-            old[0] == "true" && new[0] == "false" -> changes += "cours rétabli"
-            new[0] == "true" -> return null
+        val name = entry.subject.name
+        val detail = change.parts.joinToString(", ")
+        return when (change.kind) {
+            LessonChangeKind.Moved -> NotificationEvent(
+                EventKind.Changed,
+                "mv|${entry.date}|${change.before.start}|${entry.start}|$name",
+                "Cours déplacé : $name",
+                "$day · $detail",
+            )
+            LessonChangeKind.Replaced -> NotificationEvent(
+                EventKind.Changed,
+                "rp|${entry.date}|${entry.start}|${change.before.subject.name}|$name",
+                "Cours remplacé : ${change.before.subject.name} → $name",
+                "$day à ${entry.start}" + change.parts.drop(1).joinToString(", ").takeIf { it.isNotEmpty() }?.let { " · $it" }.orEmpty(),
+            )
+            LessonChangeKind.Restored, LessonChangeKind.Updated -> {
+                val title = if (change.kind == LessonChangeKind.Restored) "Cours rétabli : $name" else "Cours modifié : $name"
+                NotificationEvent(EventKind.Changed, "chg|${lessonKey(entry)}|${fingerprint(entry)}", title, "$day à ${entry.start} · $detail")
+            }
         }
-        if (old[2] != new[2] && new[2].isNotBlank()) changes += if (old[2].isBlank()) "salle ${new[2]}" else "salle ${old[2]} → ${new[2]}"
-        if (old[3] != new[3] && new[3].isNotBlank()) changes += if (old[3].isBlank()) "avec ${new[3]}" else "professeur ${old[3]} → ${new[3]}"
-        if (old[4] != new[4]) changes += "fin à ${new[4]}"
-        if (changes.isEmpty() && new[1] == "true" && old[1] != "true") changes += "modifié"
-        if (changes.isEmpty()) return null
-        val title = if (changes.first() == "cours rétabli") "Cours rétabli : ${entry.subject.name}" else "Cours modifié : ${entry.subject.name}"
-        return NotificationEvent(EventKind.Changed, "chg|${lessonKey(entry)}|$after", title, "$where · " + changes.joinToString(", "))
     }
 
     private fun messageKey(message: MessagePreview) = message.id.ifBlank { "${message.sender}|${message.preview}" }

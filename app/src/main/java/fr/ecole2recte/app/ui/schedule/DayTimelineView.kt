@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fr.ecole2recte.app.domain.ScheduleChanges
 import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.ui.common.subjectIcon
 import fr.ecole2recte.app.ui.theme.AppTheme
@@ -164,18 +165,28 @@ fun DayTimelineView(
                     if (height >= 70.dp && !compact && entry.subject.teacher.isNotBlank()) {
                         Text(entry.subject.teacher, color = AppTheme.colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    ScheduleChanges.lines(entry).firstOrNull()?.takeIf { height >= 70.dp && !compact && !canceled }?.let { line ->
+                        Text(
+                            "avant : ${line.old}",
+                            color = AppTheme.colors.muted,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textDecoration = TextDecoration.LineThrough,
+                        )
+                    }
                     val tags = listOfNotNull(
                         "Maintenant".takeIf { live },
                         "Permanence".takeIf { entry.kind.equals("PERMANENCE", ignoreCase = true) },
                         lesson.multiLabel.takeIf { it.isNotEmpty() },
                         "Annulé".takeIf { canceled },
-                        "Modifié".takeIf { !canceled && lesson.entries.any { it.modified } },
+                        (ScheduleChanges.tag(entry) ?: "Modifié".takeIf { lesson.entries.any { it.modified } }).takeIf { !canceled },
                         "Évaluation".takeIf { entry.exam },
                     )
                     if (tags.isNotEmpty() && height >= if (compact) 62.dp else 54.dp) {
                         Text(
                             tags.joinToString(" · "),
-                            color = if (canceled || lesson.entries.any { it.modified }) AppTheme.colors.error else AppTheme.colors.accent,
+                            color = if (canceled || lesson.entries.any { it.modified } || entry.before != null) AppTheme.colors.error else AppTheme.colors.accent,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
