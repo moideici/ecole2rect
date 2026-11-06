@@ -51,8 +51,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.CalendarExport
 import fr.ecole2recte.app.domain.ScheduleEntry
 import fr.ecole2recte.app.domain.ScheduleWeek
+import fr.ecole2recte.app.domain.UpcomingExam
 import fr.ecole2recte.app.ui.common.AddToCalendarRow
 import fr.ecole2recte.app.ui.common.EmptyState
+import fr.ecole2recte.app.ui.common.ExamCountdownCard
+import fr.ecole2recte.app.ui.common.rememberUpcomingExams
 import fr.ecole2recte.app.ui.common.ScheduleViewModel
 import fr.ecole2recte.app.ui.common.RefreshOnResume
 import fr.ecole2recte.app.ui.common.StateHost
@@ -77,14 +80,15 @@ fun ScheduleList(listState: LazyListState) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     RefreshOnResume(viewModel)
+    val exams = rememberUpcomingExams(repository)
     StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { week ->
-        ScheduleContent(week, listState)
+        ScheduleContent(week, listState, exams)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ScheduleContent(week: ScheduleWeek, listState: LazyListState) {
+private fun ScheduleContent(week: ScheduleWeek, listState: LazyListState, exams: List<UpcomingExam>) {
     val settings = rememberAppContainer().settings
     val weekView by settings.scheduleWeekView.collectAsStateWithLifecycle()
     val zoom by settings.scheduleZoom.collectAsStateWithLifecycle()
@@ -113,6 +117,7 @@ private fun ScheduleContent(week: ScheduleWeek, listState: LazyListState) {
             Spacer(Modifier.weight(1f))
             ZoomControls(zoom, settings::setScheduleZoom)
         }
+        ExamCountdownCard(exams, compact = true)
         if (!weekView) {
             DayView(days, byDate, today, zoom, settings::setScheduleZoom, listState) { selected = it }
         } else {

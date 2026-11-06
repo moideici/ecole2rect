@@ -47,6 +47,7 @@ import fr.ecole2recte.app.domain.HomeData
 import fr.ecole2recte.app.domain.Homework
 import fr.ecole2recte.app.domain.NextClass
 import fr.ecole2recte.app.domain.ScheduleEntry
+import fr.ecole2recte.app.ui.common.ExamCountdownCard
 import fr.ecole2recte.app.ui.common.HomeViewModel
 import fr.ecole2recte.app.ui.common.PageHeader
 import fr.ecole2recte.app.ui.schedule.DayTimelineView
@@ -170,6 +171,10 @@ private fun HomeScreen(
                             }
                         }
                     }
+                }
+                HomeSection.Exams -> if (data.exams.isNotEmpty() && SchoolModule.Homework !in closed) {
+                    item(key = "exams-title") { SectionTitle("Prochain contrôle", "Voir l'agenda", onClick = onOpenHomework) }
+                    item(key = "exams") { ExamCountdownCard(data.exams, Modifier.entrance(rank), onClick = onOpenHomework) }
                 }
                 HomeSection.Reminder -> data.reminder?.takeIf { SchoolModule.Homework !in closed }?.let { reminder ->
                     item(key = "reminder-title") { SectionTitle("À ne pas oublier", "Tout voir", onClick = onOpenHomework) }

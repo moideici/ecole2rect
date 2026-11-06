@@ -61,6 +61,7 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
             Highlight(HighlightKind.Grade, "Nouvelle note en Mathématiques", "17,5 / 20"),
             Highlight(HighlightKind.Message, "2 messages non lus", "Vie scolaire · Réunion parents-professeurs"),
         ),
+        exams = listOf(fr.ecole2recte.app.domain.UpcomingExam("Mathématiques", java.time.LocalDate.now().plusDays(3).toString(), 0)),
         grades = grades,
         allSubjects = subjects,
     )

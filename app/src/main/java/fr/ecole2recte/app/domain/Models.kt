@@ -254,6 +254,8 @@ data class HomeData(
     val highlights: List<Highlight> = emptyList(),
     /** Un résumé par enfant pour un compte famille ; vide pour un élève. */
     val family: List<ChildSummary> = emptyList(),
+    /** Les prochains contrôles (devoirs marqués évaluation), du plus proche au plus lointain. */
+    val exams: List<UpcomingExam> = emptyList(),
     val grades: GradeOverview,
     val allSubjects: List<Subject>,
 )

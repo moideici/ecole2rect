@@ -7,6 +7,7 @@ enum class HomeSection(val label: String) {
     NextClass("Prochain cours"),
     Today("Aujourd'hui"),
     Highlights("À savoir"),
+    Exams("Prochain contrôle"),
     Reminder("À ne pas oublier"),
     Grades("Dernières notes"),
 }

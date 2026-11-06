@@ -34,6 +34,7 @@ import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.AverageSource
 import fr.ecole2recte.app.domain.PeriodAverage
 import fr.ecole2recte.app.domain.SearchCorpus
+import fr.ecole2recte.app.domain.ExamCountdown
 import fr.ecole2recte.app.domain.Highlight
 import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
@@ -313,6 +314,7 @@ class EcoleDirecteRepository(
             reminder = pendingHomework(homework).firstOrNull()?.toHomework(),
             highlights = highlights(lessons, homework, grades, inbox),
             family = family,
+            exams = ExamCountdown.upcoming(homework.map { it.toHomework() }, today()),
             grades = grades?.let(::overview) ?: GradeOverview("–", "", emptyList()),
             allSubjects = lessons.map { it.toSubject() }.distinctBy { it.name },
         )
