@@ -57,6 +57,12 @@ interface SchoolRepository {
     suspend fun sendMessage(draft: MessageDraft, confirmed: Boolean): Unit =
         throw UnsupportedOperationException("L'envoi n'est pas disponible ici.")
 
+    /**
+     * Ce que la recherche globale peut parcourir : uniquement les données **déjà enregistrées** sur le
+     * téléphone (devoirs, messages, notes, cours des deux semaines). Aucune requête n'est envoyée.
+     */
+    suspend fun searchCorpus(): SearchCorpus = SearchCorpus()
+
     /** Télécharge une pièce jointe (lecture seule). Appelé seulement après confirmation de l'utilisateur. */
     suspend fun downloadAttachment(attachment: Attachment): AttachmentFile =
         throw UnsupportedOperationException("Le téléchargement n'est pas disponible ici.")

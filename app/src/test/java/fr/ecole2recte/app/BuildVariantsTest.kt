@@ -23,14 +23,14 @@ class BuildVariantsTest {
     @Test
     fun `les raccourcis de la version de test visent la version de test`() {
         val debug = packages("src/debug/res/xml/shortcuts.xml")
-        assertEquals(3, debug.size)
+        assertEquals(4, debug.size)
         assertEquals(setOf(BuildConfig.APPLICATION_ID), debug.toSet())
     }
 
     @Test
     fun `les raccourcis de la version publiee visent la version publiee`() {
         val release = packages("src/main/res/xml/shortcuts.xml")
-        assertEquals(3, release.size)
+        assertEquals(4, release.size)
         assertEquals(setOf("fr.ecole2recte.app"), release.toSet())
     }
 

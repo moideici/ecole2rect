@@ -53,6 +53,7 @@ import fr.ecole2recte.app.ui.schedule.DayTimelineView
 import fr.ecole2recte.app.ui.schedule.rememberClock
 import fr.ecole2recte.app.ui.common.ProgressRing
 import fr.ecole2recte.app.ui.common.entrance
+import fr.ecole2recte.app.ui.search.SearchEntry
 import fr.ecole2recte.app.ui.common.rememberAnimatedDecimal
 import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
 import fr.ecole2recte.app.ui.common.SectionTitle
@@ -76,6 +77,7 @@ fun HomeRoute(
     onOpenGrades: () -> Unit,
     onOpenMessages: () -> Unit,
     onSelectChild: (String) -> Unit = {},
+    onOpenSearch: () -> Unit = {},
 ) {
     val repository = rememberSchoolRepository()
     val viewModel = appViewModel { HomeViewModel(repository) }
@@ -92,6 +94,7 @@ fun HomeRoute(
             onOpenGrades = onOpenGrades,
             onOpenMessages = onOpenMessages,
             onSelectChild = onSelectChild,
+            onOpenSearch = onOpenSearch,
         )
         PublishWidgets(data, repository)
     }
@@ -122,12 +125,14 @@ private fun HomeScreen(
     onOpenGrades: () -> Unit,
     onOpenMessages: () -> Unit,
     onSelectChild: (String) -> Unit,
+    onOpenSearch: () -> Unit,
 ) {
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("accueil", listState)
     val closed = LocalActiveProfile.current?.closedModules.orEmpty()
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 20.dp)) {
         item { PageHeader(data.greeting, data.dateLabel) }
+        item(key = "search") { SearchEntry(onOpenSearch) }
         layout.visible.forEachIndexed { rank, section ->
             when (section) {
                 HomeSection.Family -> if (data.family.isNotEmpty()) {

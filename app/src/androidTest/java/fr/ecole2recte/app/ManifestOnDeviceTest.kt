@@ -32,8 +32,8 @@ class ManifestOnDeviceTest {
     }
 
     @Test
-    fun lesTroisRaccourcisSontDeclares() {
+    fun lesQuatreRaccourcisSontDeclares() {
         val manager = context.getSystemService(ShortcutManager::class.java)
-        assertEquals(3, manager.manifestShortcuts.size)
+        assertEquals(setOf("agenda", "homework", "messages", "search"), manager.manifestShortcuts.map { it.id }.toSet())
     }
 }

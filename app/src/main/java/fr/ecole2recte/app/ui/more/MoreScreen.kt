@@ -29,6 +29,7 @@ import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.PageHeader
 import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
 import fr.ecole2recte.app.ui.common.rememberAppContainer
+import fr.ecole2recte.app.ui.search.SearchEntry
 import fr.ecole2recte.app.ui.theme.AppTheme
 import fr.ecole2recte.app.ui.theme.ThemeMode
 
@@ -39,6 +40,7 @@ fun MoreScreen(
     connectionMessage: String?,
     onOpenAccounts: () -> Unit,
     onRetryConnection: () -> Unit,
+    onOpenSearch: () -> Unit = {},
 ) {
     val settings = rememberAppContainer().settings
     val themeMode by settings.themeMode.collectAsStateWithLifecycle()
@@ -46,6 +48,7 @@ fun MoreScreen(
     ScrollToTopOnReselect("plus", listState)
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageHeader("Plus", "Compte, apparence et connexion") }
+        item { SearchEntry(onOpenSearch) }
         item {
             ListCard {
                 Row(

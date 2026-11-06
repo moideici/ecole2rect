@@ -32,6 +32,7 @@ import fr.ecole2recte.app.domain.GradeEntry
 import fr.ecole2recte.app.domain.GradeMath
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.PeriodAverage
+import fr.ecole2recte.app.domain.SearchCorpus
 import fr.ecole2recte.app.domain.Highlight
 import fr.ecole2recte.app.domain.HighlightKind
 import fr.ecole2recte.app.domain.HomeData
@@ -446,6 +447,30 @@ class EcoleDirecteRepository(
         return AttachmentFile(download.bytes, download.contentType?.substringBefore(';')?.trim(), download.fileName ?: attachment.name)
     }
 
+    /**
+     * Pour la recherche : relit **uniquement** les réponses déjà enregistrées (aucune requête, aucune
+     * reconnexion). Une ressource jamais enregistrée donne simplement une liste vide.
+     */
+    override suspend fun searchCorpus(): SearchCorpus = withContext(ioDispatcher) {
+        fun stored(name: String): Any? = responseCache.get(owner, name)?.let { readJson(it.json) }
+        val today = today().toString()
+        val overrides = homeworkStatus.overrides(owner)
+        val homework = stored("homework")?.let { Parsers.homeworkSummary(it) }.orEmpty()
+            .map { it.copy(done = overrides[it.id] ?: it.done) }
+            .filter { it.dueDate >= today }.sortedBy { it.dueDate }.map { it.toHomework() }
+        val lessons = stored("lessons")?.let { Parsers.timetable(it) }.orEmpty().map { it.toEntry() }
+        val grades = stored("grades")?.let { Parsers.grades(it) }?.grades.orEmpty().map { it.toEntry() }
+        // La première page de la boîte, plus les pages suivantes si l'utilisateur les a déjà chargées.
+        val messages = buildList {
+            for (page in 0 until MAX_SEARCH_PAGES) {
+                val name = if (page == 0) "messages" else "messages-$page"
+                val items = stored(name)?.let { Parsers.messages(it) } ?: break
+                addAll(items)
+            }
+        }.map { MessagePreview(it.sender, it.subject, unread = !it.read, id = it.id, dateLabel = dateLabel(it.date)) }
+        SearchCorpus(homework, messages, grades, lessons)
+    }
+
     /** « 10:15 » pour aujourd'hui, « 4 nov. » sinon ; la forme longue ajoute le jour et l'heure. */
     private fun dateLabel(iso: String?, long: Boolean = false): String {
         if (iso == null) return ""
@@ -781,5 +806,6 @@ class EcoleDirecteRepository(
     private companion object {
         const val PALETTE_SIZE = 10
         const val MESSAGES_PER_PAGE = 50
+        const val MAX_SEARCH_PAGES = 20
     }
 }

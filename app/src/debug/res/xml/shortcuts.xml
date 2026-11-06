@@ -33,4 +33,15 @@
             <extra android:name="tab" android:value="messages" />
         </intent>
     </shortcut>
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/sync_shortcut_search">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="fr.ecole2recte.app.MainActivity"
+            android:targetPackage="fr.ecole2recte.app.dev">
+            <extra android:name="tab" android:value="recherche" />
+        </intent>
+    </shortcut>
 </shortcuts>

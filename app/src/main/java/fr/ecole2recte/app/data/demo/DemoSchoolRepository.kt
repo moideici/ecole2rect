@@ -101,6 +101,13 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
 
     override suspend fun schoolLife() = SchoolLifeSummary()
 
+    override suspend fun searchCorpus() = fr.ecole2recte.app.domain.SearchCorpus(
+        homework = homework(),
+        messages = messages(),
+        grades = emptyList(),
+        lessons = schedule().entries,
+    )
+
     override suspend fun badges(): Badges = Badges(newGrades = 1, urgentHomework = 1, unreadMessages = 2)
 
     override suspend fun messages(): List<MessagePreview> = listOf(

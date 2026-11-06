@@ -15,4 +15,5 @@
     <string name="sync_shortcut_agenda">Agenda</string>
     <string name="sync_shortcut_homework">Devoirs</string>
     <string name="sync_shortcut_messages">Messages</string>
+    <string name="sync_shortcut_search">Rechercher</string>
 </resources>

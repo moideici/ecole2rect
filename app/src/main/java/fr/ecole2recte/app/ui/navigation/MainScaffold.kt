@@ -73,6 +73,7 @@ import fr.ecole2recte.app.ui.grades.GradesRoute
 import fr.ecole2recte.app.ui.home.HomeRoute
 import fr.ecole2recte.app.ui.messages.MessagesRoute
 import fr.ecole2recte.app.ui.more.MoreScreen
+import fr.ecole2recte.app.ui.search.SearchRoute
 import fr.ecole2recte.app.ui.theme.AppTheme
 import kotlinx.coroutines.flow.MutableSharedFlow
 
@@ -96,6 +97,9 @@ internal fun AppTab.isAvailable(closed: Set<SchoolModule>): Boolean = when (this
     AppTab.Messages -> SchoolModule.Messages !in closed
     else -> true
 }
+
+/** L'écran de recherche : une destination à part, pas un onglet. */
+internal const val SEARCH_ROUTE = "recherche"
 
 private fun AppTab.badge(badges: Badges): Int = when (this) {
     AppTab.Agenda -> badges.urgentHomework
@@ -156,7 +160,9 @@ private fun MainContent(
     val pendingTab by container.pendingTab.collectAsStateWithLifecycle()
     LaunchedEffect(pendingTab) {
         val requested = pendingTab ?: return@LaunchedEffect
-        if (requested == "agenda_homework") {
+        if (requested == SEARCH_ROUTE) {
+            navController.navigate(SEARCH_ROUTE) { launchSingleTop = true }
+        } else if (requested == "agenda_homework") {
             if (AppTab.Agenda in tabs) {
                 agendaPage = AGENDA_HOMEWORK
                 navController.navigateToTab(AppTab.Agenda)
@@ -231,13 +237,19 @@ private fun MainContent(
                                     onOpenGrades = { navController.navigateToTab(AppTab.Grades) },
                                     onOpenMessages = { navController.navigateToTab(AppTab.Messages) },
                                     onSelectChild = accountActions.onSelectStudent,
+                                    onOpenSearch = { navController.navigate(SEARCH_ROUTE) { launchSingleTop = true } },
                                 )
                             }
                             composable(AppTab.Agenda.route) { AgendaScreen(agendaPage) { agendaPage = it } }
                             composable(AppTab.Grades.route) { GradesRoute() }
                             composable(AppTab.Messages.route) { MessagesRoute() }
+                            composable(SEARCH_ROUTE) {
+                                // Un résultat ouvre l'onglet concerné (même chemin qu'un raccourci ou une notification).
+                                SearchRoute(onClose = { navController.popBackStack() }, onOpen = { container.pendingTab.value = it.tab })
+                            }
                             composable(AppTab.More.route) {
                                 MoreScreen(
+                                    onOpenSearch = { navController.navigate(SEARCH_ROUTE) { launchSingleTop = true } },
                                     profile = activeProfile,
                                     connection = connection,
                                     connectionMessage = connectionMessage,
