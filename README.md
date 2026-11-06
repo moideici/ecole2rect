@@ -12,8 +12,12 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
 
 - **Accueil** : prochain cours relié au reste de la journée, devoir à ne pas oublier,
   « à savoir » classé par urgence, dernières notes.
-- **Agenda** : emploi du temps avec heures, pauses et cours doubles ; travail à faire
-  (filtres À faire / Faits / Contrôles / Tous), cases « fait » gardées sur le téléphone.
+- **Agenda** : emploi du temps en vue jour ou en vue semaine (colonnes sur une frise commune), avec heures,
+  pauses et cours doubles, zoom au pincement ou par boutons, cours annulés barrés, cours déplacés ou modifiés
+  montrés avec l'ancienne valeur barrée ; compte à rebours avant le prochain contrôle (aussi à l'accueil) ;
+  travail à faire (filtres À faire / Faits / Contrôles / Tous), cases « fait » gardées sur le téléphone.
+- **Exports** : emploi du temps en PDF (A4 paysage) ou en calendrier ICS, avec les semaines 1 / 2 si le tien
+  alterne ; « Ajouter au calendrier » pour un cours ou un contrôle, sans permission. Voir [Exports](docs/EXPORTS.md).
 - **Notes** : moyennes par matière et par période, appréciations, valeurs textuelles
   (Abs, Disp, NE), moyenne de la classe et extrêmes (avec l'écart de chaque note à la classe),
   simulateur d'objectif, courbes d'évolution, pastille « Nouveau » pendant trois jours. Une moyenne est
@@ -24,7 +28,7 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
 - **Recherche** : une barre à l'accueil et dans Plus cherche dans les devoirs, messages (expéditeur, objet),
   notes et cours déjà enregistrés sur le téléphone ; elle n'envoie aucune requête.
 - **Comptes** : plusieurs comptes, élèves d'un compte famille, vue d'ensemble de la famille.
-- **Notifications** (désactivées par défaut) : cours annulé ou modifié, nouvelle note,
+- **Notifications** (désactivées par défaut) : cours annulé, modifié ou déplacé (« 10:00 → 14:00 »), nouvelle note,
   message, rappel du soir des devoirs pour demain (à partir de l'heure choisie, 16 à 20 h) ;
   réglables une à une, discrètes sur l'écran verrouillé. Raccourcis d'application : Agenda, Devoirs,
   Messages, Rechercher.
@@ -62,6 +66,8 @@ derrière des réglages désactivés par défaut, avec une confirmation.
   documentées, pas toutes vérifiées sur chaque établissement (modules, appréciations,
   extrêmes de classe, pièces jointes).
 - Les comptes professeur ne sont pas pris en charge.
+- ÉcoleDirecte n'indique pas les semaines 1 / 2 (A / B) : c'est un réglage à faire soi-même, et seules les deux
+  semaines enregistrées (en cours, suivante) servent à l'export. Voir [Exports](docs/EXPORTS.md).
 - Les pièces jointes sont limitées à 25 Mo ; les programmes, scripts et pages web ne sont jamais ouverts.
 - La durée de vie du jeton n'est pas documentée : le téléphone la mesure et adapte le rejeu.
 - Les widgets, les notifications de fond et le verrouillage biométrique ne sont vérifiables que

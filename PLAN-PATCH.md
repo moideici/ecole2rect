@@ -145,3 +145,34 @@ aucune télémétrie, aucune requête de plus : la recherche ne lit que le cache
 Pas fait, volontairement : ouvrir directement le devoir ou le message trouvé par la recherche (on ouvre l'onglet), prise en compte des
 marques « lu » locales dans la pastille de l'onglet, recherche dans le contenu des messages (seuls l'expéditeur et l'objet sont en cache),
 simulateur de la moyenne générale (les coefficients de matière ne sont pas toujours connus).
+
+## 6. Lot 2 — agenda, exports, contrôles, cours déplacés
+
+Écrit, compilé et testé (428 tests unitaires dont 85 nouveaux, `assembleDebug` et `lintDebug` OK ; un test
+instrumenté du dessin PDF ajouté, **non lancé** : téléphone non branché). **Rien de ce lot n'a été essayé sur un
+téléphone** : « fait » veut dire écrit et testé, pas vu à l'écran (le pincement, la frise en semaine et le
+dessin du PDF surtout). Aucune écriture vers ÉcoleDirecte, aucune télémétrie, aucune permission ajoutée,
+aucune requête de plus.
+
+| # | Demande | État | Ce qui a été fait | À vérifier sur le téléphone |
+|---|---|---|---|---|
+| 1 | Vue semaine avec zoom | **fait** | Une grille « semaine » existait déjà ; elle est refaite : `ui/schedule/WeekView.kt` + `WeekLayout.kt` (colonnes par jour, **une frise horaire commune** via `buildDayTimeline`, doubles heures fondues, cours simultanés côte à côte, coloré par matière, annulé barré et atténué, modifié encadré en rouge, trait « maintenant »). **Zoom** de 50 à 300 % : pincement à deux doigts (un doigt n'est jamais consommé) ou boutons loupe, **réglage mémorisé** avec le choix jour / semaine (`AppSettings`), appliqué aussi à la vue jour. Le texte d'un bloc suit sa taille (`blockContent`) | le pincement dans la semaine et dans le jour, la lisibilité sombre / clair à 50 % et 300 % |
+| 2 | Export d'un cours / contrôle vers le calendrier | **fait** | `domain/CalendarExport.kt` (pur) : titre, début / fin au fuseau local, salle en lieu, professeur en description ; contrôle = événement sur la journée. `ACTION_INSERT` sur `CalendarContract.Events.CONTENT_URI` depuis la fiche d'un cours et celle d'un devoir, **sans permission** | l'écran Calendrier prérempli |
+| 3 | Compte à rebours avant le prochain contrôle | **fait** | `domain/ExamCountdown.kt` : les contrôles sont les devoirs `Homework.exam` (champ `interrogation` du cahier de textes). Composant `ExamCountdownCard` : « Contrôle de Maths dans 3 jours » ; section d'accueil `HomeSection.Exams` (activable, déplaçable ; les réglages anciens la retrouvent à la fin) et bandeau d'une ligne dans l'agenda. **L'indicateur `isDevoir` de l'emploi du temps n'est pas utilisé** : son sens n'est pas établi | l'accueil avec un vrai contrôle |
+| 4 | Cours déplacé / remplacé | **fait** | `domain/ScheduleChanges.kt` (pur) compare deux lectures : même créneau (salle, professeur, fin, rétabli), **déplacé** (« 10:00 → 14:00 »), **remplacé** (« Maths → Anglais »). `NotificationPlanner` s'en sert avec ce que `NotifiedIds.lessons` retient déjà (aucun nouveau format) ; un cours annulé puis reprogrammé le même jour n'est annoncé que comme déplacé. **Agenda** : le dépôt garde à part l'ancienne réponse quand une lecture neuve change des cours à venir (`lessons-before`) ; fiche, frise et semaine montrent l'ancienne valeur barrée et une étiquette Déplacé / Remplacé / Modifié | une vraie notification de déplacement |
+| 5 | Export PDF et ICS, semaines 1 / 2 | **fait** | Voir `docs/EXPORTS.md`. `export/TypicalSchedule.kt` (alternance, classement toutes semaines / 1 / 2), `IcsWriter.kt` (RFC 5545, tests qui relisent le texte), `TimetableLayout.kt` (mise en page A4 paysage pure et testée) + `TimetablePdf.kt` (dessin `PdfDocument`), `ScheduleExport.kt` (avertissements, nom de fichier, dossier `exports/` du cache), `ui/schedule/ExportSheet.kt` (écran). `FileProvider` : `exports/` ajouté à `file_paths.xml`, vidé au lancement et à la fermeture | ouvrir le PDF et le .ics dans de vraies applications (Calendrier, lecteur PDF) |
+
+### Ce que l'on sait des semaines A / B (et ce que l'on suppose)
+- **Établi** : aucune réponse connue d'`emploidutemps.awp` (capture documentée, client web du même auteur) ne porte de
+  champ de semaine A / B ni de cours « une semaine sur deux ». Champs vus : `typeCours` (COURS, PERMANENCE, CONGE),
+  `groupe` / `groupeCode` (sous-groupe de classe), `isFlexible`, `isModifie`, `isAnnule`… (liste complète dans `docs/EXPORTS.md`).
+- **Supposé, non vérifié** : un établissement qui alterne se voit seulement à ses effets (cours présents une semaine sur
+  deux). On n'a **jamais vu** une réponse d'un tel établissement. L'alternance est donc un **réglage de l'utilisateur**
+  (avec la semaine de référence), jamais une détection automatique ; l'application ne fait que suggérer quand deux semaines
+  consécutives diffèrent d'au moins 30 %.
+- **Limite structurelle** : seules deux semaines sont en cache (en cours, suivante). Une semaine vide ou jamais chargée est dite
+  inconnue dans l'écran d'export et sur la page du PDF.
+
+Pas fait, volontairement : déplacement d'un cours **d'un jour à l'autre** (non rapproché : rien ne prouve que c'est le même cours),
+vacances et jours fériés dans l'ICS (inconnus), exceptions (cours ajouté / déplacé) dans la semaine type, réglage de la semaine 1
+partagé entre profils, contrôles tirés de `isDevoir`.
