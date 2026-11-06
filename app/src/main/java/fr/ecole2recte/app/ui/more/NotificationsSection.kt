@@ -54,10 +54,12 @@ fun NotificationsSection() {
 
     fun enable() {
         prefs.setEnabled(true)
-        AndroidNotifier(context).ensureChannels()
-        SyncScheduler.schedule(context, prefs.intervalHours.value)
+        // Chaque étape est isolée : si Android refuse l'une (canaux, planification), l'écran ne plante pas
+        // et l'autre étape est tout de même faite.
+        runCatching { AndroidNotifier(context).ensureChannels() }
+        runCatching { SyncScheduler.schedule(context, prefs.intervalHours.value) }
         // Un premier passage fixe la référence : ce qui existe déjà ne sera pas notifié.
-        SyncScheduler.runNow(context)
+        runCatching { SyncScheduler.runNow(context) }
     }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->

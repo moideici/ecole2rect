@@ -72,7 +72,7 @@ fun ReportCard(profile: ActiveProfile?, preselected: ReportCategory = ReportCate
     }
     if (!open) return
 
-    var category by remember { mutableStateOf(preselected) }
+    var category by remember { mutableStateOf(if (container.crashLog.last() != null) ReportCategory.Crash else preselected) }
     var description by remember { mutableStateOf("") }
     var withDiagnostic by remember { mutableStateOf(true) }
     val diagnostic = remember { diagnosticText(container, profile) }

@@ -30,6 +30,9 @@ class AppContainer(context: Context) {
     val settings: AppSettings = AppSettings(context)
     val syncPreferences = SyncPreferences(context)
 
+    /** Le dernier plantage, gardé sur le téléphone pour pouvoir le signaler. */
+    val crashLog = fr.ecole2recte.app.diagnostic.CrashLog(File(context.filesDir, "last_crash.txt"))
+
     /** Onglet demandé par un raccourci, une notification ou un widget ; consommé par l'écran principal. */
     val pendingTab = MutableStateFlow<String?>(null)
 
@@ -58,6 +61,11 @@ class Ecole2recteApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching { container.crashLog.record(error) }
+            previous?.uncaughtException(thread, error)
+        }
         // Les pièces jointes ouvertes lors d'un lancement précédent ne restent pas sur le téléphone.
         fr.ecole2recte.app.ui.common.AttachmentFiles.at(this).clear()
     }

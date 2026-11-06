@@ -115,6 +115,11 @@ fun DiagnosticCard(profile: ActiveProfile?) {
 /** Le diagnostic complet (session + forme des réponses), partagé par la carte Diagnostic et le signalement. */
 internal fun diagnosticText(container: fr.ecole2recte.app.AppContainer, profile: ActiveProfile?): String = buildString {
     appendLine(sessionLines(container, profile))
+    container.crashLog.last()?.let {
+        appendLine("--- dernier plantage (noms de méthodes seulement) ---")
+        appendLine(it.trimEnd())
+        appendLine()
+    }
     val sections = profile?.let { DataDiagnostic(container.responseCache).sections(CacheOwner(it.identifier, it.studentId)) }.orEmpty()
     if (sections.isEmpty()) appendLine("\nAucune réponse enregistrée pour l'instant.")
     sections.forEach { section ->
