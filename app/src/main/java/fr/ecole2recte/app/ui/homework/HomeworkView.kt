@@ -48,7 +48,9 @@ import fr.ecole2recte.app.ui.common.AttachmentList
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.HomeworkViewModel
 import fr.ecole2recte.app.ui.common.ListCard
+import fr.ecole2recte.app.ui.common.LocalActiveProfile
 import fr.ecole2recte.app.ui.common.RefreshOnResume
+import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.subjectIcon
 import fr.ecole2recte.app.ui.common.appViewModel
@@ -78,8 +80,12 @@ private fun HomeworkContent(tasks: List<Homework>, listState: LazyListState, vie
     var subject by remember { mutableStateOf<String?>(null) }
     var opened by remember { mutableStateOf<Homework?>(null) }
     val today = remember { LocalDate.now() }
+    val container = rememberAppContainer()
+    val ownerKey = LocalActiveProfile.current?.key.orEmpty()
+    var filter by remember(ownerKey) { mutableStateOf(HomeworkFilter.parse(container.homeworkFilter.get(ownerKey))) }
+    val counts = remember(tasks) { countByFilter(tasks) }
     val subjects = remember(tasks) { tasks.map { it.subject }.distinct().sorted() }
-    val groups = remember(tasks, subject) { groupHomework(tasks, today, subject) }
+    val groups = remember(tasks, subject, filter) { groupHomework(filterHomework(tasks, filter), today, subject) }
     if (tasks.isEmpty()) {
         EmptyState("Rien à faire", "Aucun devoir à venir pour le moment.")
         return
@@ -100,9 +106,23 @@ private fun HomeworkContent(tasks: List<Homework>, listState: LazyListState, vie
                 )
             }
         }
+        item {
+            LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(HomeworkFilter.entries) { option ->
+                    FilterChip(
+                        selected = filter == option,
+                        onClick = {
+                            filter = option
+                            container.homeworkFilter.set(ownerKey, option.name)
+                        },
+                        label = { Text("${option.label} (${counts[option] ?: 0})", fontSize = 13.sp) },
+                    )
+                }
+            }
+        }
         if (subjects.size > 1) {
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyRow(modifier = Modifier.padding(top = 4.dp), contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     item { FilterChip(subject == null, { subject = null }, label = { Text("Toutes", fontSize = 13.sp) }) }
                     items(subjects) { name ->
                         FilterChip(subject == name, { subject = if (subject == name) null else name }, label = { Text(name, fontSize = 13.sp) })
@@ -110,7 +130,12 @@ private fun HomeworkContent(tasks: List<Homework>, listState: LazyListState, vie
                 }
             }
         }
-        if (groups.isEmpty()) item { EmptyState("Rien dans cette matière", "Aucun devoir à venir ici.") }
+        if (groups.isEmpty()) {
+            item {
+                if (subject != null) EmptyState("Rien dans cette matière", "Aucun devoir ne correspond ici.")
+                else EmptyState(filter.emptyTitle, filter.emptyText)
+            }
+        }
         var rank = 0
         groups.forEach { group ->
             item(key = "title-${group.title}") {
