@@ -75,6 +75,8 @@ fun SimulatorCard(subjects: List<SubjectAverage>, modifier: Modifier = Modifier)
 /** Les deux questions du simulateur pour une matière : l'objectif visé, ou la note hypothétique. */
 @Composable
 fun SimulatorPanel(grades: List<GradeEntry>, subject: String, modifier: Modifier = Modifier) {
+    // Mode « montrer à quelqu'un » : le simulateur calcule avec des notes, il reste donc caché.
+    if (fr.ecole2recte.app.ui.common.LocalPrivacy.current.hidesGrades) return
     var hypothesis by rememberSaveable(subject) { mutableStateOf(false) }
     var target by rememberSaveable(subject) { mutableStateOf(GradeSimulation.defaultTarget(grades)) }
     var coefficient by rememberSaveable(subject) { mutableStateOf("1") }

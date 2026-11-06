@@ -82,6 +82,7 @@ fun MoreScreen(
         item { Section("Couleurs") }
         item { ColorsCard(profile) }
         item { Section("Sécurité et confort") }
+        item { fr.ecole2recte.app.ui.common.PrivacyCard() }
         item { SecurityAndMotionCard() }
         item { Section("Écriture vers ÉcoleDirecte") }
         item { WriteAccessCard() }

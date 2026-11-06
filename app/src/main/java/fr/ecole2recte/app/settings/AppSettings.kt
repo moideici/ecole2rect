@@ -59,6 +59,23 @@ class AppSettings(context: Context) {
         mutableAppLock.value = enabled
     }
 
+    /** Mode « montrer à quelqu'un » : masque les notes (et en option les messages) partout, jusqu'à désactivation. */
+    private val mutablePrivacyMode = MutableStateFlow(preferences.getBoolean(PrivacySelection.MODE_KEY, false))
+    val privacyMode: StateFlow<Boolean> = mutablePrivacyMode.asStateFlow()
+
+    fun setPrivacyMode(enabled: Boolean) {
+        preferences.edit().putBoolean(PrivacySelection.MODE_KEY, enabled).apply()
+        mutablePrivacyMode.value = enabled
+    }
+
+    private val mutablePrivacyHideMessages = MutableStateFlow(preferences.getBoolean(PrivacySelection.MESSAGES_KEY, false))
+    val privacyHideMessages: StateFlow<Boolean> = mutablePrivacyHideMessages.asStateFlow()
+
+    fun setPrivacyHideMessages(enabled: Boolean) {
+        preferences.edit().putBoolean(PrivacySelection.MESSAGES_KEY, enabled).apply()
+        mutablePrivacyHideMessages.value = enabled
+    }
+
     /** Délai d'absence après lequel le verrou est redemandé au retour dans l'application. */
     private val mutableLockDelay = MutableStateFlow(fr.ecole2recte.app.security.LockDelay.parse(preferences.getString("lock_delay", null)))
     val lockDelay: StateFlow<fr.ecole2recte.app.security.LockDelay> = mutableLockDelay.asStateFlow()

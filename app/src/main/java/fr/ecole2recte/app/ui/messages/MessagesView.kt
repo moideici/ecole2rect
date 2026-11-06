@@ -58,6 +58,7 @@ import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.linkified
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
+import fr.ecole2recte.app.ui.common.LocalPrivacy
 import fr.ecole2recte.app.ui.theme.AppTheme
 import java.text.Normalizer
 
@@ -97,8 +98,9 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
     val container = rememberAppContainer()
     val ownerKey = LocalActiveProfile.current?.key.orEmpty()
     val marks by remember(ownerKey) { container.messageMarks.marks(ownerKey) }.collectAsStateWithLifecycle(emptyMap())
-    val all = remember(first, more, readHere, marks) {
-        applyReadMarks((first + more).map { if (it.id in readHere) it.copy(unread = false) else it }, marks)
+    val privacy = LocalPrivacy.current
+    val all = remember(first, more, readHere, marks, privacy) {
+        privacy.maskMessages(applyReadMarks((first + more).map { if (it.id in readHere) it.copy(unread = false) else it }, marks))
     }
     val shown = remember(all, query, unreadOnly) {
         val needle = query.plain().trim()
@@ -164,7 +166,10 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
                 message,
                 Modifier.entrance(index.coerceAtMost(8)),
                 onToggleRead = { container.messageMarks.set(ownerKey, message.id, read = message.unread) },
-            ) { opened = message }
+            ) {
+                // Mode « montrer à quelqu'un » : on n'ouvre pas un message masqué (l'ouvrir le marquerait lu chez ÉcoleDirecte).
+                if (!privacy.hidesMessages) opened = message
+            }
         }
         if (hasMore && all.size >= 50) {
             item {

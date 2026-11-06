@@ -65,6 +65,11 @@ import fr.ecole2recte.app.ui.common.LocalScrollEvents
 import fr.ecole2recte.app.data.SchoolModule
 import fr.ecole2recte.app.ui.common.AdviceActions
 import fr.ecole2recte.app.ui.common.FreshnessBanner
+import fr.ecole2recte.app.ui.common.LocalPrivacy
+import fr.ecole2recte.app.ui.common.PrivacyToggle
+import fr.ecole2recte.app.domain.PrivacyMode
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import fr.ecole2recte.app.ui.common.LocalAdviceActions
 import fr.ecole2recte.app.data.AdviceAction
 import fr.ecole2recte.app.ui.common.UiState
@@ -194,7 +199,15 @@ private fun MainContent(
     val adviceActions = remember(activeProfile?.key) {
         AdviceActions(reconnect = onRetryConnection, openDiagnostic = { navController.navigateToTab(AppTab.More) })
     }
-    CompositionLocalProvider(LocalScrollEvents provides scrollEvents, LocalResumeTick provides resumeTick, LocalAdviceActions provides adviceActions) {
+    val privacyEnabled by container.settings.privacyMode.collectAsStateWithLifecycle()
+    val privacyMessages by container.settings.privacyHideMessages.collectAsStateWithLifecycle()
+    val privacy = remember(privacyEnabled, privacyMessages) { PrivacyMode(privacyEnabled, privacyMessages) }
+    CompositionLocalProvider(
+        LocalScrollEvents provides scrollEvents,
+        LocalResumeTick provides resumeTick,
+        LocalAdviceActions provides adviceActions,
+        LocalPrivacy provides privacy,
+    ) {
         Scaffold(
             containerColor = AppTheme.colors.background,
             bottomBar = {
@@ -279,11 +292,14 @@ private fun MainContent(
                             }
                         }
                     }
-                    AccountButton(
-                        profile = activeProfile,
-                        onClick = { showAccounts = true },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 18.dp),
-                    )
+                    Row(
+                        Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 18.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        PrivacyToggle()
+                        AccountButton(profile = activeProfile, onClick = { showAccounts = true })
+                    }
                 }
             }
         }

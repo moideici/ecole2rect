@@ -63,6 +63,7 @@ import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.entrance
 import fr.ecole2recte.app.ui.common.rememberAnimatedDecimal
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
+import fr.ecole2recte.app.ui.common.LocalPrivacy
 import fr.ecole2recte.app.ui.theme.AppTheme
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -83,7 +84,8 @@ fun GradesRoute(onOpenMethod: () -> Unit = {}) {
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     RefreshOnResume(viewModel)
     StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh, notices = viewModel.notices) { grades ->
-        GradesContent(grades, viewModel::selectPeriod, onOpenMethod)
+        val privacy = LocalPrivacy.current
+        GradesContent(remember(grades, privacy) { privacy.mask(grades) }, viewModel::selectPeriod, onOpenMethod)
     }
 }
 

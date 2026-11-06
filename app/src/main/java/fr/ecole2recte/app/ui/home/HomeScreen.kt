@@ -68,6 +68,8 @@ import fr.ecole2recte.app.ui.common.rememberSchoolRepository
 import fr.ecole2recte.app.settings.HomeLayout
 import fr.ecole2recte.app.settings.HomeSection
 import fr.ecole2recte.app.ui.common.rememberAppContainer
+import androidx.compose.runtime.remember
+import fr.ecole2recte.app.ui.common.LocalPrivacy
 import fr.ecole2recte.app.ui.theme.AppTheme
 import fr.ecole2recte.app.ui.theme.subjectColor
 import fr.ecole2recte.app.ui.theme.subjectTextColor
@@ -88,8 +90,9 @@ fun HomeRoute(
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     RefreshOnResume(viewModel)
     StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh, notices = viewModel.notices) { data ->
+        val privacy = LocalPrivacy.current
         HomeScreen(
-            data = data,
+            data = remember(data, privacy) { privacy.mask(data) },
             layout = layout,
             onOpenSchedule = onOpenSchedule,
             onOpenHomework = onOpenHomework,

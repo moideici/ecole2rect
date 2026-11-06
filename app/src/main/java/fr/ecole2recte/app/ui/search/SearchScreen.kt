@@ -49,6 +49,7 @@ import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.LocalActiveProfile
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
+import fr.ecole2recte.app.ui.common.LocalPrivacy
 import fr.ecole2recte.app.ui.theme.AppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -94,7 +95,8 @@ fun SearchRoute(onClose: () -> Unit, onOpen: (SearchKind) -> Unit) {
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
     val loaded = corpus
-    val groups = remember(loaded, query) { loaded?.let { GlobalSearch.search(it, query, LocalDate.now()) }.orEmpty() }
+    val privacy = LocalPrivacy.current
+    val groups = remember(loaded, query, privacy) { loaded?.let { GlobalSearch.search(it, query, LocalDate.now()) }.orEmpty().map(privacy::mask) }
 
     Column(Modifier.fillMaxSize()) {
         // La marge à droite laisse la place au bouton de compte, posé par-dessus l'écran.
