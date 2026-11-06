@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.ui.more
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -146,7 +147,7 @@ fun NotificationsSection() {
             lastSync?.let {
                 val moment = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())
                 Text(
-                    "Dernière vérification : " + moment.format(DateTimeFormatter.ofPattern("EEEE d MMMM 'à' HH:mm", Locale.FRENCH)),
+                    "Dernière vérification : " + FrenchFormat.weekdayDayMonthAtTime(moment),
                     color = AppTheme.colors.muted,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 8.dp),

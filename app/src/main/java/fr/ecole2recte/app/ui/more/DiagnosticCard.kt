@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.ui.more
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -149,7 +150,7 @@ private fun duration(ms: Long?): String = when {
     ms == null -> "inconnu"
     ms < 90_000 -> "${ms / 1000} s"
     ms < 90 * 60_000 -> "${ms / 60_000} min"
-    else -> "%.1f h".format(java.util.Locale.FRANCE, ms / 3_600_000.0)
+    else -> FrenchFormat.decimal(ms / 3_600_000.0) + " h"
 }
 
 private fun copy(context: Context, text: String) {

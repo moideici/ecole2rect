@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.ui.schedule
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -85,7 +86,7 @@ fun ScheduleList(listState: LazyListState) {
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     RefreshOnResume(viewModel)
     val exams = rememberUpcomingExams(repository)
-    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { week ->
+    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh, notices = viewModel.notices) { week ->
         ScheduleContent(week, listState, exams)
     }
 }
@@ -203,7 +204,7 @@ private fun DayView(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.FRENCH).removeSuffix(".").replaceFirstChar { it.uppercase() },
+                    FrenchFormat.weekdayShort(day),
                     color = if (selected) Color.White else AppTheme.colors.muted,
                     fontSize = 12.sp,
                 )
@@ -234,7 +235,7 @@ private fun DayView(
         LazyColumn(state = state, contentPadding = PaddingValues(top = 10.dp, bottom = 24.dp)) {
             item {
                 Text(
-                    day.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH)).replaceFirstChar { it.uppercase() },
+                    FrenchFormat.capitalized(FrenchFormat.weekdayDayMonth(day)),
                     color = AppTheme.colors.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -277,7 +278,7 @@ private fun WeekPane(
         if (weeks.size > 1) {
             Row(Modifier.padding(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 weeks.forEachIndexed { i, (monday, _) ->
-                    val label = monday.format(DateTimeFormatter.ofPattern("d MMM", Locale.FRENCH))
+                    val label = FrenchFormat.dayMonthShort(monday)
                     FilterChip(index == i, { page = i }, label = { Text("Sem. du $label", fontSize = 13.sp) })
                 }
             }
@@ -292,7 +293,7 @@ private fun WeekPane(
 private fun LessonDetail(entry: ScheduleEntry) {
     val subject = entry.subject
     val day = runCatching {
-        LocalDate.parse(entry.date).format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH)).replaceFirstChar { it.uppercase() }
+        FrenchFormat.capitalized(FrenchFormat.weekdayDayMonth(LocalDate.parse(entry.date)))
     }.getOrDefault(entry.date)
     Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(subject.name, color = AppTheme.colors.ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)

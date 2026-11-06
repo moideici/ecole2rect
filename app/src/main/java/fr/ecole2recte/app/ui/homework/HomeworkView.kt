@@ -71,7 +71,7 @@ fun HomeworkList(listState: LazyListState) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     RefreshOnResume(viewModel)
-    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { tasks ->
+    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh, notices = viewModel.notices) { tasks ->
         HomeworkContent(tasks, listState, viewModel)
     }
 }

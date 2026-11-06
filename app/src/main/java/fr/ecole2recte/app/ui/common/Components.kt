@@ -27,6 +27,17 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import fr.ecole2recte.app.data.AdviceAction
+import fr.ecole2recte.app.data.FailureAdvice
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,28 +52,37 @@ import fr.ecole2recte.app.ui.theme.AppTheme
 import fr.ecole2recte.app.ui.theme.Dimens
 import fr.ecole2recte.app.ui.theme.subjectColor
 
-/** Bandeau affiché quand l'écran montre la dernière réponse enregistrée faute de réseau. */
-@Composable
-fun StaleDataBar(lastSyncMillis: Long?, cause: fr.ecole2recte.app.domain.StaleCause? = null) {
-    val label = lastSyncMillis?.let {
-        val moment = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault())
-        moment.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM 'à' HH:mm", java.util.Locale.FRENCH))
-    }
-    Text(
-        staleText(label, cause),
-        modifier = Modifier.fillMaxWidth().background(AppTheme.colors.warningSurface).padding(horizontal = 18.dp, vertical = 8.dp),
-        color = AppTheme.colors.warningTitle,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-    )
-}
+/** Ce que les boutons d'un message d'erreur ou du bandeau d'ancienneté déclenchent ; fourni par l'écran principal. */
+class AdviceActions(val reconnect: () -> Unit = {}, val openDiagnostic: () -> Unit = {})
 
-/** « Hors ligne » seulement si c'est vraiment le réseau ; sinon la vraie cause (compte bloqué, version refusée…). */
-internal fun staleText(dateLabel: String?, cause: fr.ecole2recte.app.domain.StaleCause?): String {
-    val saved = if (dateLabel != null) "données enregistrées $dateLabel" else "données enregistrées"
-    return when (cause) {
-        null, fr.ecole2recte.app.domain.StaleCause.Network -> "Hors ligne · $saved"
-        else -> "${cause.label.replaceFirstChar { it.uppercase() }} · $saved"
+val LocalAdviceActions = staticCompositionLocalOf { AdviceActions() }
+
+/**
+ * Bandeau d'ancienneté, en haut des écrans de données quand la lecture vient de l'enregistrement
+ * (hors ligne, compte bloqué, service en panne…) : « Hors ligne · Données du 5 nov. à 18 h (il y a 3 h) »,
+ * et l'action utile quand il y en a une.
+ */
+@Composable
+fun FreshnessBanner(freshness: fr.ecole2recte.app.domain.Freshness, onAction: (AdviceAction) -> Unit) {
+    val advice = remember(freshness) { FailureAdvice.banner(freshness, System.currentTimeMillis()) }
+    Row(
+        Modifier.fillMaxWidth().background(AppTheme.colors.warningSurface).padding(horizontal = 18.dp, vertical = 8.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(advice.title, color = AppTheme.colors.warningTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(advice.detail, color = AppTheme.colors.warningText, fontSize = 12.sp)
+        }
+        if (advice.action != AdviceAction.None) {
+            Text(
+                advice.action.label,
+                modifier = Modifier.clickable { onAction(advice.action) }.padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
+                color = AppTheme.colors.warningTitle,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
@@ -129,7 +149,7 @@ fun EmptyState(title: String, message: String) {
     }
 }
 
-/** Affiche le chargement, l'erreur (avec « Réessayer ») ou le contenu d'un [UiState]. */
+/** Affiche le chargement, l'erreur (précise, avec l'action utile) ou le contenu d'un [UiState]. */
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun <T> StateHost(
@@ -137,32 +157,82 @@ fun <T> StateHost(
     onRetry: () -> Unit,
     refreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
+    /** Messages brefs (« déjà à jour ») affichés en bas quand un tirage est refusé sans requête. */
+    notices: SharedFlow<String>? = null,
     content: @Composable (T) -> Unit,
 ) {
     when (state) {
         UiState.Loading -> SkeletonPage()
-        is UiState.Error -> Column(
-            Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(state.message, color = AppTheme.colors.ink, fontSize = 14.sp)
+        is UiState.Error -> ErrorPanel(state, onRetry)
+        is UiState.Content -> {
+            var notice by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(notices) {
+                notices?.collectLatest {
+                    notice = it
+                    delay(NOTICE_MS)
+                    notice = null
+                }
+            }
+            Box(Modifier.fillMaxSize()) {
+                if (onRefresh == null) {
+                    content(state.value)
+                } else {
+                    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+                        content(state.value)
+                    }
+                }
+                notice?.let { text ->
+                    Text(
+                        text,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 18.dp, vertical = 14.dp)
+                            .background(AppTheme.colors.inverseSurface, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                        color = Color.White,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private const val NOTICE_MS = 3_500L
+
+@Composable
+private fun ErrorPanel(error: UiState.Error, onRetry: () -> Unit) {
+    val actions = LocalAdviceActions.current
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        error.title?.let { Text(it, color = AppTheme.colors.ink, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+        Text(error.message, color = AppTheme.colors.ink, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+        val primary: (() -> Unit)? = when (error.action) {
+            AdviceAction.Retry -> onRetry
+            AdviceAction.Reconnect -> actions.reconnect
+            AdviceAction.OpenDiagnostic -> actions.openDiagnostic
+            AdviceAction.None -> null
+        }
+        if (primary != null) {
             Text(
-                "Réessayer",
-                modifier = Modifier.padding(top = 12.dp).clickable(onClick = onRetry).padding(8.dp),
+                error.action.label,
+                modifier = Modifier.padding(top = 12.dp).clickable(onClick = primary).padding(8.dp),
                 color = AppTheme.colors.accent,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
             )
         }
-        is UiState.Content ->
-            if (onRefresh == null) {
-                content(state.value)
-            } else {
-                PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
-                    content(state.value)
-                }
-            }
+        // Un compte bloqué ne se relance pas : insister aggraverait les choses.
+        if (error.action != AdviceAction.Retry && error.action != AdviceAction.None) {
+            Text(
+                AdviceAction.Retry.label,
+                modifier = Modifier.clickable(onClick = onRetry).padding(8.dp),
+                color = AppTheme.colors.muted,
+                fontSize = 13.sp,
+            )
+        }
     }
 }
 

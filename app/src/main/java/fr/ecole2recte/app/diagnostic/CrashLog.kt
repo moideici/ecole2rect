@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.diagnostic
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -31,7 +32,7 @@ class CrashLog(private val file: File) {
         private const val MAX_CAUSES = 4
 
         fun describe(error: Throwable, at: Long): String = buildString {
-            val moment = Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+            val moment = FrenchFormat.isoTime(at)
             appendLine("plantage du $moment")
             var current: Throwable? = error
             var depth = 0

@@ -63,7 +63,10 @@ import fr.ecole2recte.app.ui.common.LocalActiveProfile
 import fr.ecole2recte.app.ui.common.LocalResumeTick
 import fr.ecole2recte.app.ui.common.LocalScrollEvents
 import fr.ecole2recte.app.data.SchoolModule
-import fr.ecole2recte.app.ui.common.StaleDataBar
+import fr.ecole2recte.app.ui.common.AdviceActions
+import fr.ecole2recte.app.ui.common.FreshnessBanner
+import fr.ecole2recte.app.ui.common.LocalAdviceActions
+import fr.ecole2recte.app.data.AdviceAction
 import fr.ecole2recte.app.ui.common.UiState
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberAppContainer
@@ -188,7 +191,10 @@ private fun MainContent(
     LifecycleEventEffect(Lifecycle.Event.ON_START) { resumeTick++ }
     LaunchedEffect(resumeTick) { badgesViewModel.refreshIfStale() }
 
-    CompositionLocalProvider(LocalScrollEvents provides scrollEvents, LocalResumeTick provides resumeTick) {
+    val adviceActions = remember(activeProfile?.key) {
+        AdviceActions(reconnect = onRetryConnection, openDiagnostic = { navController.navigateToTab(AppTab.More) })
+    }
+    CompositionLocalProvider(LocalScrollEvents provides scrollEvents, LocalResumeTick provides resumeTick, LocalAdviceActions provides adviceActions) {
         Scaffold(
             containerColor = AppTheme.colors.background,
             bottomBar = {
@@ -217,7 +223,15 @@ private fun MainContent(
                 if (connection == ConnectionStatus.Offline) {
                     ConnectionBanner(connectionMessage, onRetryConnection)
                 }
-                if (freshness.stale) StaleDataBar(freshness.lastSyncMillis, freshness.cause)
+                if (freshness.stale) {
+                    FreshnessBanner(freshness) { action ->
+                        when (action) {
+                            AdviceAction.Reconnect -> onRetryConnection()
+                            AdviceAction.OpenDiagnostic -> navController.navigateToTab(AppTab.More)
+                            else -> badgesViewModel.retry()
+                        }
+                    }
+                }
                 Box(Modifier.fillMaxSize()) {
                     Surface(modifier = Modifier.fillMaxSize(), color = AppTheme.colors.background) {
                         NavHost(

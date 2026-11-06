@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.ui.schedule
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -103,7 +104,7 @@ fun WeekTimelineView(
                 val isToday = day == today
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.FRENCH).removeSuffix(".").replaceFirstChar { it.uppercase() },
+                        FrenchFormat.weekdayShort(day),
                         color = if (isToday) AppTheme.colors.accent else AppTheme.colors.muted,
                         fontSize = 12.sp,
                         fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,

@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.sync
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import fr.ecole2recte.app.domain.GradeEntry
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.Homework
@@ -283,5 +284,5 @@ object NotificationPlanner {
 
     /** 16.0 devient « 16 », 15.5 devient « 15,5 ». */
     private fun number(value: Double): String =
-        String.format(Locale.FRENCH, "%.1f", value).removeSuffix(",0")
+        FrenchFormat.decimal(value).removeSuffix(",0")
 }

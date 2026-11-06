@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.ui.schedule
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -105,7 +106,7 @@ fun ExportSheetContent(entries: List<ScheduleEntry>, weekStart: LocalDate) {
     val colorOf: (String, Int) -> Int = { subject, index ->
         LightSubjectColors[Math.floorMod(overrides[subjectKey(subject)] ?: index, LightSubjectColors.size)].toArgb()
     }
-    val dateFormat = remember { DateTimeFormatter.ofPattern("d MMM yyyy", Locale.FRENCH) }
+    val dateFormat = remember { FrenchFormat.formatter("d MMM yyyy") }
 
     fun export(open: Boolean) {
         busy = true
@@ -171,7 +172,7 @@ fun ExportSheetContent(entries: List<ScheduleEntry>, weekStart: LocalDate) {
         }
         if (alternates) {
             Text(
-                "La semaine du ${weekStart.format(DateTimeFormatter.ofPattern("d MMMM", Locale.FRENCH))} (en cours) est la…",
+                "La semaine du ${FrenchFormat.dayMonth(weekStart)} (en cours) est la…",
                 color = AppTheme.colors.ink,
                 fontSize = 14.sp,
             )

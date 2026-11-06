@@ -72,9 +72,8 @@ import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import fr.ecole2recte.app.domain.FrenchFormat
 import java.time.temporal.TemporalAdjusters
-import java.util.Locale
 import kotlin.math.abs
 
 /**
@@ -104,7 +103,7 @@ class EcoleDirecteRepository(
     private val locks = HashMap<String, Mutex>()
     private val lockGuard = Mutex()
 
-    private val french = Locale.FRENCH
+    private val french = FrenchFormat.locale
 
     private val owner = CacheOwner(profile.identifier, profile.studentId)
     private val staleResources = HashMap<String, Pair<Long, StaleCause>>()
@@ -335,7 +334,7 @@ class EcoleDirecteRepository(
         val upcoming = lessons.filter { !it.canceled && parse(it.end) > current }.minByOrNull { it.start }
         return HomeData(
             greeting = "Bonjour ${profile.firstName}",
-            dateLabel = today().format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", french)).capitalized(),
+            dateLabel = FrenchFormat.capitalized(FrenchFormat.weekdayDayMonthYear(today())),
             nextClass = upcoming?.let {
                 NextClass(it.toSubject(), startLabel(it, current), progress(it, current), afterLabel(lessons, it))
             },
@@ -365,7 +364,7 @@ class EcoleDirecteRepository(
             day in monday..sunday.plusDays(7)
         }
         return ScheduleWeek(
-            label = "Semaine du ${monday.format(DateTimeFormatter.ofPattern("d MMMM", french))}",
+            label = "Semaine du ${FrenchFormat.dayMonth(monday)}",
             entries = withChangeHistory(window.map { it.toEntry() }),
             weekStart = monday.toString(),
             today = today().toString(),
@@ -507,9 +506,9 @@ class EcoleDirecteRepository(
     private fun dateLabel(iso: String?, long: Boolean = false): String {
         if (iso == null) return ""
         val moment = runCatching { LocalDateTime.parse(iso) }.getOrNull() ?: return ""
-        if (long) return moment.format(DateTimeFormatter.ofPattern("EEEE d MMMM 'à' HH:mm", french)).capitalized()
-        return if (moment.toLocalDate() == today()) moment.format(DateTimeFormatter.ofPattern("HH:mm"))
-        else moment.format(DateTimeFormatter.ofPattern("d MMM", french))
+        if (long) return FrenchFormat.capitalized(FrenchFormat.weekdayDayMonthAtTime(moment))
+        return if (moment.toLocalDate() == today()) FrenchFormat.time(moment)
+        else FrenchFormat.dayMonthShort(moment.toLocalDate())
     }
 
     override suspend fun schoolLife(): SchoolLifeSummary {
@@ -657,7 +656,7 @@ class EcoleDirecteRepository(
             }
         }
         pendingHomework(homework).filter { it.exam && LocalDate.parse(it.dueDate) <= today.plusDays(3) }.forEach { task ->
-            val day = LocalDate.parse(task.dueDate).format(DateTimeFormatter.ofPattern("EEEE d MMMM", french))
+            val day = FrenchFormat.weekdayDayMonth(LocalDate.parse(task.dueDate))
             list += Highlight(HighlightKind.Exam, "Évaluation en ${task.subject.prettySubject()}", day.capitalized())
         }
         val unread = inbox.count { !it.read }
@@ -691,7 +690,7 @@ class EcoleDirecteRepository(
     private fun coefficientText(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else decimal(value)
 
     private fun shortDay(iso: String?): String? =
-        iso?.let { runCatching { LocalDate.parse(it).format(DateTimeFormatter.ofPattern("d MMM", french)) }.getOrNull() }
+        iso?.let { runCatching { FrenchFormat.dayMonthShort(LocalDate.parse(it)) }.getOrNull() }
 
     private fun afterLabel(lessons: List<ApiLesson>, current: ApiLesson): String? {
         val following = lessons.filter { !it.canceled && it.start >= current.end }.minByOrNull { it.start } ?: return null
@@ -703,7 +702,7 @@ class EcoleDirecteRepository(
     private fun ApiHomework.toHomework() = Homework(
         title = content.lineSequence().firstOrNull { it.isNotBlank() } ?: if (exam) "Évaluation prévue" else "Travail à faire",
         subject = subject.prettySubject(),
-        due = LocalDate.parse(dueDate).format(DateTimeFormatter.ofPattern("EEEE d MMMM", french)).capitalized(),
+        due = FrenchFormat.capitalized(FrenchFormat.weekdayDayMonth(LocalDate.parse(dueDate))),
         colorIndex = colorFor(subject),
         id = id,
         dueDate = dueDate,
@@ -809,7 +808,7 @@ class EcoleDirecteRepository(
         return withAverage.sumOf { it.first * it.second } / withAverage.sumOf { it.second }
     }
 
-    private fun decimal(value: Double): String = String.format(french, "%.1f", value)
+    private fun decimal(value: Double): String = FrenchFormat.decimal(value)
 
     private fun parse(iso: String): LocalDateTime = LocalDateTime.parse(iso)
 
@@ -824,7 +823,7 @@ class EcoleDirecteRepository(
         return when {
             start.toLocalDate() != now.toLocalDate() -> "${dayName(lesson.start)}  ·  $time"
             minutes < 60 -> "$time  ·  dans $minutes min"
-            else -> "$time  ·  dans ${minutes / 60} h ${"%02d".format(minutes % 60)}"
+            else -> "$time  ·  dans ${minutes / 60} h ${FrenchFormat.twoDigits((minutes % 60).toInt())}"
         }
     }
 

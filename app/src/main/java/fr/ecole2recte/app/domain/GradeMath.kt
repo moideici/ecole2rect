@@ -99,5 +99,5 @@ object GradeMath {
     }
 
     /** Un nombre avec une décimale et la virgule française : 14,5. */
-    fun decimal(value: Double): String = String.format(java.util.Locale.FRENCH, "%.1f", value)
+    fun decimal(value: Double): String = FrenchFormat.decimal(value)
 }

@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.ui.schedule
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import fr.ecole2recte.app.domain.ScheduleEntry
 
 /** Un cours ou plusieurs cours qui s'enchaînent (double heure), placé sur la frise d'une journée. */
@@ -47,7 +48,7 @@ fun formatMinutes(total: Int): String {
     return when {
         hours == 0 -> "$minutes min"
         minutes == 0 -> "$hours h"
-        else -> "$hours h ${"%02d".format(minutes)}"
+        else -> "$hours h ${FrenchFormat.twoDigits(minutes)}"
     }
 }
 

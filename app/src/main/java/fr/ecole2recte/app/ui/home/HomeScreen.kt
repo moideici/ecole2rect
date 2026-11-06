@@ -86,7 +86,7 @@ fun HomeRoute(
     val layout by rememberAppContainer().settings.homeLayout.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     RefreshOnResume(viewModel)
-    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { data ->
+    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh, notices = viewModel.notices) { data ->
         HomeScreen(
             data = data,
             layout = layout,

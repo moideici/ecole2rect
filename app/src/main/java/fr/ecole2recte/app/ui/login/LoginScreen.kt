@@ -52,6 +52,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ecole2recte.app.data.BirthDate
+import fr.ecole2recte.app.data.AdviceAction
+import fr.ecole2recte.app.data.FailureAdvice
 import fr.ecole2recte.app.data.FailureKind
 import fr.ecole2recte.app.session.LoginUiState
 import fr.ecole2recte.app.ui.common.pressScale
@@ -250,12 +252,13 @@ private fun SecurityStep(
 @Composable
 private fun ErrorBlock(state: LoginUiState) {
     val error = state.error ?: return
-    Text(
-        error.message,
-        color = if (error.kind == FailureKind.Network || error.kind == FailureKind.Service) AppTheme.colors.muted else AppTheme.colors.error,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Bold,
-    )
+    val advice = FailureAdvice.forLogin(error.kind, error.message)
+    val color = if (error.kind == FailureKind.Network || error.kind == FailureKind.Service) AppTheme.colors.muted else AppTheme.colors.error
+    Text(advice.title, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    Text(advice.detail, color = color, fontSize = 13.sp)
+    if (advice.action == AdviceAction.OpenDiagnostic) {
+        Text("Plus > Diagnostic, une fois connecté, montre ce qui est reçu.", color = AppTheme.colors.muted, fontSize = 12.sp)
+    }
     state.diagnostic?.let { TechnicalDetails(it) }
 }
 

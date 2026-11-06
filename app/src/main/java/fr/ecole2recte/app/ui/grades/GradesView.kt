@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.ui.grades
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -80,7 +81,7 @@ fun GradesRoute(onOpenMethod: () -> Unit = {}) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     RefreshOnResume(viewModel)
-    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { grades ->
+    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh, notices = viewModel.notices) { grades ->
         GradesContent(grades, viewModel::selectPeriod, onOpenMethod)
     }
 }
@@ -226,12 +227,12 @@ private fun classLine(average: String, line: SubjectAverage): String {
     return "Classe : $average$range"
 }
 
-private fun format(value: Double) = String.format(Locale.FRENCH, "%.1f", value).removeSuffix(",0").let {
+private fun format(value: Double) = FrenchFormat.decimal(value).removeSuffix(",0").let {
     if (it.contains(',')) it else it
 }
 
 private fun shortDate(iso: String?): String =
-    iso?.let { runCatching { LocalDate.parse(it).format(DateTimeFormatter.ofPattern("d MMM", Locale.FRENCH)) }.getOrNull() }.orEmpty()
+    iso?.let { runCatching { FrenchFormat.dayMonthShort(LocalDate.parse(it)) }.getOrNull() }.orEmpty()
 
 @Composable
 private fun GradeRow(grade: GradeEntry, showSubject: Boolean, isNew: Boolean, modifier: Modifier, onClick: () -> Unit) {
