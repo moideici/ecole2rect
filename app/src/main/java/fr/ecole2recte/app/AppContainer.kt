@@ -5,7 +5,11 @@ import android.content.Context
 import java.io.File
 import fr.ecole2recte.app.data.CredentialStore
 import fr.ecole2recte.app.data.HomeworkStatusStore
+import fr.ecole2recte.app.data.HomeworkFilterStore
+import fr.ecole2recte.app.data.MessageReadMarks
 import fr.ecole2recte.app.data.PrefsHomeworkStatusStore
+import fr.ecole2recte.app.data.ProfileKeyValueStore
+import fr.ecole2recte.app.data.SeenGrades
 import fr.ecole2recte.app.data.KeystoreCipher
 import fr.ecole2recte.app.data.PrefsTextStorage
 import fr.ecole2recte.app.data.PrefsTokenLog
@@ -43,6 +47,15 @@ class AppContainer(context: Context) {
     val apiSession = ApiSession(tokenLog = tokenLog)
     val subjectColors = SubjectColorStore(PrefsTextStorage(context, "ecole2recte_colors", "overrides"))
     val homeworkStatus: HomeworkStatusStore = PrefsHomeworkStatusStore(context)
+
+    /** « Lu » / « non lu » choisis dans la liste des messages : locaux, jamais écrits chez ÉcoleDirecte. */
+    val messageMarks = MessageReadMarks(ProfileKeyValueStore(PrefsTextStorage(context, "ecole2recte_local", "message_marks")))
+
+    /** Filtre choisi dans la liste des devoirs, par profil. */
+    val homeworkFilter = HomeworkFilterStore(ProfileKeyValueStore(PrefsTextStorage(context, "ecole2recte_local", "homework_filter")))
+
+    /** Notes déjà vues par l'application (pastille « Nouveau »), par profil. */
+    val seenGrades = SeenGrades(ProfileKeyValueStore(PrefsTextStorage(context, "ecole2recte_local", "seen_grades")))
     val responseCache: ResponseCache = FileResponseCache(File(context.filesDir, "cache"), KeystoreCipher())
 
     /** Un seul dépôt par profil, partagé par tous les écrans. */

@@ -17,6 +17,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.MarkEmailRead
+import androidx.compose.material.icons.outlined.MarkEmailUnread
+import androidx.compose.material3.IconButton
+import fr.ecole2recte.app.data.applyReadMarks
+import fr.ecole2recte.app.ui.common.LocalActiveProfile
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -88,7 +93,13 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
     var composing by remember { mutableStateOf(false) }
     var sentNotice by remember { mutableStateOf(false) }
 
-    val all = remember(first, more, readHere) { (first + more).map { if (it.id in readHere) it.copy(unread = false) else it } }
+    // Marques locales (lu / non lu choisis ici, jamais écrits chez ÉcoleDirecte) : elles passent après « ouvert pendant cette visite ».
+    val container = rememberAppContainer()
+    val ownerKey = LocalActiveProfile.current?.key.orEmpty()
+    val marks by remember(ownerKey) { container.messageMarks.marks(ownerKey) }.collectAsStateWithLifecycle(emptyMap())
+    val all = remember(first, more, readHere, marks) {
+        applyReadMarks((first + more).map { if (it.id in readHere) it.copy(unread = false) else it }, marks)
+    }
     val shown = remember(all, query, unreadOnly) {
         val needle = query.plain().trim()
         all.filter { message ->
@@ -149,7 +160,11 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
             }
         }
         itemsIndexed(shown, key = { index, message -> message.id.ifEmpty { "m$index" } }) { index, message ->
-            MessageRow(message, Modifier.entrance(index.coerceAtMost(8))) { opened = message }
+            MessageRow(
+                message,
+                Modifier.entrance(index.coerceAtMost(8)),
+                onToggleRead = { container.messageMarks.set(ownerKey, message.id, read = message.unread) },
+            ) { opened = message }
         }
         if (hasMore && all.size >= 50) {
             item {
@@ -171,7 +186,7 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
     }
     opened?.let { message ->
         ModalBottomSheet(onDismissRequest = { opened = null }, containerColor = AppTheme.colors.surface) {
-            MessageSheet(message, viewModel)
+            MessageSheet(message, viewModel, onOpened = { container.messageMarks.forget(ownerKey, message.id) })
         }
     }
     if (composing && canSend) {
@@ -185,7 +200,7 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
 }
 
 @Composable
-private fun MessageRow(message: MessagePreview, modifier: Modifier, onClick: () -> Unit) {
+private fun MessageRow(message: MessagePreview, modifier: Modifier, onToggleRead: () -> Unit, onClick: () -> Unit) {
     ListCard(modifier, onClick = onClick) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
             Box(
@@ -213,14 +228,28 @@ private fun MessageRow(message: MessagePreview, modifier: Modifier, onClick: () 
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (message.id.isNotBlank()) {
+                IconButton(onClick = onToggleRead, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        if (message.unread) Icons.Outlined.MarkEmailRead else Icons.Outlined.MarkEmailUnread,
+                        contentDescription = if (message.unread) "Marquer comme lu sur ce téléphone" else "Marquer comme non lu sur ce téléphone",
+                        tint = AppTheme.colors.muted,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel) {
+private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel, onOpened: () -> Unit) {
     var detail by remember(message.id) { mutableStateOf<Result<MessageDetail>?>(null) }
-    LaunchedEffect(message.id) { detail = runCatching { viewModel.open(message) } }
+    LaunchedEffect(message.id) {
+        detail = runCatching { viewModel.open(message) }
+        // Ouvert, donc lu chez ÉcoleDirecte : la marque locale n'a plus lieu d'être.
+        if (detail?.isSuccess == true) onOpened()
+    }
     Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(message.preview, color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(message.sender, color = AppTheme.colors.muted, fontSize = 14.sp)
