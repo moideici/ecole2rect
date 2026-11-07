@@ -76,6 +76,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.5")
     implementation("androidx.biometric:biometric:1.1.0")
+    // Biometric 1.1.0 tire un vieux Fragment (1.2) qui refuse les codes de requête du nouveau registre
+    // d'Activity : demander la permission de notification plantait (« Can only use lower 16 bits »).
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("androidx.glance:glance-appwidget:1.1.1")
     testImplementation("junit:junit:4.13.2")

@@ -35,7 +35,7 @@ class RealAccountReadOnlyTest {
     }
 
     private fun open(tab: String) {
-        compose.onNodeWithContentDescription(tab).performClick()
+        compose.onNodeWithContentDescription(tab, useUnmergedTree = true).performClick()
     }
 
     private fun connected(): Boolean {
@@ -51,7 +51,7 @@ class RealAccountReadOnlyTest {
             open(tab)
             compose.waitForIdle()
         }
-        compose.onNodeWithContentDescription("Accueil").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Accueil", useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test
@@ -87,5 +87,25 @@ class RealAccountReadOnlyTest {
         open("Plus")
         waitForTab("Vie scolaire")
         compose.onNodeWithText("Notifications et widgets").assertIsDisplayed()
+    }
+
+    /**
+     * Le plantage vu sur le téléphone : demander la permission de notification levait « Can only use
+     * lower 16 bits for requestCode » (vieux Fragment tiré par la bibliothèque d'empreinte). Ce test
+     * fait la même demande que l'interrupteur de Plus, avec le même registre d'Activity.
+     */
+    @Test
+    fun demanderLaPermissionDeNotificationNePlantePas() {
+        waitForTab("Accueil")
+        compose.runOnUiThread {
+            val launcher = compose.activity.activityResultRegistry.register(
+                "test-notif-permission",
+                androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+            ) { }
+            launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+        compose.waitForIdle()
+        // Si Android affiche sa fenêtre de demande, on la ferme.
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("input keyevent 4").close()
     }
 }
