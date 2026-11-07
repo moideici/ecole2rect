@@ -26,6 +26,8 @@ data class WidgetRoles(
     val alertSoft: Int,
     /** Aplat neutre légèrement plus clair ou plus sombre que le fond. */
     val soft: Int,
+    /** Traits fins de la grille (heures) : visibles sans dominer. */
+    val line: Int,
     /** Fond plein des widgets « héros » (prochain cours, messages). */
     val hero: Int,
     val onHero: Int,
@@ -75,6 +77,7 @@ object WidgetThemes {
             alert = Contrast.readableOn(p.error, surface),
             alertSoft = blend(surface, p.error, 0.16),
             soft = blend(surface, p.ink, 0.07),
+            line = blend(surface, p.ink, 0.16),
             hero = hero,
             onHero = onHero,
             onHeroSoft = if (Contrast.ratio(softHero, hero) >= 4.5) softHero else onHero,

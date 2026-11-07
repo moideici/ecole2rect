@@ -64,6 +64,7 @@ class WidgetColors(private val theme: WidgetTheme) {
     val alert = pick { it.alert }
     val alertSoft = pick { it.alertSoft }
     val soft = pick { it.soft }
+    val line = pick { it.line }
     val hero = pick { it.hero }
     val onHero = pick { it.onHero }
     val onHeroSoft = pick { it.onHeroSoft }
