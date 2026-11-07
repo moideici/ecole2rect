@@ -103,7 +103,7 @@ private fun ScheduleContent(week: ScheduleWeek, listState: LazyListState, exams:
     val weekStart = remember(week) { runCatching { LocalDate.parse(week.weekStart) }.getOrNull() }
     val today = remember(week) { runCatching { LocalDate.parse(week.today) }.getOrNull() }
     if (weekStart == null) {
-        EmptyState("Pas de cours", "Aucun cours n'est prévu cette semaine.")
+        EmptyState("Pas de cours")
         return
     }
     // Deux semaines de jours ; un samedi ou un dimanche sans cours n'a rien à montrer.
@@ -243,7 +243,7 @@ private fun DayView(
                 )
             }
             if (entries.isEmpty()) {
-                item { EmptyState("Pas de cours", "Rien de prévu ce jour-là.") }
+                item { EmptyState("Pas de cours") }
             } else {
                 item {
                     DayTimelineView(
@@ -299,11 +299,11 @@ private fun LessonDetail(entry: ScheduleEntry) {
         Text(subject.name, color = AppTheme.colors.ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text("$day · ${entry.start} — ${entry.end}", color = AppTheme.colors.muted, fontSize = 14.sp)
         ScheduleChanges.tag(entry)?.let {
-            Text("$it depuis la dernière lecture de l'emploi du temps.", color = AppTheme.colors.error, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("$it.", color = AppTheme.colors.error, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
         ScheduleChanges.lines(entry).forEach { ChangedLine(it) }
-        if (entry.canceled) Text("Ce cours est annulé.", color = AppTheme.colors.error, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        if (entry.exam) Text("Une évaluation est prévue.", color = AppTheme.colors.accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        if (entry.canceled) Text("Cours annulé.", color = AppTheme.colors.error, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        if (entry.exam) Text("Évaluation prévue.", color = AppTheme.colors.accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         if (subject.room.isNotBlank()) DetailLine("Salle", subject.room)
         if (subject.teacher.isNotBlank()) DetailLine("Professeur", subject.teacher)
         if (entry.note.isNotBlank()) DetailLine("Note", entry.note)

@@ -49,7 +49,6 @@ fun SimulatorCard(subjects: List<SubjectAverage>, modifier: Modifier = Modifier)
             Row(Modifier.fillMaxWidth().clickable { open = !open }, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Simulateur", color = AppTheme.colors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("Quelle note pour atteindre une moyenne ?", color = AppTheme.colors.muted, fontSize = 13.sp)
                 }
                 Text(if (open) "Replier" else "Ouvrir", color = AppTheme.colors.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
@@ -134,7 +133,7 @@ fun SimulatorPanel(grades: List<GradeEntry>, subject: String, modifier: Modifier
             modifier = Modifier.fillMaxWidth().background(tint.copy(alpha = .10f), RoundedCornerShape(12.dp)).padding(12.dp),
         )
         Text(
-            "Estimation fondée sur les notes que l'application voit en $subject pour la période affichée, pas sur la moyenne officielle.",
+            "Estimation, pas la moyenne officielle.",
             color = AppTheme.colors.muted,
             fontSize = 12.sp,
         )

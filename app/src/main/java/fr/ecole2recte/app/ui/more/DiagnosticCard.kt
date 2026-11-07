@@ -51,24 +51,15 @@ fun DiagnosticCard(profile: ActiveProfile?) {
     var open by remember { mutableStateOf(false) }
     ListCard(onClick = { open = true }) {
         Column(Modifier.padding(16.dp)) {
-            Text("Diagnostic des données", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "La forme des réponses d'ÉcoleDirecte, sans aucune valeur personnelle : pour comprendre un affichage vide.",
-                color = AppTheme.colors.muted,
-                fontSize = 13.sp,
-            )
+            Text("Diagnostic", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
     if (open) {
         val report = remember { diagnosticText(container, profile) }
         ModalBottomSheet(onDismissRequest = { open = false }, containerColor = AppTheme.colors.surface) {
             Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Diagnostic des données", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "Copier ce texte pour le coller dans un ticket : il ne contient aucune valeur, seulement des clés et des types.",
-                    color = AppTheme.colors.muted,
-                    fontSize = 13.sp,
-                )
+                Text("Diagnostic", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Aucune donnée personnelle.", color = AppTheme.colors.muted, fontSize = 13.sp)
                 Text(
                     "Copier",
                     color = AppTheme.colors.accent,
@@ -80,8 +71,8 @@ fun DiagnosticCard(profile: ActiveProfile?) {
                 OutlinedTextField(
                     value = version,
                     onValueChange = { version = it.filter { c -> c.isDigit() || c == '.' }.take(12) },
-                    label = { Text("Version d'API envoyée à ÉcoleDirecte") },
-                    supportingText = { Text("À changer seulement si le service la refuse (code 517). Prise en compte à la prochaine connexion.") },
+                    label = { Text("Version d'API") },
+                    supportingText = { Text("Seulement si le service la refuse (517).") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )

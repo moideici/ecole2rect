@@ -115,13 +115,13 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
         item {
             PageHeader(
                 "Messages",
-                if (unreadCount == 0) "Tout est lu" else if (unreadCount == 1) "1 message non lu" else "$unreadCount messages non lus",
+                if (unreadCount == 0) "" else if (unreadCount == 1) "1 non lu" else "$unreadCount non lus",
             )
         }
         if (canSend) {
             item {
                 Text(
-                    if (sentNotice) "Message envoyé. Nouveau message" else "Nouveau message",
+                    if (sentNotice) "Envoyé · Nouveau message" else "Nouveau message",
                     color = AppTheme.colors.accent,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
@@ -157,8 +157,8 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
         }
         if (shown.isEmpty()) {
             item {
-                if (all.isEmpty()) EmptyState("Aucun message", "Ta boîte de réception est vide.")
-                else EmptyState("Aucun résultat", "Aucun message ne correspond.")
+                if (all.isEmpty()) EmptyState("Aucun message")
+                else EmptyState("Aucun résultat")
             }
         }
         itemsIndexed(shown, key = { index, message -> message.id.ifEmpty { "m$index" } }) { index, message ->
@@ -178,7 +178,7 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
                         CircularProgressIndicator(Modifier.size(24.dp), color = AppTheme.colors.accent)
                     } else {
                         Text(
-                            "Charger les messages plus anciens",
+                            "Messages plus anciens",
                             color = AppTheme.colors.accent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
@@ -272,7 +272,7 @@ private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel, 
                     AttachmentList(content.files, viewModel::download)
                 },
                 onFailure = {
-                    Text("Impossible d'ouvrir ce message pour le moment.", color = AppTheme.colors.error, fontSize = 14.sp)
+                    Text("Ouverture impossible.", color = AppTheme.colors.error, fontSize = 14.sp)
                 },
             )
         }

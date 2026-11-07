@@ -37,7 +37,7 @@ fun AgendaScreen(page: Int, onPageChange: (Int) -> Unit) {
     if (scheduleOpen != homeworkOpen) {
         // Un seul des deux modules est ouvert : pas de pages à glisser, on montre directement le bon.
         Column {
-            PageHeader("Agenda", if (scheduleOpen) "Ta semaine" else "Ton travail à faire")
+            PageHeader("Agenda")
             if (scheduleOpen) ScheduleList(rememberLazyListState()) else HomeworkList(rememberLazyListState())
         }
         return
@@ -55,7 +55,7 @@ fun AgendaScreen(page: Int, onPageChange: (Int) -> Unit) {
     // Retoucher l'onglet remonte la liste visible.
     ScrollToTopOnReselect("agenda", if (pagerState.currentPage == AGENDA_SCHEDULE) scheduleState else homeworkState)
     Column {
-        PageHeader("Agenda", "Ta semaine et ton travail à faire")
+        PageHeader("Agenda")
         TabRow(
             selectedTabIndex = pagerState.currentPage,
             containerColor = AppTheme.colors.background,

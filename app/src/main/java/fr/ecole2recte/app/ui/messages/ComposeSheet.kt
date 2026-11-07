@@ -59,7 +59,7 @@ fun ComposeSheet(viewModel: MessagesViewModel, onSent: () -> Unit) {
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            loadError = error.message ?: "Impossible de charger les destinataires."
+            loadError = error.message ?: "Destinataires indisponibles."
         }
     }
 
@@ -71,7 +71,7 @@ fun ComposeSheet(viewModel: MessagesViewModel, onSent: () -> Unit) {
         when {
             loadError != null -> Text(loadError!!, color = AppTheme.colors.error, fontSize = 14.sp)
             recipients == null -> CircularProgressIndicator(Modifier.size(24.dp), color = AppTheme.colors.accent)
-            recipients!!.isEmpty() -> Text("Aucun destinataire disponible.", color = AppTheme.colors.muted, fontSize = 14.sp)
+            recipients!!.isEmpty() -> Text("Aucun destinataire.", color = AppTheme.colors.muted, fontSize = 14.sp)
             else -> {
                 OutlinedTextField(filter, { filter = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Chercher un nom") })
                 val needle = filter.trim().lowercase()
@@ -130,7 +130,7 @@ fun ComposeSheet(viewModel: MessagesViewModel, onSent: () -> Unit) {
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (error: Exception) {
-                            sendError = (error.message ?: "L'envoi a échoué.") + " Le message n'est pas parti ; rien ne sera renvoyé tout seul."
+                            sendError = (error.message ?: "Envoi échoué.") + " Rien n'est parti."
                         } finally {
                             sending = false
                         }

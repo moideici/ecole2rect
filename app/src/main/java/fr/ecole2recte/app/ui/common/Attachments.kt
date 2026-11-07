@@ -144,8 +144,7 @@ fun AttachmentList(files: List<Attachment>, download: suspend (Attachment) -> At
             title = { Text("Ouvrir ce fichier ?") },
             text = {
                 Text(
-                    "« ${file.name} » vient d'ÉcoleDirecte. Il sera téléchargé sur ton téléphone, ouvert avec l'application de " +
-                        "ton choix, puis effacé quand tu fermes ecole2recte. N'ouvre que les fichiers que tu attends.",
+                    "« ${file.name} » sera téléchargé, ouvert avec l'application de ton choix, puis effacé. N'ouvre que les fichiers que tu attends.",
                 )
             },
             confirmButton = {
@@ -161,9 +160,9 @@ fun AttachmentList(files: List<Attachment>, download: suspend (Attachment) -> At
                         } catch (error: EcoleDirecteException) {
                             problem = error.message
                         } catch (error: ActivityNotFoundException) {
-                            problem = "Aucune application ne sait ouvrir ce type de fichier."
+                            problem = "Aucune application pour ce fichier."
                         } catch (error: Exception) {
-                            problem = "Impossible de télécharger ce fichier pour le moment."
+                            problem = "Téléchargement impossible."
                         } finally {
                             busy = null
                         }

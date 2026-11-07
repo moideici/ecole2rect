@@ -74,7 +74,6 @@ fun ColorsCard(profile: ActiveProfile?) {
     ListCard(onClick = { editing = true }) {
         Column(Modifier.padding(16.dp)) {
             Text("Couleurs des matières", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text("Choisis la couleur de chaque matière.", color = AppTheme.colors.muted, fontSize = 13.sp)
         }
     }
     if (editing) {
@@ -101,11 +100,6 @@ fun SecurityAndMotionCard() {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Verrouiller l'application", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Demande ton empreinte, ton visage ou le code de ton téléphone à l'ouverture.",
-                        color = AppTheme.colors.muted,
-                        fontSize = 13.sp,
-                    )
                 }
                 Switch(checked = lockEnabled, onCheckedChange = { toggleLock(context, lockEnabled, settings::setAppLock) { text -> message = text } })
             }
@@ -123,11 +117,6 @@ fun SecurityAndMotionCard() {
                         )
                     }
                 }
-                Text(
-                    "Délai d'absence après lequel le verrou est redemandé en revenant dans l'application.",
-                    color = AppTheme.colors.muted,
-                    fontSize = 12.sp,
-                )
             }
             Row(
                 Modifier.fillMaxWidth().clickable(enabled = lockEnabled) { settings.setHidePreview(!hidePreview) },
@@ -135,19 +124,12 @@ fun SecurityAndMotionCard() {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Masquer l'aperçu", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        if (lockEnabled) "Cache l'application dans la liste des applications récentes. Bloque aussi les captures d'écran."
-                        else "Disponible quand le verrouillage est activé.",
-                        color = AppTheme.colors.muted,
-                        fontSize = 13.sp,
-                    )
                 }
                 Switch(checked = hidePreview, enabled = lockEnabled, onCheckedChange = { settings.setHidePreview(it) })
             }
             Row(Modifier.fillMaxWidth().clickable { settings.setReduceMotion(!reduceMotion) }, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Réduire les animations", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Les écrans apparaissent sans mouvement.", color = AppTheme.colors.muted, fontSize = 13.sp)
                 }
                 Switch(checked = reduceMotion, onCheckedChange = { settings.setReduceMotion(it) })
             }
@@ -159,11 +141,11 @@ fun SecurityAndMotionCard() {
 private fun toggleLock(context: android.content.Context, enabled: Boolean, set: (Boolean) -> Unit, report: (String?) -> Unit) {
     val activity = context.findFragmentActivity()
     if (activity == null) {
-        report("Le verrouillage n'est pas disponible ici.")
+        report("Verrouillage indisponible ici.")
         return
     }
     if (!enabled && !AppLock.isAvailable(context)) {
-        report("Configure d'abord un verrouillage d'écran (empreinte, visage ou code) dans les réglages du téléphone.")
+        report("Configure d'abord un verrouillage d'écran sur le téléphone.")
         return
     }
     report(null)

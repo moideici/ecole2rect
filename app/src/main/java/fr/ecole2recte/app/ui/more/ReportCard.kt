@@ -60,14 +60,7 @@ fun ReportCard(profile: ActiveProfile?, preselected: ReportCategory = ReportCate
     var open by remember { mutableStateOf(false) }
     ListCard(onClick = { open = true }) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Signaler un problème", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "Une note absente, un plantage, une idée : le rapport est préparé, vous le relisez et vous choisissez où il part.",
-                    color = AppTheme.colors.muted,
-                    fontSize = 13.sp,
-                )
-            }
+            Text("Signaler un problème", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
     if (!open) return
@@ -94,15 +87,12 @@ fun ReportCard(profile: ActiveProfile?, preselected: ReportCategory = ReportCate
                 value = description,
                 onValueChange = { description = it.take(ProblemReport.MAX_DESCRIPTION) },
                 label = { Text("Que s'est-il passé ?") },
-                supportingText = { Text("Évitez les noms, les notes et le contenu des messages : ce texte part tel quel.") },
+                supportingText = { Text("Sans noms ni notes : ce texte part tel quel.") },
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Joindre le diagnostic technique", color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("Clés, types et tailles des réponses : aucune valeur personnelle.", color = AppTheme.colors.muted, fontSize = 12.sp)
-                }
+                Text("Joindre le diagnostic", color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Switch(checked = withDiagnostic, onCheckedChange = { withDiagnostic = it })
             }
             Button(onClick = { share(context, ProblemReport.title(category), report) }, modifier = Modifier.fillMaxWidth()) {
@@ -118,12 +108,7 @@ fun ReportCard(profile: ActiveProfile?, preselected: ReportCategory = ReportCate
                     modifier = Modifier.weight(1f),
                 ) { Text("Ticket GitHub", fontSize = 13.sp) }
             }
-            Text(
-                "« Ticket GitHub » copie le rapport puis ouvre la page : collez-le dans le ticket. Rien n'est envoyé sans votre geste.",
-                color = AppTheme.colors.muted,
-                fontSize = 12.sp,
-            )
-            Text("Aperçu de ce qui partira", color = AppTheme.colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Aperçu", color = AppTheme.colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             SelectionContainer {
                 Text(report, color = AppTheme.colors.ink, fontSize = 11.sp, fontFamily = FontFamily.Monospace, lineHeight = 15.sp)
             }

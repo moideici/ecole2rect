@@ -64,7 +64,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private const val PROBLEM_NO_APP = "Aucune application ne sait traiter ce fichier."
+private const val PROBLEM_NO_APP = "Aucune application pour ce fichier."
 
 /**
  * Exporter l'emploi du temps en PDF (A4 paysage, une page par semaine type) ou en ICS (événements
@@ -140,12 +140,7 @@ fun ExportSheetContent(entries: List<ScheduleEntry>, weekStart: LocalDate) {
         Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 22.dp).padding(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Exporter l'emploi du temps", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text(
-            "Le fichier est créé sur ton téléphone puis remis à l'application que tu choisis. Rien n'est envoyé par ecole2recte.",
-            color = AppTheme.colors.muted,
-            fontSize = 13.sp,
-        )
+        Text("Exporter", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ExportFormat.entries.forEachIndexed { index, item ->
                 FilterChip(formatIndex == index, { formatIndex = index }, label = { Text(item.label, fontSize = 13.sp) })
@@ -154,8 +149,7 @@ fun ExportSheetContent(entries: List<ScheduleEntry>, weekStart: LocalDate) {
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Mon emploi du temps alterne", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text("Semaine 1 / semaine 2 (ou A / B)", color = AppTheme.colors.muted, fontSize = 13.sp)
+                Text("Semaines 1 / 2 (ou A / B)", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
             Switch(alternates, {
                 alternates = it
@@ -164,15 +158,14 @@ fun ExportSheetContent(entries: List<ScheduleEntry>, weekStart: LocalDate) {
         }
         if (suggestAlternation) {
             Text(
-                "Tes deux semaines enregistrées se ressemblent peu : ton emploi du temps alterne peut-être. " +
-                    "ÉcoleDirecte ne l'indique pas, c'est à toi de le dire.",
+                "Tes semaines diffèrent : l'emploi du temps alterne peut-être.",
                 color = AppTheme.colors.accent,
                 fontSize = 13.sp,
             )
         }
         if (alternates) {
             Text(
-                "La semaine du ${FrenchFormat.dayMonth(weekStart)} (en cours) est la…",
+                "Semaine du ${FrenchFormat.dayMonth(weekStart)} :",
                 color = AppTheme.colors.ink,
                 fontSize = 14.sp,
             )
@@ -194,7 +187,7 @@ fun ExportSheetContent(entries: List<ScheduleEntry>, weekStart: LocalDate) {
 
         if (format == ExportFormat.Pdf) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Niveaux de gris (impression noir et blanc)", color = AppTheme.colors.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                Text("Niveaux de gris", color = AppTheme.colors.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
                 Switch(grayscale, { grayscale = it })
             }
         } else {
@@ -203,19 +196,13 @@ fun ExportSheetContent(entries: List<ScheduleEntry>, weekStart: LocalDate) {
                 OutlinedButton(onClick = { picking = "from" }) { Text("Du ${choices.from.format(dateFormat)}", fontSize = 13.sp) }
                 OutlinedButton(onClick = { picking = "until" }) { Text("au ${choices.until.format(dateFormat)}", fontSize = 13.sp) }
             }
-            Text(
-                "Par défaut jusqu'à la fin juin. Les événements se répètent chaque semaine (ou une semaine sur deux) ; " +
-                    "les cours annulés connus sont exclus de leur date.",
-                color = AppTheme.colors.muted,
-                fontSize = 12.sp,
-            )
         }
 
         warnings.forEach { Text(it, color = AppTheme.colors.error, fontSize = 13.sp) }
         problem?.let { Text(it, color = AppTheme.colors.error, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
 
         Button(onClick = { export(open = false) }, enabled = !busy && !schedule.isEmpty, modifier = Modifier.fillMaxWidth()) {
-            Text(if (busy) "Création du fichier…" else "Créer et partager")
+            Text(if (busy) "Création…" else "Créer et partager")
         }
         OutlinedButton(onClick = { export(open = true) }, enabled = !busy && !schedule.isEmpty, modifier = Modifier.fillMaxWidth()) {
             Text("Créer et ouvrir")

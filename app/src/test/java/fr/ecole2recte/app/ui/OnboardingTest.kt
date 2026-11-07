@@ -15,7 +15,7 @@ class OnboardingTest {
         Onboarding.pages.forEach {
             assertTrue(it.title.isNotBlank())
             assertTrue(it.lead.isNotBlank())
-            assertTrue(it.points.size >= 3)
+            assertTrue(it.lead.length <= 60)
         }
         assertEquals(Onboarding.pages.map { it.title }.toSet().size, Onboarding.pageCount)
     }

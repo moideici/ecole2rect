@@ -32,50 +32,47 @@ data class Advice(val title: String, val detail: String, val action: AdviceActio
 object FailureAdvice {
     val network = Advice(
         "Pas de réseau",
-        "Impossible de joindre ÉcoleDirecte. Vérifie ta connexion Internet : les données déjà enregistrées restent consultables.",
+        "Vérifie ta connexion.",
         AdviceAction.Retry,
     )
     val service = Advice(
         "ÉcoleDirecte indisponible",
-        "Le service ou ton établissement ne répond pas pour le moment. Rien n'est perdu : réessaie dans quelques minutes.",
+        "Réessaie dans quelques minutes.",
         AdviceAction.Retry,
     )
     val invalidCredentials = Advice(
         "Mot de passe refusé",
-        "ÉcoleDirecte n'accepte plus ce mot de passe. Il a peut-être été changé : reconnecte-toi avec le nouveau. " +
-            "L'application ne réessaiera pas toute seule.",
+        "Il a peut-être changé. L'application ne réessaiera pas toute seule.",
         AdviceAction.Reconnect,
     )
     val blocked = Advice(
         "Compte verrouillé",
-        "ÉcoleDirecte a bloqué le compte, souvent après trop de tentatives. N'insiste pas : attends un moment " +
-            "ou débloque-le sur le site d'ÉcoleDirecte.",
+        "Souvent trop de tentatives : attends ou débloque-le sur le site.",
         AdviceAction.None,
     )
     val securityRequired = Advice(
         "Vérification de sécurité requise",
-        "ÉcoleDirecte demande de confirmer que c'est bien toi. Reconnecte-toi et réponds toi-même à la question de sécurité.",
+        "Reconnecte-toi et réponds à la question de sécurité.",
         AdviceAction.Reconnect,
     )
     val staleVersion = Advice(
         "Version d'API refusée (517)",
-        "ÉcoleDirecte n'accepte plus la version utilisée par l'application. Cherche une mise à jour, " +
-            "ou change la version d'API dans Plus > Diagnostic.",
+        "Cherche une mise à jour ou change la version dans Plus > Diagnostic.",
         AdviceAction.OpenDiagnostic,
     )
     val expired = Advice(
         "Session expirée",
-        "La session ouverte avec ÉcoleDirecte a expiré. Reconnecte-toi pour relire les données.",
+        "Reconnecte-toi pour relire les données.",
         AdviceAction.Reconnect,
     )
     val unusable = Advice(
         "Réponse inexploitable",
-        "ÉcoleDirecte a répondu sans contenu que l'application sache lire. Plus > Diagnostic montre la forme de la réponse, sans donnée personnelle.",
+        "Voir Plus > Diagnostic.",
         AdviceAction.OpenDiagnostic,
     )
     val other = Advice(
         "Lecture impossible",
-        "ÉcoleDirecte a répondu de façon inattendue. Plus > Diagnostic montre ce qui est reçu, sans donnée personnelle.",
+        "Voir Plus > Diagnostic.",
         AdviceAction.OpenDiagnostic,
     )
     val generic = Advice("Chargement impossible", "Réessaie dans un instant.", AdviceAction.Retry)

@@ -149,7 +149,7 @@ private fun HomeScreen(
                     else NoClassCard(Modifier.entrance(rank))
                 }
                 HomeSection.Today -> {
-                    item(key = "today-title") { SectionTitle("Aujourd'hui", "Voir le planning", onClick = onOpenSchedule) }
+                    item(key = "today-title") { SectionTitle("Aujourd'hui", "Voir", onClick = onOpenSchedule) }
                     item(key = "today") {
                         if (data.today.isEmpty()) {
                             Text("Pas de cours aujourd'hui.", color = AppTheme.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 22.dp))
@@ -177,15 +177,15 @@ private fun HomeScreen(
                     }
                 }
                 HomeSection.Exams -> if (data.exams.isNotEmpty() && SchoolModule.Homework !in closed) {
-                    item(key = "exams-title") { SectionTitle("Prochain contrôle", "Voir l'agenda", onClick = onOpenHomework) }
+                    item(key = "exams-title") { SectionTitle("Prochain contrôle", "Voir", onClick = onOpenHomework) }
                     item(key = "exams") { ExamCountdownCard(data.exams, Modifier.entrance(rank), onClick = onOpenHomework) }
                 }
                 HomeSection.Reminder -> data.reminder?.takeIf { SchoolModule.Homework !in closed }?.let { reminder ->
-                    item(key = "reminder-title") { SectionTitle("À ne pas oublier", "Tout voir", onClick = onOpenHomework) }
+                    item(key = "reminder-title") { SectionTitle("À ne pas oublier", "Voir", onClick = onOpenHomework) }
                     item(key = "reminder") { ReminderCard(reminder, Modifier.entrance(rank)) }
                 }
                 HomeSection.Grades -> if (SchoolModule.Grades !in closed) {
-                    item(key = "grades-title") { SectionTitle("Tes dernières notes", "Voir les notes", onClick = onOpenGrades) }
+                    item(key = "grades-title") { SectionTitle("Dernières notes", "Voir", onClick = onOpenGrades) }
                     item(key = "grades") { GradesSummary(data.grades, Modifier.entrance(rank)) }
                 }
             }
@@ -280,7 +280,6 @@ private fun NoClassCard(modifier: Modifier = Modifier) {
             Text("PROCHAIN COURS", color = AppTheme.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             Text("Plus de cours à venir", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("Profite de ta soirée.", color = AppTheme.colors.muted, fontSize = 14.sp)
         }
     }
 }

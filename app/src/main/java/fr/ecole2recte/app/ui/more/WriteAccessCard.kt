@@ -28,20 +28,16 @@ import fr.ecole2recte.app.ui.theme.AppTheme
 /** Les deux seules choses que l'application peut écrire chez ÉcoleDirecte. Éteintes par défaut. */
 enum class WriteFeature(val title: String, val description: String, val confirmTitle: String, val confirmText: String) {
     HomeworkSync(
-        title = "Synchroniser les devoirs faits avec ÉcoleDirecte",
-        description = "Quand tu coches un devoir, il est aussi coché sur ÉcoleDirecte, comme sur le site.",
+        title = "Devoirs faits sur ÉcoleDirecte",
+        description = "",
         confirmTitle = "Écrire sur ÉcoleDirecte ?",
-        confirmText = "Quand tu coches ou décoches un devoir, l'application le fera aussi sur ton compte ÉcoleDirecte, " +
-            "comme le site. Tu peux toujours revenir en arrière en le décochant, ou éteindre ce réglage. " +
-            "Rien d'autre n'est envoyé. Cette fonction est récente : vérifie sur le site que la case suit bien.",
+        confirmText = "Cocher un devoir le coche aussi sur ton compte ÉcoleDirecte. Rien d'autre n'est envoyé.",
     ),
     MessageSending(
-        title = "Autoriser l'envoi de messages",
-        description = "Ajoute un bouton « Nouveau message » dans Messages. Chaque envoi demande une confirmation.",
-        confirmTitle = "Autoriser l'envoi de messages ?",
-        confirmText = "Tu pourras écrire à des enseignants ou à l'administration depuis l'application. " +
-            "Avant chaque envoi, tu verras les destinataires, l'objet et le texte, et rien ne part sans ton toucher. " +
-            "Un message envoyé ne peut pas être repris. Cette fonction est récente : relis chaque message avant de confirmer.",
+        title = "Envoi de messages",
+        description = "",
+        confirmTitle = "Autoriser l'envoi ?",
+        confirmText = "Chaque message est relu avant l'envoi : rien ne part sans ton toucher. Un message envoyé ne peut pas être repris.",
     ),
 }
 
@@ -70,12 +66,10 @@ fun WriteAccessCard() {
 
     ListCard {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Par défaut, l'application ne fait que lire tes données.", color = AppTheme.colors.muted, fontSize = 13.sp)
             listOf(WriteFeature.HomeworkSync to syncHomework, WriteFeature.MessageSending to sendMessages).forEach { (feature, enabled) ->
                 Row(Modifier.fillMaxWidth().clickable { toggle(feature, enabled) }, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(feature.title, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Text(feature.description, color = AppTheme.colors.muted, fontSize = 13.sp)
                     }
                     Switch(checked = enabled, onCheckedChange = { toggle(feature, enabled) })
                 }

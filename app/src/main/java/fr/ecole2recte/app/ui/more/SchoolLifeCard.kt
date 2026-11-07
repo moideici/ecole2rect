@@ -38,8 +38,7 @@ fun SchoolLifeCard() {
     var open by remember { mutableStateOf(false) }
     ListCard(onClick = { open = true }) {
         Column(Modifier.padding(16.dp)) {
-            Text("Absences, retards, sanctions", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text("Le décompte de la vie scolaire de l'élève affiché.", color = AppTheme.colors.muted, fontSize = 13.sp)
+            Text("Vie scolaire", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
     if (open) {
@@ -51,7 +50,7 @@ fun SchoolLifeCard() {
                     null -> CircularProgressIndicator(Modifier.size(24.dp), color = AppTheme.colors.accent)
                     else -> loaded.fold(
                         onSuccess = { SchoolLifeContent(it) },
-                        onFailure = { Text("Impossible de charger la vie scolaire pour le moment.", color = AppTheme.colors.error, fontSize = 14.sp) },
+                        onFailure = { Text("Chargement impossible.", color = AppTheme.colors.error, fontSize = 14.sp) },
                     )
                 }
             }
@@ -62,7 +61,7 @@ fun SchoolLifeCard() {
 @Composable
 private fun SchoolLifeContent(summary: SchoolLifeSummary) {
     if (summary.events.isEmpty()) {
-        EmptyState("Rien à signaler", "Aucune absence, aucun retard ni aucune sanction.")
+        EmptyState("Rien à signaler")
         return
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

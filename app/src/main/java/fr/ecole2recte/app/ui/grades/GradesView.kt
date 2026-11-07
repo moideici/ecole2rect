@@ -103,7 +103,7 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
     val now = remember(firstSeen) { System.currentTimeMillis() }
     val isNew: (GradeEntry) -> Boolean = { isNewGrade(firstSeen[it.id], now) }
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { PageHeader("Notes", grades.periodName.ifBlank { "Matière par matière" }) }
+        item { PageHeader("Notes") }
         if (grades.periods.size > 1) {
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,7 +130,7 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
             }
         }
         item { SectionLabel("Par matière") }
-        if (grades.bySubject.isEmpty()) item { EmptyState("Pas encore de notes", "Tes notes apparaîtront ici dès qu'elles seront saisies.") }
+        if (grades.bySubject.isEmpty()) item { EmptyState("Pas encore de notes") }
         item {
             Column {
                 grades.bySubject.forEachIndexed { index, line -> SubjectCard(line, grades.all, isNew, Modifier.entrance(index)) { opened = it } }
@@ -184,7 +184,7 @@ private fun AverageCard(grades: GradeOverview, onOpenMethod: () -> Unit, modifie
             }
             if (grades.evolution.size >= 2) {
                 Spacer(Modifier.height(14.dp))
-                Text("Moyenne générale par période (officielle)", color = AppTheme.colors.muted, fontSize = 12.sp)
+                Text("Par période", color = AppTheme.colors.muted, fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
                 EvolutionChart(grades.evolution)
             }
@@ -379,7 +379,7 @@ private fun SubjectCurve(subject: String, all: List<GradeEntry>) {
     val series = remember(subject, all) { GradeCurves.subjectSeries(all, subject) }
     if (series.size < 2) return
     Column(Modifier.padding(horizontal = 17.dp).padding(top = 10.dp)) {
-        Text("Évolution (calculée par l'app, toute l'année)", color = AppTheme.colors.muted, fontSize = 12.sp)
+        Text("Évolution", color = AppTheme.colors.muted, fontSize = 12.sp)
         Spacer(Modifier.height(4.dp))
         LineChart(
             line = series.map { ChartPoint(it.runningAverage, shortDate(it.date)) },
@@ -390,7 +390,6 @@ private fun SubjectCurve(subject: String, all: List<GradeEntry>) {
                 series.map { it.runningAverage },
             ),
         )
-        Text("Courbe : moyenne après chaque note · carrés : les notes sur 20", color = AppTheme.colors.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }
 

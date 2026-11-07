@@ -35,31 +35,17 @@ fun SyncJournalCard() {
     var open by remember { mutableStateOf(false) }
     ListCard(onClick = { open = true }) {
         Column(Modifier.padding(16.dp)) {
-            Text("Journal des synchronisations", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "Les 30 derniers passages en arrière-plan : heure, durée, résultat. Aucune donnée personnelle.",
-                color = AppTheme.colors.muted,
-                fontSize = 13.sp,
-            )
+            Text("Journal de synchronisation", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
     if (open) {
         var entries by remember { mutableStateOf(journal.entries()) }
         ModalBottomSheet(onDismissRequest = { open = false }, containerColor = AppTheme.colors.surface) {
             Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Journal des synchronisations", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Journal de synchronisation", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 if (entries.isEmpty()) {
-                    Text(
-                        "Aucun passage pour l'instant. La synchronisation en arrière-plan se règle dans Notifications.",
-                        color = AppTheme.colors.muted,
-                        fontSize = 13.sp,
-                    )
+                    Text("Aucun passage.", color = AppTheme.colors.muted, fontSize = 13.sp)
                 } else {
-                    Text(
-                        "Du plus récent au plus ancien.",
-                        color = AppTheme.colors.muted,
-                        fontSize = 13.sp,
-                    )
                     Text(
                         "Effacer le journal",
                         color = AppTheme.colors.accent,

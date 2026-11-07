@@ -90,7 +90,7 @@ private fun HomeworkContent(tasks: List<Homework>, listState: LazyListState, vie
     val subjects = remember(tasks) { tasks.map { it.subject }.distinct().sorted() }
     val groups = remember(tasks, subject, filter) { groupHomework(filterHomework(tasks, filter), today, subject) }
     if (tasks.isEmpty()) {
-        EmptyState("Rien à faire", "Aucun devoir à venir pour le moment.")
+        EmptyState("Rien à faire")
         return
     }
     val notice by viewModel.notice.collectAsStateWithLifecycle()
@@ -135,7 +135,7 @@ private fun HomeworkContent(tasks: List<Homework>, listState: LazyListState, vie
         }
         if (groups.isEmpty()) {
             item {
-                if (subject != null) EmptyState("Rien dans cette matière", "Aucun devoir ne correspond ici.")
+                if (subject != null) EmptyState("Rien dans cette matière")
                 else EmptyState(filter.emptyTitle, filter.emptyText)
             }
         }
@@ -221,7 +221,7 @@ private fun HomeworkSheet(task: Homework, viewModel: HomeworkViewModel, onToggle
                 onSuccess = { content ->
                     SelectionContainer {
                         Text(
-                            linkified(content.content.ifBlank { "Aucun énoncé détaillé pour ce devoir." }),
+                            linkified(content.content.ifBlank { "Pas d'énoncé détaillé." }),
                             color = AppTheme.colors.ink,
                             fontSize = 15.sp,
                             lineHeight = 22.sp,
@@ -236,7 +236,7 @@ private fun HomeworkSheet(task: Homework, viewModel: HomeworkViewModel, onToggle
                     }
                 },
                 onFailure = {
-                    Text("Impossible de charger l'énoncé pour le moment.", color = AppTheme.colors.error, fontSize = 14.sp)
+                    Text("Chargement impossible.", color = AppTheme.colors.error, fontSize = 14.sp)
                 },
             )
         }

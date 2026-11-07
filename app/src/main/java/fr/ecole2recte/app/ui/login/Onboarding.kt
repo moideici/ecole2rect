@@ -44,7 +44,7 @@ import fr.ecole2recte.app.ui.common.rememberReduceMotion
 import fr.ecole2recte.app.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 
-/** Une page de la présentation : un titre, une phrase d'accroche et quelques points. */
+/** Une page de la présentation : un titre et une phrase (les points, optionnels, restent vides). */
 data class OnboardingPage(val title: String, val lead: String, val points: List<String>)
 
 /** Le texte de la présentation de trois pages, rejouable depuis Plus > À propos. */
@@ -55,36 +55,9 @@ object Onboarding {
     const val CLOSE = "Fermer"
 
     val pages: List<OnboardingPage> = listOf(
-        OnboardingPage(
-            "L'essentiel d'un coup d'œil",
-            "Ce que tu peux faire avec ecole2recte.",
-            listOf(
-                "Accueil : ton prochain cours, ta journée, les devoirs pour demain et ce qu'il faut savoir.",
-                "Agenda : l'emploi du temps en jour ou en semaine (pince pour zoomer) et les devoirs à faire.",
-                "Notes : moyennes, évolution et simulateur « pour atteindre X ». Messages : lus, non lus, recherche.",
-                "Tire vers le bas pour rafraîchir ; la barre « Rechercher » fouille ce qui est déjà enregistré.",
-            ),
-        ),
-        OnboardingPage(
-            "Notifications, widgets, exports et réglages",
-            "Tout est facultatif et se règle dans Plus.",
-            listOf(
-                "Notifications : cours annulé ou déplacé, nouvelle note, message, devoirs. Éteintes tant que tu ne les actives pas, jamais plus d'une vérification toutes les 4 heures.",
-                "Widgets : pose-les sur l'écran d'accueil (appui long sur le fond d'écran), ils se mettent à jour à l'ouverture de l'app.",
-                "Exports : l'emploi du temps en PDF ou en calendrier (.ics) depuis l'agenda.",
-                "Réglages : cinq thèmes de couleurs, mode sombre ou noir, taille du texte, verrouillage par empreinte.",
-            ),
-        ),
-        OnboardingPage(
-            "Signalement et vie privée",
-            "Ton identifiant ne quitte pas ce téléphone.",
-            listOf(
-                "Identifiant et mot de passe restent chiffrés ici et ne servent qu'à te connecter à ÉcoleDirecte. Aucune télémétrie, aucun serveur intermédiaire.",
-                "L'application lit seulement : rien n'est écrit chez ÉcoleDirecte sans que tu l'actives toi-même.",
-                "Un problème ? Plus > Signaler un problème prépare un rapport sans donnée personnelle ; tu le relis et tu choisis où il part.",
-                "Quelqu'un regarde ton écran ? L'œil en haut masque les notes (et les messages en option).",
-            ),
-        ),
+        OnboardingPage("L'essentiel d'un coup d'œil", "Accueil, agenda, notes et messages.", emptyList()),
+        OnboardingPage("Notifications, widgets, exports et réglages", "Tout est facultatif, dans Plus.", emptyList()),
+        OnboardingPage("Signalement et vie privée", "Tes identifiants restent chiffrés sur ce téléphone.", emptyList()),
     )
 
     val pageCount: Int get() = pages.size

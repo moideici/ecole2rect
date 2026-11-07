@@ -68,12 +68,8 @@ fun PrivacyCard() {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth().clickable { settings.setPrivacyMode(!enabled) }, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Mode « montrer à quelqu'un »", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Cache les notes (remplacées par •••) sur l'accueil, dans Notes, le simulateur, les courbes et la recherche, jusqu'à ce que tu le désactives. Un œil en haut de l'écran l'active aussi.",
-                        color = AppTheme.colors.muted,
-                        fontSize = 13.sp,
-                    )
+                    Text("Mode « montrer »", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Cache les notes. Pas les widgets ni les notifications.", color = AppTheme.colors.muted, fontSize = 13.sp)
                 }
                 Switch(checked = enabled, onCheckedChange = settings::setPrivacyMode)
             }
@@ -82,21 +78,10 @@ fun PrivacyCard() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Cacher aussi les messages", color = if (enabled) AppTheme.colors.ink else AppTheme.colors.muted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Expéditeurs et objets masqués, et les messages ne s'ouvrent plus tant que le mode est actif.",
-                        color = AppTheme.colors.muted,
-                        fontSize = 13.sp,
-                    )
+                    Text("Cacher les messages", color = if (enabled) AppTheme.colors.ink else AppTheme.colors.muted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
                 Switch(checked = hideMessages, enabled = enabled, onCheckedChange = settings::setPrivacyHideMessages)
             }
-            Text(
-                "Les widgets et les notifications ne sont pas concernés par ce mode.",
-                color = AppTheme.colors.muted,
-                fontSize = 12.sp,
-                modifier = Modifier.background(AppTheme.colors.background, RoundedCornerShape(8.dp)).padding(8.dp),
-            )
         }
     }
 }

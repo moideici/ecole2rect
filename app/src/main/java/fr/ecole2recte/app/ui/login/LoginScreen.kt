@@ -131,11 +131,6 @@ private fun CredentialsStep(
 ) {
     val canSubmit = identifier.isNotBlank() && password.isNotBlank() && !state.loading
     Text("Connexion", color = AppTheme.colors.ink, fontWeight = FontWeight.Bold, fontSize = 28.sp)
-    Text(
-        "Tu ne saisis tes identifiants qu'une seule fois : l'app s'occupe du reste.",
-        color = AppTheme.colors.muted,
-        fontSize = 12.sp,
-    )
     Field(
         label = "Identifiant",
         value = identifier,
@@ -170,7 +165,7 @@ private fun CredentialsStep(
         },
     )
     ErrorBlock(state)
-    Text("Tes identifiants sont chiffrés sur cet appareil.", color = AppTheme.colors.muted, fontSize = 12.sp)
+    Text("Identifiants chiffrés sur cet appareil.", color = AppTheme.colors.muted, fontSize = 12.sp)
     PrimaryButton(
         label = "Se connecter  →",
         loading = state.loading,
@@ -197,14 +192,9 @@ private fun SecurityStep(
         if (automatic != null) answer = automatic
     }
     Text("Vérification", color = AppTheme.colors.ink, fontWeight = FontWeight.Bold, fontSize = 28.sp)
-    Text(
-        "ÉcoleDirecte vérifie que c'est bien toi. Ça n'arrive qu'une fois sur cet appareil.",
-        color = AppTheme.colors.muted,
-        fontSize = 12.sp,
-    )
     Text(challenge.question, color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
     if (challenge.choices.isNotEmpty()) {
-        Text("Entre ta date de naissance pour choisir la bonne réponse :", color = AppTheme.colors.muted, fontSize = 12.sp)
+        Text("Date de naissance (pour la réponse) :", color = AppTheme.colors.muted, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Field("Jour", birthDay, { birthDay = it }, Modifier.weight(1f), number = true)
             Field("Mois", birthMonth, { birthMonth = it }, Modifier.weight(1f), number = true)
@@ -212,7 +202,7 @@ private fun SecurityStep(
         }
         if (automatic != null) {
             Text(
-                "Réponse trouvée depuis ta date de naissance",
+                "Réponse trouvée",
                 color = AppTheme.colors.positive,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -256,9 +246,6 @@ private fun ErrorBlock(state: LoginUiState) {
     val color = if (error.kind == FailureKind.Network || error.kind == FailureKind.Service) AppTheme.colors.muted else AppTheme.colors.error
     Text(advice.title, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     Text(advice.detail, color = color, fontSize = 13.sp)
-    if (advice.action == AdviceAction.OpenDiagnostic) {
-        Text("Plus > Diagnostic, une fois connecté, montre ce qui est reçu.", color = AppTheme.colors.muted, fontSize = 12.sp)
-    }
     state.diagnostic?.let { TechnicalDetails(it) }
 }
 
@@ -268,7 +255,7 @@ private fun TechnicalDetails(diagnostic: String) {
     val context = LocalContext.current
     var open by remember { mutableStateOf(false) }
     Text(
-        if (open) "Masquer les détails techniques" else "Détails techniques",
+        if (open) "Masquer les détails" else "Détails",
         modifier = Modifier.clickable { open = !open }.padding(vertical = 4.dp),
         color = AppTheme.colors.accent,
         fontSize = 12.sp,
@@ -277,7 +264,7 @@ private fun TechnicalDetails(diagnostic: String) {
     if (open) {
         Card(colors = CardDefaults.cardColors(containerColor = AppTheme.colors.warningSurface)) {
             Column(Modifier.padding(12.dp)) {
-                Text("Détail réseau (pour le debug)", color = AppTheme.colors.warningTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("Détail réseau", color = AppTheme.colors.warningTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 SelectionContainer {
                     Text(diagnostic, color = AppTheme.colors.warningText, fontSize = 12.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
                 }
@@ -288,7 +275,7 @@ private fun TechnicalDetails(diagnostic: String) {
                     },
                     modifier = Modifier.padding(top = 8.dp),
                 ) {
-                    Text("Copier le diagnostic", fontSize = 12.sp)
+                    Text("Copier", fontSize = 12.sp)
                 }
             }
         }

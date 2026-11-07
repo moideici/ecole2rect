@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -70,10 +71,13 @@ fun FreshnessBanner(freshness: fr.ecole2recte.app.domain.Freshness, onAction: (A
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(advice.title, color = AppTheme.colors.warningTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text(advice.detail, color = AppTheme.colors.warningText, fontSize = 12.sp)
-        }
+        Text(
+            advice.title,
+            modifier = Modifier.weight(1f),
+            color = AppTheme.colors.warningTitle,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
         if (advice.action != AdviceAction.None) {
             Text(
                 advice.action.label,
@@ -138,14 +142,14 @@ fun SubjectDot(name: String, colorIndex: Int, size: Dp = 8.dp) {
 
 /** Écran ou section sans contenu. */
 @Composable
-fun EmptyState(title: String, message: String) {
+fun EmptyState(title: String, message: String = "") {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(title, color = AppTheme.colors.ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        Text(message, color = AppTheme.colors.muted, fontSize = 14.sp)
+        if (message.isNotBlank()) Text(message, color = AppTheme.colors.muted, fontSize = 14.sp)
     }
 }
 
@@ -237,17 +241,15 @@ private fun ErrorPanel(error: UiState.Error, onRetry: () -> Unit) {
 }
 
 @Composable
-fun PageHeader(title: String, subtitle: String, action: (@Composable () -> Unit)? = null) {
+fun PageHeader(title: String, subtitle: String = "", action: (@Composable () -> Unit)? = null) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 22.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {
-            Text("ecole2recte", color = AppTheme.colors.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Spacer(Modifier.height(7.dp))
             Text(title, color = AppTheme.colors.ink, fontWeight = FontWeight.Bold, fontSize = 28.sp)
-            Text(subtitle, color = AppTheme.colors.muted, fontSize = 12.sp)
+            if (subtitle.isNotBlank()) Text(subtitle, color = AppTheme.colors.muted, fontSize = 12.sp)
         }
         action?.invoke()
     }
@@ -285,11 +287,33 @@ fun ScrollToTopOnReselect(route: String, state: LazyListState) {
 
 /** Page à défilement : un en-tête puis une liste de cartes. */
 @Composable
-fun PageScaffold(route: String, title: String, subtitle: String, content: @Composable () -> Unit) {
+fun PageScaffold(route: String, title: String, subtitle: String = "", content: @Composable () -> Unit) {
     val listState = rememberLazyListState()
     ScrollToTopOnReselect(route, listState)
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 20.dp)) {
         item { PageHeader(title, subtitle) }
         item { Column { content() } }
+    }
+}
+
+/** Petit bouton « ? » qui ouvre une explication détaillée : le texte long n'encombre pas l'écran. */
+@Composable
+fun HelpButton(title: String, text: String, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    Text(
+        "?",
+        modifier = modifier.clickable { open = true }.padding(horizontal = 12.dp, vertical = 6.dp)
+            .semantics { contentDescription = "En savoir plus : $title" },
+        color = AppTheme.colors.accent,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Bold,
+    )
+    if (open) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(title) },
+            text = { Text(text) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { open = false }) { Text("Fermer") } },
+        )
     }
 }

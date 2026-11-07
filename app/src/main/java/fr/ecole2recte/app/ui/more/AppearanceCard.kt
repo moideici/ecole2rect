@@ -64,9 +64,6 @@ fun AppearanceCard() {
                     )
                 }
             }
-            if (themeMode == ThemeMode.Black) {
-                Text("Noir pur : économise la batterie sur un écran OLED.", color = AppTheme.colors.muted, fontSize = 12.sp)
-            }
 
             Text("Thème de couleurs", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -74,7 +71,6 @@ fun AppearanceCard() {
                     ThemeTile(ThemePalettes.of(theme, appearance), selected = theme == colorTheme) { settings.setColorTheme(theme) }
                 }
             }
-            Text(colorTheme.description, color = AppTheme.colors.muted, fontSize = 12.sp)
 
             Text("Taille du texte", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -86,7 +82,6 @@ fun AppearanceCard() {
                     )
                 }
             }
-            Text("S'ajoute à la taille choisie dans les réglages du téléphone.", color = AppTheme.colors.muted, fontSize = 12.sp)
             TextPreview()
         }
     }
@@ -131,9 +126,7 @@ private fun TextPreview() {
     Column(
         Modifier.fillMaxWidth().background(AppTheme.colors.background, RoundedCornerShape(12.dp)).padding(12.dp),
     ) {
-        Text("Aperçu", color = AppTheme.colors.muted, fontSize = 12.sp)
-        Spacer(Modifier.height(2.dp))
         Text("Maths · 10:15 · salle B204", color = AppTheme.colors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text("Contrôle jeudi 5 novembre, chapitres 3 et 4.", color = AppTheme.colors.muted, fontSize = 14.sp)
+        Text("Contrôle jeudi", color = AppTheme.colors.muted, fontSize = 14.sp)
     }
 }

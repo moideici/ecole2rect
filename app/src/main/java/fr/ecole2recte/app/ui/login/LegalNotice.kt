@@ -8,20 +8,19 @@ object LegalNotice {
     const val TITLE = "Avant de commencer"
 
     val points: List<String> = listOf(
-        "ecole2recte est une application non officielle. Elle n'est ni éditée, ni approuvée, ni affiliée à ÉcoleDirecte ou à son éditeur.",
-        "Ton identifiant et ton mot de passe ne servent qu'à te connecter à ÉcoleDirecte. Ils restent chiffrés sur ce téléphone et ne sont envoyés nulle part ailleurs.",
-        "L'application utilise l'interface privée d'ÉcoleDirecte, qui n'est pas documentée : elle peut cesser de fonctionner du jour au lendemain, et un affichage peut différer du site officiel. En cas de doute, le site fait foi.",
-        "Elle ne fait que lire tes données. Rien n'est envoyé ni modifié chez ÉcoleDirecte sans que tu l'actives toi-même dans Plus.",
+        "Application non officielle, non affiliée à ÉcoleDirecte.",
+        "Tes identifiants ne servent qu'à te connecter : chiffrés sur ce téléphone, envoyés nulle part ailleurs.",
+        "L'interface d'ÉcoleDirecte n'est pas documentée et peut changer : le site fait foi.",
+        "Lecture seule, sauf si tu actives l'écriture dans Plus.",
     )
 
     const val ACCEPT = "J'ai compris"
 
     /** Le résumé des limites, pour « Plus > À propos ». */
     val limits: List<String> = listOf(
-        "Un changement côté ÉcoleDirecte peut casser un écran sans prévenir.",
-        "Les comptes professeur ne sont pas pris en charge.",
-        "Les pièces jointes sont limitées à 25 Mo ; programmes, scripts et pages web ne sont jamais ouverts.",
-        "Certaines formes de réponse (modules, appréciations, extrêmes de classe) ne sont pas vérifiées sur tous les établissements : le Diagnostic aide à le signaler.",
+        "Un changement chez ÉcoleDirecte peut casser un écran.",
+        "Comptes professeur non pris en charge.",
+        "Pièces jointes limitées à 25 Mo ; ni programmes ni scripts.",
     )
 }
 

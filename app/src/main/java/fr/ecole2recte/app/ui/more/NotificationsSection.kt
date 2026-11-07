@@ -74,12 +74,7 @@ fun NotificationsSection() {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Notifications et widgets", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Te prévient quand l'emploi du temps change, qu'une note ou un message arrive, ou qu'un devoir est pour demain.",
-                        color = AppTheme.colors.muted,
-                        fontSize = 13.sp,
-                    )
+                    Text("Notifications", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
                 Switch(
                     checked = enabled,
@@ -100,12 +95,12 @@ fun NotificationsSection() {
             }
             if (enabled) {
                 Column(Modifier.padding(top = 10.dp)) {
-                    RuleRow("Emploi du temps", "Cours annulé, salle ou professeur changé, cours rétabli", rules.schedule) { prefs.setRules(rules.copy(schedule = it)) }
-                    RuleRow("Nouvelles notes", "Matière, note et coefficient", rules.grades) { prefs.setRules(rules.copy(grades = it)) }
-                    RuleRow("Messages", "Expéditeur et objet", rules.messages) { prefs.setRules(rules.copy(messages = it)) }
-                    RuleRow("Devoirs pour demain", "Un rappel du soir quand un devoir n'est pas fait", rules.homework) { prefs.setRules(rules.copy(homework = it)) }
+                    RuleRow("Emploi du temps", rules.schedule) { prefs.setRules(rules.copy(schedule = it)) }
+                    RuleRow("Notes", rules.grades) { prefs.setRules(rules.copy(grades = it)) }
+                    RuleRow("Messages", rules.messages) { prefs.setRules(rules.copy(messages = it)) }
+                    RuleRow("Devoirs pour demain", rules.homework) { prefs.setRules(rules.copy(homework = it)) }
                     if (rules.homework) {
-                        Text("Rappel à partir de", color = AppTheme.colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, top = 2.dp, bottom = 4.dp))
+                        Text("Rappel dès", color = AppTheme.colors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, top = 2.dp, bottom = 4.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             NotificationRules.EVENING_HOURS.forEach { hour ->
                                 FilterChip(
@@ -115,14 +110,8 @@ fun NotificationsSection() {
                                 )
                             }
                         }
-                        Text(
-                            "Le rappel part au premier passage de la vérification après cette heure (pas d'heure exacte), une seule fois par devoir.",
-                            color = AppTheme.colors.muted,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
-                        )
                     }
-                    RuleRow("Pas de notification la nuit", "De 22 h à 7 h : elles arrivent au matin", rules.quietNight) { prefs.setRules(rules.copy(quietNight = it)) }
+                    RuleRow("Silence de 22 h à 7 h", rules.quietNight) { prefs.setRules(rules.copy(quietNight = it)) }
                     Text("Vérifier toutes les", color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SyncIntervals.choices.forEach { hours ->
@@ -136,18 +125,12 @@ fun NotificationsSection() {
                             )
                         }
                     }
-                    Text(
-                        "Plus c'est fréquent, plus l'application se connecte à ÉcoleDirecte : 4 h est un bon équilibre.",
-                        color = AppTheme.colors.muted,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
                 }
             }
             lastSync?.let {
                 val moment = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())
                 Text(
-                    "Dernière vérification : " + FrenchFormat.weekdayDayMonthAtTime(moment),
+                    "Vérifié " + FrenchFormat.weekdayDayMonthAtTime(moment),
                     color = AppTheme.colors.muted,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 8.dp),
@@ -158,7 +141,7 @@ fun NotificationsSection() {
             }
             if (blocked) {
                 Text(
-                    "Android bloque les notifications de l'application ; les widgets restent à jour. Autoriser dans les réglages",
+                    "Notifications bloquées par Android. Autoriser",
                     color = AppTheme.colors.accent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
@@ -178,17 +161,14 @@ fun NotificationsSection() {
     }
 }
 
-/** Une ligne de réglage : un titre, une explication courte et un interrupteur. */
+/** Une ligne de réglage : un titre et un interrupteur. */
 @Composable
-private fun RuleRow(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun RuleRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(detail, color = AppTheme.colors.muted, fontSize = 12.sp)
-        }
+        Text(title, color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onChange)
     }
 }

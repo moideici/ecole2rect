@@ -74,7 +74,7 @@ fun SearchEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Search, contentDescription = null, tint = AppTheme.colors.muted, modifier = Modifier.size(20.dp))
             Text(
-                "Rechercher un devoir, un message, une note…",
+                "Rechercher",
                 color = AppTheme.colors.muted,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(start = 12.dp),
@@ -123,12 +123,9 @@ fun SearchRoute(onClose: () -> Unit, onOpen: (SearchKind) -> Unit) {
             when {
                 loaded == null -> Unit
                 query.isBlank() -> item {
-                    EmptyState(
-                        "Rechercher",
-                        "Cherche dans les devoirs, messages, notes et cours déjà enregistrés sur ce téléphone. Rien n'est envoyé, rien n'est téléchargé.",
-                    )
+                    EmptyState("Données enregistrées sur ce téléphone")
                 }
-                groups.isEmpty() -> item { EmptyState("Aucun résultat", "Rien ne correspond dans les données enregistrées.") }
+                groups.isEmpty() -> item { EmptyState("Aucun résultat") }
                 else -> groups.forEach { group -> groupItems(group, onOpen) }
             }
         }

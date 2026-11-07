@@ -46,7 +46,7 @@ fun MoreScreen(
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("plus", listState)
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { PageHeader("Plus", "Compte, apparence et connexion") }
+        item { PageHeader("Plus") }
         item { SearchEntry(onOpenSearch) }
         item {
             ListCard {
@@ -57,7 +57,6 @@ fun MoreScreen(
                     Avatar(profile?.initials ?: "?")
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
                         Text(profile?.displayName ?: "Aucun compte", color = AppTheme.colors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("Changer ou ajouter un compte", color = AppTheme.colors.muted, fontSize = 13.sp)
                     }
                 }
             }
@@ -71,7 +70,6 @@ fun MoreScreen(
             ListCard(onClick = onOpenMethod) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text("Comment la moyenne est calculée", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Moyenne officielle ou calculée par l'app : ce qui compte, ce qui peut différer.", color = AppTheme.colors.muted, fontSize = 13.sp)
                 }
             }
         }
@@ -81,12 +79,12 @@ fun MoreScreen(
         item { HomeLayoutCard() }
         item { Section("Couleurs") }
         item { ColorsCard(profile) }
-        item { Section("Sécurité et confort") }
+        item { Section("Sécurité") }
         item { fr.ecole2recte.app.ui.common.PrivacyCard() }
         item { SecurityAndMotionCard() }
-        item { Section("Écriture vers ÉcoleDirecte") }
+        item { Section("Écriture") }
         item { WriteAccessCard() }
-        item { Section("Connexion à ÉcoleDirecte") }
+        item { Section("Connexion") }
         item {
             ListCard {
                 Column(Modifier.padding(16.dp)) {

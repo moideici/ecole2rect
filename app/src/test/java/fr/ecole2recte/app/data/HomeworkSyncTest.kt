@@ -196,8 +196,7 @@ class HomeworkSyncTest {
     @Test
     fun `les deux fonctions d'ecriture expliquent ce qu'elles font`() {
         WriteFeature.entries.forEach {
-            assertTrue(it.confirmText.length > 80)
-            assertTrue("Cette fonction est récente" in it.confirmText)
+            assertTrue(it.confirmText.length > 50)
         }
         assertTrue("Rien d'autre n'est envoyé" in WriteFeature.HomeworkSync.confirmText)
         assertTrue("rien ne part sans ton toucher" in WriteFeature.MessageSending.confirmText)
