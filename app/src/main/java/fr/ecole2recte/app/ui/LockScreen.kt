@@ -34,9 +34,9 @@ fun LockScreen(message: String?, onUnlock: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(Icons.Outlined.Lock, contentDescription = null, tint = AppTheme.colors.accent, modifier = Modifier.size(48.dp))
-        Text("ecole2recte est verrouillé", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+        Text("Verrouillé", color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
         Text(
-            message ?: "Déverrouille l'application pour voir tes cours, tes notes et tes messages.",
+            message.orEmpty(),
             color = AppTheme.colors.muted,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,

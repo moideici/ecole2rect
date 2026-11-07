@@ -17,6 +17,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.MarkEmailRead
+import androidx.compose.material.icons.outlined.MarkEmailUnread
+import androidx.compose.material3.IconButton
+import fr.ecole2recte.app.data.applyReadMarks
+import fr.ecole2recte.app.ui.common.LocalActiveProfile
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,9 +31,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,15 +45,20 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.MessageDetail
 import fr.ecole2recte.app.domain.MessagePreview
+import fr.ecole2recte.app.ui.common.AttachmentList
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.MessagesViewModel
 import fr.ecole2recte.app.ui.common.PageHeader
 import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
+import fr.ecole2recte.app.ui.common.RefreshOnResume
 import fr.ecole2recte.app.ui.common.StateHost
 import fr.ecole2recte.app.ui.common.appViewModel
+import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.common.entrance
+import fr.ecole2recte.app.ui.common.linkified
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
+import fr.ecole2recte.app.ui.common.LocalPrivacy
 import fr.ecole2recte.app.ui.theme.AppTheme
 import java.text.Normalizer
 
@@ -58,7 +68,8 @@ fun MessagesRoute() {
     val viewModel = appViewModel { MessagesViewModel(repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
-    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh) { first ->
+    RefreshOnResume(viewModel)
+    StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh, notices = viewModel.notices) { first ->
         MessagesContent(first, viewModel)
     }
 }
@@ -79,8 +90,18 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
     var searching by remember { mutableStateOf(false) }
     var unreadOnly by remember { mutableStateOf(false) }
     var opened by remember { mutableStateOf<MessagePreview?>(null) }
+    val canSend by rememberAppContainer().settings.sendMessages.collectAsStateWithLifecycle()
+    var composing by remember { mutableStateOf(false) }
+    var sentNotice by remember { mutableStateOf(false) }
 
-    val all = remember(first, more, readHere) { (first + more).map { if (it.id in readHere) it.copy(unread = false) else it } }
+    // Marques locales (lu / non lu choisis ici, jamais écrits chez ÉcoleDirecte) : elles passent après « ouvert pendant cette visite ».
+    val container = rememberAppContainer()
+    val ownerKey = LocalActiveProfile.current?.key.orEmpty()
+    val marks by remember(ownerKey) { container.messageMarks.marks(ownerKey) }.collectAsStateWithLifecycle(emptyMap())
+    val privacy = LocalPrivacy.current
+    val all = remember(first, more, readHere, marks, privacy) {
+        privacy.maskMessages(applyReadMarks((first + more).map { if (it.id in readHere) it.copy(unread = false) else it }, marks))
+    }
     val shown = remember(all, query, unreadOnly) {
         val needle = query.plain().trim()
         all.filter { message ->
@@ -94,8 +115,19 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
         item {
             PageHeader(
                 "Messages",
-                if (unreadCount == 0) "Tout est lu" else if (unreadCount == 1) "1 message non lu" else "$unreadCount messages non lus",
+                if (unreadCount == 0) "" else if (unreadCount == 1) "1 non lu" else "$unreadCount non lus",
             )
+        }
+        if (canSend) {
+            item {
+                Text(
+                    if (sentNotice) "Envoyé · Nouveau message" else "Nouveau message",
+                    color = AppTheme.colors.accent,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable { composing = true }.padding(horizontal = 22.dp, vertical = 8.dp),
+                )
+            }
         }
         item {
             Row(
@@ -125,12 +157,19 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
         }
         if (shown.isEmpty()) {
             item {
-                if (all.isEmpty()) EmptyState("Aucun message", "Ta boîte de réception est vide.")
-                else EmptyState("Aucun résultat", "Aucun message ne correspond.")
+                if (all.isEmpty()) EmptyState("Aucun message")
+                else EmptyState("Aucun résultat")
             }
         }
         itemsIndexed(shown, key = { index, message -> message.id.ifEmpty { "m$index" } }) { index, message ->
-            MessageRow(message, Modifier.entrance(index.coerceAtMost(8))) { opened = message }
+            MessageRow(
+                message,
+                Modifier.entrance(index.coerceAtMost(8)),
+                onToggleRead = { container.messageMarks.set(ownerKey, message.id, read = message.unread) },
+            ) {
+                // Mode « montrer à quelqu'un » : on n'ouvre pas un message masqué (l'ouvrir le marquerait lu chez ÉcoleDirecte).
+                if (!privacy.hidesMessages) opened = message
+            }
         }
         if (hasMore && all.size >= 50) {
             item {
@@ -139,7 +178,7 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
                         CircularProgressIndicator(Modifier.size(24.dp), color = AppTheme.colors.accent)
                     } else {
                         Text(
-                            "Charger les messages plus anciens",
+                            "Messages plus anciens",
                             color = AppTheme.colors.accent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
@@ -152,13 +191,21 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
     }
     opened?.let { message ->
         ModalBottomSheet(onDismissRequest = { opened = null }, containerColor = AppTheme.colors.surface) {
-            MessageSheet(message, viewModel)
+            MessageSheet(message, viewModel, onOpened = { container.messageMarks.forget(ownerKey, message.id) })
+        }
+    }
+    if (composing && canSend) {
+        ModalBottomSheet(onDismissRequest = { composing = false }, containerColor = AppTheme.colors.surface) {
+            ComposeSheet(viewModel, onSent = {
+                composing = false
+                sentNotice = true
+            })
         }
     }
 }
 
 @Composable
-private fun MessageRow(message: MessagePreview, modifier: Modifier, onClick: () -> Unit) {
+private fun MessageRow(message: MessagePreview, modifier: Modifier, onToggleRead: () -> Unit, onClick: () -> Unit) {
     ListCard(modifier, onClick = onClick) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
             Box(
@@ -186,14 +233,27 @@ private fun MessageRow(message: MessagePreview, modifier: Modifier, onClick: () 
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (message.id.isNotBlank()) {
+                IconButton(onClick = onToggleRead, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        if (message.unread) Icons.Outlined.MarkEmailRead else Icons.Outlined.MarkEmailUnread,
+                        contentDescription = if (message.unread) "Marquer comme lu sur ce téléphone" else "Marquer comme non lu sur ce téléphone",
+                        tint = AppTheme.colors.muted,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel) {
-    val detail by produceState<Result<MessageDetail>?>(null, message.id) {
-        value = runCatching { viewModel.open(message) }
+private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel, onOpened: () -> Unit) {
+    var detail by remember(message.id) { mutableStateOf<Result<MessageDetail>?>(null) }
+    LaunchedEffect(message.id) {
+        detail = runCatching { viewModel.open(message) }
+        // Ouvert, donc lu chez ÉcoleDirecte : la marque locale n'a plus lieu d'être.
+        if (detail?.isSuccess == true) onOpened()
     }
     Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(message.preview, color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -207,17 +267,12 @@ private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel) 
                         Text("À : " + content.recipients.joinToString(", "), color = AppTheme.colors.muted, fontSize = 13.sp)
                     }
                     SelectionContainer {
-                        Text(content.body, color = AppTheme.colors.ink, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 8.dp))
+                        Text(linkified(content.body), color = AppTheme.colors.ink, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 8.dp))
                     }
-                    content.attachments.forEach { name ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.AttachFile, contentDescription = null, tint = AppTheme.colors.muted)
-                            Text(name, color = AppTheme.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
-                        }
-                    }
+                    AttachmentList(content.files, viewModel::download)
                 },
                 onFailure = {
-                    Text("Impossible d'ouvrir ce message pour le moment.", color = AppTheme.colors.error, fontSize = 14.sp)
+                    Text("Ouverture impossible.", color = AppTheme.colors.error, fontSize = 14.sp)
                 },
             )
         }

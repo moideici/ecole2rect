@@ -13,6 +13,15 @@ interface AuthClient {
     val approvedAnswer: TrustedAnswer?
     fun login(identifier: String, password: String, trustedAnswer: TrustedAnswer?): LoginResult
     fun completeSecurityQuestion(choice: String, identifier: String, password: String): LoginResult
+
+    /** La session ouverte, à garder pour la rejouer plus tard ; null si rien à garder. */
+    fun snapshot(accounts: List<Account>): SavedSession? = null
+
+    /**
+     * Rejoue une session gardée sans se connecter. [onConfirmed] reçoit l'inactivité (en ms) quand
+     * le premier appel réussit avec ce jeton. Faux si cette session ne peut pas être rejouée.
+     */
+    fun restore(session: SavedSession, onConfirmed: (idleMs: Long) -> Unit = {}): Boolean = false
 }
 
 /**
@@ -23,14 +32,69 @@ class EcoleDirecteClient(
     private val apiBase: String = "https://api.ecoledirecte.com/v3",
     private val apiVersion: String = "4.75.0",
 ) : AuthClient {
+    // Plusieurs écrans appellent le client en même temps : l'état de session est protégé.
     private val cookies = LinkedHashMap<String, String>()
-    private var currentGtk: String = ""
-    var token: String? = null
+    @Volatile private var currentGtk: String = ""
+    @Volatile var token: String? = null
         private set
-    var twoFactorToken: String? = null
+    @Volatile var twoFactorToken: String? = null
         private set
-    override var approvedAnswer: TrustedAnswer? = null
+    @Volatile override var approvedAnswer: TrustedAnswer? = null
         private set
+
+    /** Au plus deux appels de données simultanés : courtoisie envers le serveur, pas de rafale. */
+    private val dataGate = java.util.concurrent.Semaphore(MAX_PARALLEL_CALLS)
+
+    /** Quand le jeton actuel a été obtenu par une connexion (0 : pas encore connecté). */
+    @Volatile var issuedAt: Long = 0
+        private set
+
+    /** Dernière réponse correcte avec ce jeton (0 : aucune). */
+    @Volatile var lastOkAt: Long = 0
+        private set
+    private var replayIdleMs: Long? = null
+    private var onReplayConfirmed: (Long) -> Unit = {}
+
+    private fun markOk() {
+        val confirmed: Long?
+        synchronized(this) {
+            lastOkAt = System.currentTimeMillis()
+            confirmed = replayIdleMs
+            replayIdleMs = null
+        }
+        confirmed?.let(onReplayConfirmed)
+    }
+
+    override fun snapshot(accounts: List<Account>): SavedSession? {
+        val current = token?.takeIf { it.isNotBlank() } ?: return null
+        if (accounts.isEmpty() || issuedAt == 0L) return null
+        return SavedSession(
+            token = current,
+            cookies = synchronized(cookies) { LinkedHashMap(cookies) },
+            gtk = currentGtk,
+            userAgent = USER_AGENT,
+            issuedAt = issuedAt,
+            lastOkAt = lastOkAt.takeIf { it > 0 } ?: issuedAt,
+            accounts = accounts,
+        )
+    }
+
+    override fun restore(session: SavedSession, onConfirmed: (Long) -> Unit): Boolean {
+        if (session.token.isBlank() || session.userAgent != USER_AGENT) return false
+        synchronized(cookies) {
+            cookies.clear()
+            cookies.putAll(session.cookies)
+        }
+        currentGtk = session.gtk
+        token = session.token
+        issuedAt = session.issuedAt
+        synchronized(this) {
+            lastOkAt = session.lastOkAt
+            replayIdleMs = (System.currentTimeMillis() - session.lastOkAt).coerceAtLeast(0)
+            onReplayConfirmed = onConfirmed
+        }
+        return true
+    }
 
     override fun login(identifier: String, password: String, trustedAnswer: TrustedAnswer?): LoginResult {
         val payload = JSONObject()
@@ -44,6 +108,11 @@ class EcoleDirecteClient(
         return when (response.body.optInt("code")) {
             ApiCode.OK -> {
                 token = response.body.optString("token").takeIf { it.isNotBlank() } ?: response.headers["x-token"]
+                issuedAt = System.currentTimeMillis()
+                synchronized(this) {
+                    lastOkAt = issuedAt
+                    replayIdleMs = null
+                }
                 LoginResult.Success(extractAccounts(response.body))
             }
 
@@ -78,6 +147,11 @@ class EcoleDirecteClient(
                 "Compte bloqué.",
                 response.diagnostic(),
                 FailureKind.Blocked,
+            )
+            ApiCode.STALE_VERSION -> LoginResult.Failure(
+                "ÉcoleDirecte n'accepte plus la version d'API utilisée (517). Une mise à jour de l'application est nécessaire.",
+                response.diagnostic(),
+                FailureKind.StaleVersion,
             )
             else -> LoginResult.Failure(
                 response.body.optString("message").ifBlank { "Connexion impossible." },
@@ -183,10 +257,88 @@ class EcoleDirecteClient(
         query: Map<String, String> = emptyMap(),
         body: JSONObject = JSONObject(),
     ): ApiReply {
+        dataGate.acquireUninterruptibly()
+        try {
+            return execute(path, verb, query, body)
+        } finally {
+            dataGate.release()
+        }
+    }
+
+    /** Un fichier téléchargé : ses octets, son type et le nom annoncé par le serveur. */
+    class Download(val bytes: ByteArray, val contentType: String?, val fileName: String?)
+
+    /**
+     * Télécharge un fichier (lecture seule, verbe `get`). Même courtoisie que les autres appels :
+     * jeton, cookies, au plus deux appels à la fois. La réponse est refusée au-delà de [maxBytes].
+     */
+    fun download(path: String, query: Map<String, String>, maxBytes: Int = MAX_DOWNLOAD_BYTES): Download {
+        dataGate.acquireUninterruptibly()
+        try {
+            val extra = query.entries.joinToString("") { (name, value) -> "&" + formEncode(name) + "=" + formEncode(value) }
+            val connection = openConnection("$path?verbe=get&v=$apiVersion$extra", "POST")
+            try {
+                connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                dataHeaders().forEach { (name, value) -> connection.setRequestProperty(name, value) }
+                currentGtk.takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("X-GTK", it) }
+                cookieHeader().takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("Cookie", it) }
+                connection.outputStream.use { it.write("data=%7B%7D".toByteArray(Charsets.UTF_8)) }
+                val status = connection.responseCode
+                captureCookies(connection.headerFields)
+                headerValue(connection.headerFields, "X-Token").takeIf { it.isNotBlank() }?.let { token = it }
+                val contentType = connection.contentType
+                val stream = if (status in 200..399) connection.inputStream else connection.errorStream
+                val bytes = stream?.use { readAtMost(it, maxBytes) } ?: ByteArray(0)
+                if (contentType == null || contentType.startsWith("application/json") || contentType.startsWith("text/")) {
+                    // Une réponse JSON à la place du fichier : c'est une erreur d'ÉcoleDirecte (jeton expiré, accès refusé…).
+                    val code = runCatching { JSONObject(String(bytes, Charsets.UTF_8)).optInt("code", 0) }.getOrDefault(0)
+                    when (code) {
+                        ApiCode.TOKEN_INVALID, ApiCode.TOKEN_EXPIRED_ALT, ApiCode.TOKEN_EXPIRED -> throw SessionExpiredException()
+                        ApiCode.STALE_VERSION -> throw EcoleDirecteException("La version d'API utilisée n'est plus acceptée par ÉcoleDirecte (517).", kind = FailureKind.StaleVersion)
+                        ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> throw EcoleDirecteException("ÉcoleDirecte est momentanément indisponible pour ce compte.", kind = FailureKind.Blocked)
+                    }
+                    throw EcoleDirecteException("Ce fichier n'est pas disponible pour le moment.", kind = FailureKind.Other)
+                }
+                if (status !in 200..299 || bytes.isEmpty()) {
+                    throw EcoleDirecteException(
+                        "Ce fichier n'est pas disponible pour le moment (HTTP $status).",
+                        kind = if (status >= 500) FailureKind.Service else FailureKind.Other,
+                    )
+                }
+                markOk()
+                return Download(bytes, contentType, fileNameFrom(headerValue(connection.headerFields, "Content-Disposition")))
+            } catch (error: IOException) {
+                throw EcoleDirecteException("Connexion réseau impossible.", error, FailureKind.Network)
+            } finally {
+                connection.disconnect()
+            }
+        } finally {
+            dataGate.release()
+        }
+    }
+
+    private fun readAtMost(stream: java.io.InputStream, maxBytes: Int): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(16 * 1024)
+        while (true) {
+            val read = stream.read(buffer)
+            if (read < 0) break
+            if (out.size() + read > maxBytes) {
+                throw EcoleDirecteException("Ce fichier est trop volumineux (plus de ${maxBytes / (1024 * 1024)} Mo).", kind = FailureKind.Other)
+            }
+            out.write(buffer, 0, read)
+        }
+        return out.toByteArray()
+    }
+
+    private fun execute(path: String, verb: String, query: Map<String, String>, body: JSONObject): ApiReply {
         val response = post(path, verb, body, dataHeaders(), query = query)
         val code = response.body.optInt("code", 0)
         return when (code) {
-            ApiCode.OK -> ApiReply(response.body.opt("data"))
+            ApiCode.OK -> {
+                markOk()
+                ApiReply(response.body.opt("data"))
+            }
             ApiCode.TOKEN_INVALID, ApiCode.TOKEN_EXPIRED_ALT, ApiCode.TOKEN_EXPIRED ->
                 throw SessionExpiredException()
             ApiCode.ACCESS_DENIED -> throw EcoleDirecteException(
@@ -194,8 +346,8 @@ class EcoleDirecteClient(
                 kind = FailureKind.Other,
             )
             ApiCode.STALE_VERSION -> throw EcoleDirecteException(
-                "La version d'API utilisée n'est plus acceptée par ÉcoleDirecte.",
-                kind = FailureKind.Service,
+                "La version d'API utilisée n'est plus acceptée par ÉcoleDirecte (517).",
+                kind = FailureKind.StaleVersion,
             )
             ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> throw EcoleDirecteException(
                 "ÉcoleDirecte est momentanément indisponible pour ce compte.",
@@ -217,7 +369,7 @@ class EcoleDirecteClient(
             connection.inputStream.use { it.readBytes() }
             captureCookies(connection.headerFields)
             currentGtk = headerValue(connection.headerFields, "X-GTK")
-                .ifBlank { cookies["GTK"].orEmpty() }
+                .ifBlank { synchronized(cookies) { cookies["GTK"].orEmpty() } }
             currentGtk
         } catch (error: IOException) {
             val status = runCatching { connection.responseCode }.getOrDefault(-1)
@@ -293,11 +445,7 @@ class EcoleDirecteClient(
             connectTimeout = 30_000
             readTimeout = 30_000
             // Match the browser-like fingerprint required by the current API/WAF.
-            setRequestProperty(
-                "User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                    "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-            )
+            setRequestProperty("User-Agent", USER_AGENT)
             setRequestProperty("Accept", "application/json, text/plain, */*")
             setRequestProperty("Origin", "https://www.ecoledirecte.com")
             setRequestProperty("Referer", "https://www.ecoledirecte.com/")
@@ -306,10 +454,11 @@ class EcoleDirecteClient(
             doOutput = method == "POST"
         }
 
-    private fun cookieHeader(): String =
+    private fun cookieHeader(): String = synchronized(cookies) {
         cookies.entries.joinToString("; ") { (name, value) -> "$name=$value" }
+    }
 
-    private fun captureCookies(fields: Map<String?, List<String>?>) {
+    private fun captureCookies(fields: Map<String?, List<String>?>) = synchronized(cookies) {
         fields.entries
             .filter { it.key.equals("Set-Cookie", ignoreCase = true) }
             .flatMap { it.value.orEmpty() }
@@ -359,8 +508,10 @@ class EcoleDirecteClient(
                                 lastName = student.optString("nom"),
                                 className = student.optJSONObject("classe")?.let { it.optString("libelle").ifBlank { it.optString("code") } }
                                     ?: student.optString("classe"),
+                                modules = parseModules(student.optJSONArray("modules")),
                             )
                         },
+                        modules = parseModules(account.optJSONArray("modules")),
                     ),
                 )
             }
@@ -416,6 +567,9 @@ enum class FailureKind {
     /** Réponse à la question de sécurité refusée : ne jamais réessayer la même. */
     SecurityRefused,
 
+    /** Version d'API refusée (code 517) : réessayer ne sert à rien tant que l'application n'est pas mise à jour. */
+    StaleVersion,
+
     Other,
 }
 
@@ -430,7 +584,14 @@ sealed interface LoginResult {
 }
 
 /** Élève rattaché à un compte famille. */
-data class Student(val id: String, val firstName: String, val lastName: String, val className: String = "")
+data class Student(
+    val id: String,
+    val firstName: String,
+    val lastName: String,
+    val className: String = "",
+    /** Modules ouverts pour cet élève (`code → ouvert`), lus à la connexion. */
+    val modules: Map<String, Boolean> = emptyMap(),
+)
 
 data class Account(
     val id: String,
@@ -438,6 +599,8 @@ data class Account(
     val firstName: String,
     val lastName: String,
     val students: List<Student> = emptyList(),
+    /** Modules ouverts pour le compte (`code → ouvert`), lus à la connexion. */
+    val modules: Map<String, Boolean> = emptyMap(),
 )
 
 /** Résultat d'un appel métier réussi : le contenu de `data`. */
@@ -446,11 +609,14 @@ class ApiReply(val data: Any?)
 /** Le jeton a expiré : il faut rouvrir la session une fois, puis rejouer l'appel. */
 class SessionExpiredException : RuntimeException("La session ÉcoleDirecte a expiré.")
 
-class EcoleDirecteException(
+open class EcoleDirecteException(
     message: String,
     cause: Throwable? = null,
     val kind: FailureKind = FailureKind.Other,
 ) : RuntimeException(message, cause)
+
+/** ÉcoleDirecte a répondu, mais la réponse est vide ou illisible : on ne la garde pas à la place d'une bonne. */
+class UnusableResponseException(message: String) : EcoleDirecteException(message, kind = FailureKind.Other)
 
 private fun redactSecrets(value: String): String =
     value.replace(Regex("(?i)(motdepasse|password|token|x-token|2fa-token|cookie|set-cookie)\"?\\s*[:=]\\s*\"?[^\",}\\s]+"), "$1=<masqué>")
@@ -487,6 +653,28 @@ private fun requestSummary(payload: JSONObject, headers: Map<String, String>, en
         "identifierLength=$identifierLength; passwordLength=$passwordLength; faCount=$faSize; " +
         "encodedDataLength=$encodedLength; headers=$headerNames"
 }
+
+private const val MAX_PARALLEL_CALLS = 2
+
+/** Taille maximale d'une pièce jointe téléchargée (elle est lue en mémoire puis écrite dans le cache privé). */
+internal const val MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
+
+private val encodedFileName = Regex("filename\\*\\s*=\\s*[^']*'[^']*'([^;]+)", RegexOption.IGNORE_CASE)
+private val plainFileName = Regex("filename\\s*=\\s*\"?([^\";]+)\"?", RegexOption.IGNORE_CASE)
+
+/** Le nom de fichier d'un en-tête `Content-Disposition`, ou null. Gère `filename*=UTF-8''…` et `filename="…"`. */
+internal fun fileNameFrom(disposition: String?): String? {
+    if (disposition.isNullOrBlank()) return null
+    encodedFileName.find(disposition)?.let { match ->
+        runCatching { java.net.URLDecoder.decode(match.groupValues[1].trim().replace("+", "%2B"), "UTF-8") }
+            .getOrNull()?.takeIf { it.isNotEmpty() }?.let { return it }
+    }
+    return plainFileName.find(disposition)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+/** Une seule empreinte réseau, jamais aléatoire : une session gardée n'est rejouée qu'avec la même. */
+internal const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
 
 private val cookieAttributes = setOf(
     "path", "domain", "expires", "max-age", "samesite", "version", "comment",

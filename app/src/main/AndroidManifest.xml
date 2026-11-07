@@ -6,7 +6,8 @@
     <application
         android:name=".Ecole2recteApplication"
         android:allowBackup="false"
-        android:label="ecole2recte"
+        android:icon="@mipmap/ic_launcher"
+        android:label="${appLabel}"
         android:supportsRtl="true"
         android:theme="@style/Theme.Ecole2recte">
         <activity
@@ -22,6 +23,16 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <receiver
             android:name=".widget.NextClassWidgetReceiver"
             android:exported="true"
@@ -34,6 +45,28 @@
                 android:resource="@xml/next_class_widget_info" />
         </receiver>
         <receiver
+            android:name=".widget.DayWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_day_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/day_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.WeekWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_week_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/week_widget_info" />
+        </receiver>
+        <receiver
             android:name=".widget.HomeworkWidgetReceiver"
             android:exported="true"
             android:label="@string/sync_widget_homework_label">
@@ -43,6 +76,28 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/homework_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.GradesWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_grades_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/grades_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.MessagesWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_messages_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/messages_widget_info" />
         </receiver>
     </application>
 </manifest>

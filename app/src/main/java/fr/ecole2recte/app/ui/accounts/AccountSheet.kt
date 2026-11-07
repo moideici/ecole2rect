@@ -138,7 +138,7 @@ fun AccountSheet(
                 actions.onAdd()
             }
             if (active != null) {
-                ActionRow(Icons.AutoMirrored.Outlined.Logout, "Retirer ce compte de l'appareil", AppTheme.colors.error) {
+                ActionRow(Icons.AutoMirrored.Outlined.Logout, "Retirer ce compte", AppTheme.colors.error) {
                     confirmRemoval = active
                 }
             }
@@ -148,7 +148,7 @@ fun AccountSheet(
         AlertDialog(
             onDismissRequest = { confirmRemoval = null },
             title = { Text("Retirer ce compte ?") },
-            text = { Text("L'identifiant et le mot de passe de ${account.displayName} seront effacés de cet appareil.") },
+            text = { Text("${account.displayName} sera effacé de cet appareil.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmRemoval = null

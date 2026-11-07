@@ -1,23 +1,50 @@
 package fr.ecole2recte.app.settings
 
 import android.content.Context
+import fr.ecole2recte.app.ui.schedule.ScheduleZoom
+import fr.ecole2recte.app.ui.theme.ColorTheme
+import fr.ecole2recte.app.ui.theme.TextScale
 import fr.ecole2recte.app.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+const val DEFAULT_API_VERSION = "4.75.0"
+
 /** Réglages de l'application, non secrets, gardés sur l'appareil. */
 class AppSettings(context: Context) {
-    private val preferences = context.getSharedPreferences("ecole2recte_settings", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val preferences = context.getSharedPreferences(ThemeSelection.PREFS, Context.MODE_PRIVATE)
 
-    private val mutableThemeMode = MutableStateFlow(
-        runCatching { ThemeMode.valueOf(preferences.getString("theme_mode", null) ?: "") }.getOrDefault(ThemeMode.System),
-    )
+    /** Les widgets lisent ces réglages à chaque dessin : on les redessine tout de suite quand l'un d'eux change. */
+    private fun refreshWidgets() = fr.ecole2recte.app.widget.WidgetRefresh.requestAll(appContext)
+
+    private val mutableThemeMode = MutableStateFlow(ThemeMode.parse(preferences.getString(ThemeSelection.MODE_KEY, null)))
     val themeMode: StateFlow<ThemeMode> = mutableThemeMode.asStateFlow()
 
     fun setThemeMode(mode: ThemeMode) {
-        preferences.edit().putString("theme_mode", mode.name).apply()
+        preferences.edit().putString(ThemeSelection.MODE_KEY, mode.name).apply()
         mutableThemeMode.value = mode
+        refreshWidgets()
+    }
+
+    /** Le thème de couleurs (Indigo par défaut), décliné en clair, sombre et noir. */
+    private val mutableColorTheme = MutableStateFlow(ColorTheme.parse(preferences.getString(ThemeSelection.COLOR_THEME_KEY, null)))
+    val colorTheme: StateFlow<ColorTheme> = mutableColorTheme.asStateFlow()
+
+    fun setColorTheme(theme: ColorTheme) {
+        preferences.edit().putString(ThemeSelection.COLOR_THEME_KEY, theme.name).apply()
+        mutableColorTheme.value = theme
+        refreshWidgets()
+    }
+
+    /** La taille du texte choisie dans l'application, en plus de celle du système. */
+    private val mutableTextScale = MutableStateFlow(TextScale.parse(preferences.getString("text_scale", null)))
+    val textScale: StateFlow<TextScale> = mutableTextScale.asStateFlow()
+
+    fun setTextScale(scale: TextScale) {
+        preferences.edit().putString("text_scale", scale.name).apply()
+        mutableTextScale.value = scale
     }
 
     /** Supprime les animations de l'application, en plus du réglage Android du même nom. */
@@ -38,6 +65,132 @@ class AppSettings(context: Context) {
         mutableAppLock.value = enabled
     }
 
+    /** Mode « montrer à quelqu'un » : masque les notes (et en option les messages) partout, jusqu'à désactivation. */
+    private val mutablePrivacyMode = MutableStateFlow(preferences.getBoolean(PrivacySelection.MODE_KEY, false))
+    val privacyMode: StateFlow<Boolean> = mutablePrivacyMode.asStateFlow()
+
+    fun setPrivacyMode(enabled: Boolean) {
+        preferences.edit().putBoolean(PrivacySelection.MODE_KEY, enabled).apply()
+        mutablePrivacyMode.value = enabled
+        refreshWidgets()
+    }
+
+    private val mutablePrivacyHideMessages = MutableStateFlow(preferences.getBoolean(PrivacySelection.MESSAGES_KEY, false))
+    val privacyHideMessages: StateFlow<Boolean> = mutablePrivacyHideMessages.asStateFlow()
+
+    fun setPrivacyHideMessages(enabled: Boolean) {
+        preferences.edit().putBoolean(PrivacySelection.MESSAGES_KEY, enabled).apply()
+        mutablePrivacyHideMessages.value = enabled
+        refreshWidgets()
+    }
+
+    /** Délai d'absence après lequel le verrou est redemandé au retour dans l'application. */
+    private val mutableLockDelay = MutableStateFlow(fr.ecole2recte.app.security.LockDelay.parse(preferences.getString("lock_delay", null)))
+    val lockDelay: StateFlow<fr.ecole2recte.app.security.LockDelay> = mutableLockDelay.asStateFlow()
+
+    fun setLockDelay(delay: fr.ecole2recte.app.security.LockDelay) {
+        preferences.edit().putString("lock_delay", delay.name).apply()
+        mutableLockDelay.value = delay
+    }
+
+    /** Envoie aussi à ÉcoleDirecte les devoirs cochés « faits ». Éteint par défaut. */
+    private val mutableSyncHomework = MutableStateFlow(preferences.getBoolean("sync_homework", false))
+    val syncHomework: StateFlow<Boolean> = mutableSyncHomework.asStateFlow()
+    val syncHomeworkAcknowledged: Boolean get() = preferences.getBoolean("sync_homework_ack", false)
+
+    fun setSyncHomework(enabled: Boolean) {
+        val editor = preferences.edit().putBoolean("sync_homework", enabled)
+        if (enabled) editor.putBoolean("sync_homework_ack", true)
+        editor.apply()
+        mutableSyncHomework.value = enabled
+    }
+
+    /** Autorise l'écriture et l'envoi de messages depuis l'application. Éteint par défaut. */
+    private val mutableSendMessages = MutableStateFlow(preferences.getBoolean("send_messages", false))
+    val sendMessages: StateFlow<Boolean> = mutableSendMessages.asStateFlow()
+    val sendMessagesAcknowledged: Boolean get() = preferences.getBoolean("send_messages_ack", false)
+
+    fun setSendMessages(enabled: Boolean) {
+        val editor = preferences.edit().putBoolean("send_messages", enabled)
+        if (enabled) editor.putBoolean("send_messages_ack", true)
+        editor.apply()
+        mutableSendMessages.value = enabled
+    }
+
+    /** Ce qui est autorisé en écriture, lu au moment de l'action : un réglage éteint coupe l'écriture aussitôt. */
+    val writeAccess: fr.ecole2recte.app.data.WriteAccess = object : fr.ecole2recte.app.data.WriteAccess {
+        override fun homeworkSync() = mutableSyncHomework.value
+        override fun messageSending() = mutableSendMessages.value
+    }
+
+    /** L'avis du premier lancement (application non officielle, usage des identifiants) a été accepté. */
+    private val mutableNoticeAccepted = MutableStateFlow(preferences.getBoolean("notice_accepted", false))
+    val noticeAccepted: StateFlow<Boolean> = mutableNoticeAccepted.asStateFlow()
+
+    fun acceptNotice() {
+        preferences.edit().putBoolean("notice_accepted", true).apply()
+        mutableNoticeAccepted.value = true
+    }
+
+    /** La présentation de trois pages (après l'avis légal) a été vue ou passée. Rejouable depuis Plus > À propos. */
+    private val mutableOnboardingSeen = MutableStateFlow(preferences.getBoolean("onboarding_seen", false))
+    val onboardingSeen: StateFlow<Boolean> = mutableOnboardingSeen.asStateFlow()
+
+    fun markOnboardingSeen() {
+        preferences.edit().putBoolean("onboarding_seen", true).apply()
+        mutableOnboardingSeen.value = true
+    }
+
+    /**
+     * Masque l'aperçu de l'application dans la liste des applications récentes (et bloque les
+     * captures d'écran) quand le verrou est actif. Éteint par défaut : il empêche aussi les captures.
+     */
+    private val mutableHidePreview = MutableStateFlow(preferences.getBoolean("hide_preview", false))
+    val hidePreview: StateFlow<Boolean> = mutableHidePreview.asStateFlow()
+
+    fun setHidePreview(enabled: Boolean) {
+        preferences.edit().putBoolean("hide_preview", enabled).apply()
+        mutableHidePreview.value = enabled
+    }
+
+    /** Version de l'API envoyée à ÉcoleDirecte ; modifiable si le service refuse l'ancienne (code 517). */
+    private val mutableApiVersion = MutableStateFlow(preferences.getString("api_version", null)?.takeIf { it.isNotBlank() } ?: DEFAULT_API_VERSION)
+    val apiVersion: StateFlow<String> = mutableApiVersion.asStateFlow()
+
+    fun setApiVersion(version: String) {
+        val clean = version.trim().ifBlank { DEFAULT_API_VERSION }
+        preferences.edit().putString("api_version", clean).apply()
+        mutableApiVersion.value = clean
+    }
+
+    /** Échelle verticale de l'agenda (pincement ou boutons + / −), gardée d'une ouverture à l'autre. */
+    private val mutableScheduleZoom = MutableStateFlow(ScheduleZoom.clamp(preferences.getFloat("schedule_zoom", ScheduleZoom.DEFAULT)))
+    val scheduleZoom: StateFlow<Float> = mutableScheduleZoom.asStateFlow()
+
+    fun setScheduleZoom(zoom: Float) {
+        val clean = ScheduleZoom.clamp(zoom)
+        if (clean == mutableScheduleZoom.value) return
+        preferences.edit().putFloat("schedule_zoom", clean).apply()
+        mutableScheduleZoom.value = clean
+    }
+
+    /** L'agenda s'ouvre sur la vue semaine plutôt que sur la vue jour. */
+    private val mutableScheduleWeekView = MutableStateFlow(preferences.getBoolean("schedule_week_view", false))
+    val scheduleWeekView: StateFlow<Boolean> = mutableScheduleWeekView.asStateFlow()
+
+    fun setScheduleWeekView(week: Boolean) {
+        preferences.edit().putBoolean("schedule_week_view", week).apply()
+        mutableScheduleWeekView.value = week
+    }
+
+    /** Le réglage « mon emploi du temps alterne » de chaque profil (un enfant peut alterner, pas l'autre). */
+    fun alternation(profileKey: String): fr.ecole2recte.app.export.Alternation =
+        fr.ecole2recte.app.export.Alternation.parse(preferences.getString("alternation_$profileKey", null))
+
+    fun setAlternation(profileKey: String, value: fr.ecole2recte.app.export.Alternation) {
+        preferences.edit().putString("alternation_$profileKey", value.serialize()).apply()
+    }
+
     private val mutableHomeLayout = MutableStateFlow(HomeLayout.parse(preferences.getString("home_layout", null)))
     val homeLayout: StateFlow<HomeLayout> = mutableHomeLayout.asStateFlow()
 
@@ -46,3 +199,6 @@ class AppSettings(context: Context) {
         mutableHomeLayout.value = layout
     }
 }
+
+/** L'aperçu n'est masqué que si le verrou est actif ET que l'option est cochée. */
+fun shouldSecureWindow(lockEnabled: Boolean, hidePreview: Boolean): Boolean = lockEnabled && hidePreview

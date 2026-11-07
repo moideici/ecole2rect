@@ -9,6 +9,10 @@ import fr.ecole2recte.app.data.BirthDate
 import fr.ecole2recte.app.data.CredentialStore
 import fr.ecole2recte.app.data.EcoleDirecteClient
 import fr.ecole2recte.app.data.EcoleDirecteException
+import fr.ecole2recte.app.data.InMemoryTokenLog
+import fr.ecole2recte.app.data.TokenLifetimeLog
+import fr.ecole2recte.app.data.TokenReplayPolicy
+import fr.ecole2recte.app.data.USER_AGENT
 import fr.ecole2recte.app.data.FailureKind
 import fr.ecole2recte.app.data.LoginResult
 import fr.ecole2recte.app.data.SavedLogin
@@ -78,6 +82,9 @@ class SessionViewModel(
     private val apiSession: ApiSession? = null,
     /** Appelé quand un compte est retiré : efface ses données enregistrées. */
     private val onAccountRemoved: (identifier: String) -> Unit = {},
+    /** Mesures de la durée de vie du jeton : décident si une session gardée est rejouée. */
+    private val tokenLog: TokenLifetimeLog = InMemoryTokenLog(),
+    private val now: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private class Pending(
         val client: AuthClient,
@@ -96,6 +103,7 @@ class SessionViewModel(
         build(
             status = if (store.active() != null) AuthStatus.SignedIn else AuthStatus.SignedOut,
             connection = if (store.active() != null) ConnectionStatus.Connecting else ConnectionStatus.Connected,
+            login = if (store.isUnreadable()) LoginUiState(error = LoginError(UNREADABLE_MESSAGE, FailureKind.Other)) else LoginUiState(),
         ),
     )
     val state: StateFlow<SessionState> = mutableState.asStateFlow()
@@ -126,9 +134,15 @@ class SessionViewModel(
 
     // --- Reconnexion silencieuse -------------------------------------------------------------
 
-    private fun restore(saved: SavedLogin) {
+    private fun restore(saved: SavedLogin, allowReplay: Boolean = true) {
         restoreJob?.cancel()
         restoreJob = viewModelScope.launch {
+            // D'abord, la session gardée : si le jeton est encore plausible, aucune connexion du tout.
+            // Si ÉcoleDirecte le refuse, le premier appel de données rouvre la session (une fois).
+            if (allowReplay && replay(saved)) {
+                mutableState.update { build(AuthStatus.SignedIn, ConnectionStatus.Connected, adding = it.adding, login = it.login) }
+                return@launch
+            }
             var attempt = 0
             while (true) {
                 setConnection(ConnectionStatus.Connecting)
@@ -168,7 +182,7 @@ class SessionViewModel(
                                     identifier = saved.identifier,
                                     error = LoginError(
                                         if (result.kind == FailureKind.Blocked) result.message
-                                        else "ÉcoleDirecte n'accepte plus ce mot de passe. Saisis le nouveau.",
+                                        else "Mot de passe refusé. Saisis le nouveau.",
                                         result.kind,
                                     ),
                                     diagnostic = result.diagnostic,
@@ -187,7 +201,7 @@ class SessionViewModel(
                             )
                             return@launch
                         }
-                        FailureKind.Other -> {
+                        FailureKind.Other, FailureKind.StaleVersion -> {
                             setConnection(ConnectionStatus.Offline, result.message)
                             apiSession?.fail(saved.identifier, result.message, result.kind)
                             return@launch
@@ -198,11 +212,30 @@ class SessionViewModel(
         }
     }
 
-    /** Relance à la main la reconnexion quand l'app est hors ligne. */
+    private fun replay(saved: SavedLogin): Boolean {
+        val stored = saved.session ?: return false
+        if (!TokenReplayPolicy.canReplay(stored, now(), tokenLog.load(), USER_AGENT)) return false
+        val client = clientFactory()
+        if (!client.restore(stored, onConfirmed = tokenLog::recordReplay)) return false
+        openApi(saved.identifier, client, stored.accounts)
+        return true
+    }
+
+    /**
+     * Garde la session en cours (jeton renouvelé, cookies) pour la rejouer au prochain lancement.
+     * Appelé quand l'application quitte le premier plan.
+     */
+    fun saveSession() {
+        val ready = apiSession?.state?.value as? ApiSessionState.Ready ?: return
+        val snapshot = ready.client.snapshot(ready.accounts) ?: return
+        store.update(ready.identifier) { it.copy(session = snapshot.newest(it.session)) }
+    }
+
+    /** Relance à la main la reconnexion quand l'app est hors ligne : une vraie connexion, jamais un rejeu. */
     fun retryConnection() {
         val current = mutableState.value
         if (current.status != AuthStatus.SignedIn || current.connection == ConnectionStatus.Connecting) return
-        store.active()?.let(::restore)
+        store.active()?.let { restore(it, allowReplay = false) }
     }
 
     // --- Comptes -----------------------------------------------------------------------------
@@ -270,7 +303,7 @@ class SessionViewModel(
             updateLogin {
                 it.copy(
                     error = LoginError(
-                        "Ces identifiants ont déjà été refusés. Modifie-les avant de réessayer.",
+                        "Déjà refusés : modifie-les.",
                         FailureKind.InvalidCredentials,
                     ),
                 )
@@ -338,7 +371,7 @@ class SessionViewModel(
                             loading = false,
                             challenge = null,
                             error = LoginError(
-                                "ÉcoleDirecte a redemandé une vérification. Reconnecte-toi pour obtenir une nouvelle question.",
+                                "Nouvelle vérification demandée. Reconnecte-toi.",
                                 FailureKind.SecurityRefused,
                             ),
                         )
@@ -403,7 +436,7 @@ class SessionViewModel(
     ) {
         val sameAccount = previous?.takeIf { it.identifier.equals(identifier, ignoreCase = true) }
         val account = accounts.firstOrNull()
-        val profile = account?.let { AccountProfile(it.firstName, it.lastName, it.type, it.students) }
+        val profile = account?.let { AccountProfile(it.firstName, it.lastName, it.type, it.students, it.modules) }
             ?: sameAccount?.profile
         val activeStudent = sameAccount?.activeStudentId?.takeIf { id -> profile?.students?.any { it.id == id } == true }
         store.save(
@@ -414,6 +447,7 @@ class SessionViewModel(
                 birthDate = birthDate ?: sameAccount?.birthDate,
                 profile = profile,
                 activeStudentId = activeStudent,
+                session = client.snapshot(accounts),
             ),
             makeActive = makeActive,
         )
@@ -471,7 +505,9 @@ class SessionViewModel(
     }
 
     private companion object {
-        const val DEFAULT_QUESTION = "Réponds à la question demandée par ÉcoleDirecte."
-        const val NETWORK_MESSAGE = "Pas de connexion à ÉcoleDirecte. Vérifie ton réseau puis réessaie."
+        const val UNREADABLE_MESSAGE =
+            "Comptes illisibles (clé de l'appareil changée). Reconnecte-toi : rien n'est effacé."
+        const val DEFAULT_QUESTION = "Réponds à la question."
+        const val NETWORK_MESSAGE = "Pas de connexion. Vérifie ton réseau."
     }
 }

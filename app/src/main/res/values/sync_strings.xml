@@ -4,7 +4,16 @@
     <string name="sync_widget_next_class_description">Le prochain cours, avec l\'heure et la salle.</string>
     <string name="sync_widget_homework_label">Devoirs à faire</string>
     <string name="sync_widget_homework_description">Les devoirs qui t\'attendent.</string>
+    <string name="widget_day_label">Journée complète</string>
+    <string name="widget_day_description">Toute ta journée : le cours en cours, le prochain « dans 25 min », les pauses et une barre d\'avancement. Plus tu l\'agrandis, plus tu vois de détails.</string>
+    <string name="widget_week_label">Semaine complète</string>
+    <string name="widget_week_description">Tout ton emploi du temps de la semaine, jour par jour. Plus tu l\'agrandis, plus tu vois de détails : initiales, noms, salles, horaires.</string>
+    <string name="widget_grades_label">Notes</string>
+    <string name="widget_grades_description">Ta moyenne et tes dernières notes.</string>
+    <string name="widget_messages_label">Messages</string>
+    <string name="widget_messages_description">Les messages non lus.</string>
     <string name="sync_shortcut_agenda">Agenda</string>
     <string name="sync_shortcut_homework">Devoirs</string>
     <string name="sync_shortcut_messages">Messages</string>
+    <string name="sync_shortcut_search">Rechercher</string>
 </resources>

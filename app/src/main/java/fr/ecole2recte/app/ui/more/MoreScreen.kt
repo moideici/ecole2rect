@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +29,7 @@ import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.PageHeader
 import fr.ecole2recte.app.ui.common.ScrollToTopOnReselect
 import fr.ecole2recte.app.ui.common.rememberAppContainer
+import fr.ecole2recte.app.ui.search.SearchEntry
 import fr.ecole2recte.app.ui.theme.AppTheme
 import fr.ecole2recte.app.ui.theme.ThemeMode
 
@@ -37,13 +40,14 @@ fun MoreScreen(
     connectionMessage: String?,
     onOpenAccounts: () -> Unit,
     onRetryConnection: () -> Unit,
+    onOpenSearch: () -> Unit = {},
+    onOpenMethod: () -> Unit = {},
 ) {
-    val settings = rememberAppContainer().settings
-    val themeMode by settings.themeMode.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("plus", listState)
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { PageHeader("Plus", "Compte, apparence et connexion") }
+        item { PageHeader("Plus") }
+        item { SearchEntry(onOpenSearch) }
         item {
             ListCard {
                 Row(
@@ -53,32 +57,34 @@ fun MoreScreen(
                     Avatar(profile?.initials ?: "?")
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
                         Text(profile?.displayName ?: "Aucun compte", color = AppTheme.colors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("Changer ou ajouter un compte", color = AppTheme.colors.muted, fontSize = 13.sp)
                     }
                 }
             }
         }
+        item { Spacer(Modifier.height(10.dp)) }
+        item { ReportCard(profile) }
         item { Section("Apparence") }
+        item { AppearanceCard() }
+        item { Section("Notes") }
         item {
-            ListCard {
-                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(ThemeMode.System to "Système", ThemeMode.Light to "Clair", ThemeMode.Dark to "Sombre").forEach { (mode, label) ->
-                        FilterChip(
-                            selected = themeMode == mode,
-                            onClick = { settings.setThemeMode(mode) },
-                            label = { Text(label, fontSize = 13.sp) },
-                        )
-                    }
+            ListCard(onClick = onOpenMethod) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("Comment la moyenne est calculée", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
+        item { Section("Vie scolaire") }
+        item { SchoolLifeCard() }
         item { Section("Accueil") }
         item { HomeLayoutCard() }
         item { Section("Couleurs") }
         item { ColorsCard(profile) }
-        item { Section("Sécurité et confort") }
+        item { Section("Sécurité") }
+        item { fr.ecole2recte.app.ui.common.PrivacyCard() }
         item { SecurityAndMotionCard() }
-        item { Section("Connexion à ÉcoleDirecte") }
+        item { Section("Écriture") }
+        item { WriteAccessCard() }
+        item { Section("Connexion") }
         item {
             ListCard {
                 Column(Modifier.padding(16.dp)) {
@@ -105,6 +111,11 @@ fun MoreScreen(
             }
         }
         item { NotificationsSection() }
+        item { Section("À propos") }
+        item { AboutCard() }
+        item { Section("Diagnostic") }
+        item { DiagnosticCard(profile) }
+        item { SyncJournalCard() }
         item {
             Text(
                 "ecole2recte ${BuildConfig.VERSION_NAME}",

@@ -24,7 +24,7 @@ class PersonalizationTest {
     fun `monter et descendre un bloc change l'ordre, sans sortir de la liste`() {
         val layout = HomeLayout().move(HomeSection.Grades, -1)
         assertEquals(HomeSection.Grades, layout.order[HomeSection.entries.lastIndex - 1])
-        assertEquals(HomeLayout(), HomeLayout().move(HomeSection.NextClass, -1))
+        assertEquals(HomeLayout(), HomeLayout().move(HomeSection.Family, -1))
         assertEquals(HomeLayout(), HomeLayout().move(HomeSection.Grades, +1))
     }
 

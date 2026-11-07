@@ -37,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -58,17 +60,29 @@ import fr.ecole2recte.app.ui.agenda.AgendaScreen
 import fr.ecole2recte.app.ui.common.BadgesViewModel
 import fr.ecole2recte.app.ui.common.ConnectionBanner
 import fr.ecole2recte.app.ui.common.LocalActiveProfile
+import fr.ecole2recte.app.ui.common.LocalResumeTick
 import fr.ecole2recte.app.ui.common.LocalScrollEvents
-import fr.ecole2recte.app.ui.common.StaleDataBar
+import fr.ecole2recte.app.data.SchoolModule
+import fr.ecole2recte.app.ui.common.AdviceActions
+import fr.ecole2recte.app.ui.common.FreshnessBanner
+import fr.ecole2recte.app.ui.common.LocalPrivacy
+import fr.ecole2recte.app.ui.common.PrivacyToggle
+import fr.ecole2recte.app.domain.PrivacyMode
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import fr.ecole2recte.app.ui.common.LocalAdviceActions
+import fr.ecole2recte.app.data.AdviceAction
 import fr.ecole2recte.app.ui.common.UiState
 import fr.ecole2recte.app.ui.common.appViewModel
 import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.theme.LocalSubjectColorOverrides
 import fr.ecole2recte.app.ui.common.rememberSchoolRepository
+import fr.ecole2recte.app.ui.grades.AverageMethodScreen
 import fr.ecole2recte.app.ui.grades.GradesRoute
 import fr.ecole2recte.app.ui.home.HomeRoute
 import fr.ecole2recte.app.ui.messages.MessagesRoute
 import fr.ecole2recte.app.ui.more.MoreScreen
+import fr.ecole2recte.app.ui.search.SearchRoute
 import fr.ecole2recte.app.ui.theme.AppTheme
 import kotlinx.coroutines.flow.MutableSharedFlow
 
@@ -84,6 +98,20 @@ internal enum class AppTab(val route: String, val label: String, val icon: Image
     Messages("messages", "Messages", Icons.Outlined.ChatBubbleOutline),
     More("plus", "Plus", Icons.Outlined.MoreHoriz),
 }
+
+/** Un onglet disparaît quand l'établissement ferme le module qu'il montre (l'agenda quand les deux le sont). */
+internal fun AppTab.isAvailable(closed: Set<SchoolModule>): Boolean = when (this) {
+    AppTab.Agenda -> SchoolModule.Schedule !in closed || SchoolModule.Homework !in closed
+    AppTab.Grades -> SchoolModule.Grades !in closed
+    AppTab.Messages -> SchoolModule.Messages !in closed
+    else -> true
+}
+
+/** L'écran de recherche : une destination à part, pas un onglet. */
+internal const val SEARCH_ROUTE = "recherche"
+
+/** « Comment la moyenne est calculée ? » : une destination à part, ouverte depuis Notes et Plus. */
+internal const val METHOD_ROUTE = "moyennes"
 
 private fun AppTab.badge(badges: Badges): Int = when (this) {
     AppTab.Agenda -> badges.urgentHomework
@@ -113,9 +141,10 @@ fun MainScaffold(
     val subjectColors = rememberAppContainer().subjectColors
     val overrides by remember(activeProfile?.key) { subjectColors.overrides(activeProfile?.key.orEmpty()) }
         .collectAsStateWithLifecycle(emptyMap())
-    Crossfade(targetState = activeProfile?.key, animationSpec = tween(260), label = "account") { _ ->
-        CompositionLocalProvider(LocalActiveProfile provides activeProfile, LocalSubjectColorOverrides provides overrides) {
-            MainContent(connection, connectionMessage, onRetryConnection, accounts, activeProfile, accountActions)
+    // Pendant le fondu, l'ancien écran garde son propre profil : rien ne passe d'un compte à l'autre.
+    Crossfade(targetState = activeProfile, animationSpec = tween(260), label = "account") { profile ->
+        CompositionLocalProvider(LocalActiveProfile provides profile, LocalSubjectColorOverrides provides overrides) {
+            MainContent(connection, connectionMessage, onRetryConnection, accounts, profile, accountActions)
         }
     }
 }
@@ -135,33 +164,55 @@ private fun MainContent(
     var showAccounts by rememberSaveable { mutableStateOf(false) }
     var agendaPage by rememberSaveable { mutableIntStateOf(AGENDA_SCHEDULE) }
     val scrollEvents = remember { MutableSharedFlow<String>(extraBufferCapacity = 1) }
+    val closedModules = activeProfile?.closedModules.orEmpty()
+    val tabs = AppTab.entries.filter { it.isAvailable(closedModules) }
 
     // Raccourci, notification ou widget : ouvre l'onglet demandé, puis oublie la demande.
     val container = rememberAppContainer()
     val pendingTab by container.pendingTab.collectAsStateWithLifecycle()
     LaunchedEffect(pendingTab) {
         val requested = pendingTab ?: return@LaunchedEffect
-        if (requested == "agenda_homework") {
-            agendaPage = AGENDA_HOMEWORK
-            navController.navigateToTab(AppTab.Agenda)
+        if (requested == SEARCH_ROUTE) {
+            navController.navigate(SEARCH_ROUTE) { launchSingleTop = true }
+        } else if (requested == "agenda_homework") {
+            if (AppTab.Agenda in tabs) {
+                agendaPage = AGENDA_HOMEWORK
+                navController.navigateToTab(AppTab.Agenda)
+            }
         } else {
-            AppTab.entries.firstOrNull { it.route == requested }?.let(navController::navigateToTab)
+            tabs.firstOrNull { it.route == requested }?.let(navController::navigateToTab)
         }
         container.pendingTab.value = null
     }
 
     val repository = rememberSchoolRepository()
-    val badgesViewModel = appViewModel { BadgesViewModel(repository) }
+    val badgesViewModel = appViewModel(key = "badges/${activeProfile?.key}") { BadgesViewModel(repository) }
     val badgesState by badgesViewModel.state.collectAsStateWithLifecycle()
     val badges = (badgesState as? UiState.Content)?.value ?: Badges()
     val freshness by repository.freshness.collectAsStateWithLifecycle()
 
-    CompositionLocalProvider(LocalScrollEvents provides scrollEvents) {
+    // Chaque retour au premier plan prévient les écrans ; chacun décide s'il a besoin de se relire.
+    var resumeTick by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { resumeTick++ }
+    LaunchedEffect(resumeTick) { badgesViewModel.refreshIfStale() }
+
+    val adviceActions = remember(activeProfile?.key) {
+        AdviceActions(reconnect = onRetryConnection, openDiagnostic = { navController.navigateToTab(AppTab.More) })
+    }
+    val privacyEnabled by container.settings.privacyMode.collectAsStateWithLifecycle()
+    val privacyMessages by container.settings.privacyHideMessages.collectAsStateWithLifecycle()
+    val privacy = remember(privacyEnabled, privacyMessages) { PrivacyMode(privacyEnabled, privacyMessages) }
+    CompositionLocalProvider(
+        LocalScrollEvents provides scrollEvents,
+        LocalResumeTick provides resumeTick,
+        LocalAdviceActions provides adviceActions,
+        LocalPrivacy provides privacy,
+    ) {
         Scaffold(
             containerColor = AppTheme.colors.background,
             bottomBar = {
                 NavigationBar(containerColor = AppTheme.colors.surface) {
-                    AppTab.entries.forEach { tab ->
+                    tabs.forEach { tab ->
                         val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
                         val count = tab.badge(badges)
                         NavigationBarItem(
@@ -185,7 +236,15 @@ private fun MainContent(
                 if (connection == ConnectionStatus.Offline) {
                     ConnectionBanner(connectionMessage, onRetryConnection)
                 }
-                if (freshness.stale) StaleDataBar(freshness.lastSyncMillis)
+                if (freshness.stale) {
+                    FreshnessBanner(freshness) { action ->
+                        when (action) {
+                            AdviceAction.Reconnect -> onRetryConnection()
+                            AdviceAction.OpenDiagnostic -> navController.navigateToTab(AppTab.More)
+                            else -> badgesViewModel.retry()
+                        }
+                    }
+                }
                 Box(Modifier.fillMaxSize()) {
                     Surface(modifier = Modifier.fillMaxSize(), color = AppTheme.colors.background) {
                         NavHost(
@@ -208,13 +267,22 @@ private fun MainContent(
                                     },
                                     onOpenGrades = { navController.navigateToTab(AppTab.Grades) },
                                     onOpenMessages = { navController.navigateToTab(AppTab.Messages) },
+                                    onSelectChild = accountActions.onSelectStudent,
+                                    onOpenSearch = { navController.navigate(SEARCH_ROUTE) { launchSingleTop = true } },
                                 )
                             }
                             composable(AppTab.Agenda.route) { AgendaScreen(agendaPage) { agendaPage = it } }
-                            composable(AppTab.Grades.route) { GradesRoute() }
+                            composable(AppTab.Grades.route) { GradesRoute(onOpenMethod = { navController.navigate(METHOD_ROUTE) { launchSingleTop = true } }) }
+                            composable(METHOD_ROUTE) { AverageMethodScreen(onClose = { navController.popBackStack() }) }
                             composable(AppTab.Messages.route) { MessagesRoute() }
+                            composable(SEARCH_ROUTE) {
+                                // Un résultat ouvre l'onglet concerné (même chemin qu'un raccourci ou une notification).
+                                SearchRoute(onClose = { navController.popBackStack() }, onOpen = { container.pendingTab.value = it.tab })
+                            }
                             composable(AppTab.More.route) {
                                 MoreScreen(
+                                    onOpenSearch = { navController.navigate(SEARCH_ROUTE) { launchSingleTop = true } },
+                                    onOpenMethod = { navController.navigate(METHOD_ROUTE) { launchSingleTop = true } },
                                     profile = activeProfile,
                                     connection = connection,
                                     connectionMessage = connectionMessage,
@@ -224,11 +292,14 @@ private fun MainContent(
                             }
                         }
                     }
-                    AccountButton(
-                        profile = activeProfile,
-                        onClick = { showAccounts = true },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 18.dp),
-                    )
+                    Row(
+                        Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 18.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        PrivacyToggle()
+                        AccountButton(profile = activeProfile, onClick = { showAccounts = true })
+                    }
                 }
             }
         }

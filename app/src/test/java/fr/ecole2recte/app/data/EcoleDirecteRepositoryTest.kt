@@ -104,23 +104,25 @@ class EcoleDirecteRepositoryTest {
         assertEquals("Philosophie", home.nextClass?.subject?.name)
         assertEquals("10:15  ·  dans 25 min", home.nextClass?.startLabel)
         assertEquals("Ensuite : Anglais vendredi à 08:00", home.nextClass?.afterLabel)
-        assertEquals(listOf("10:15"), home.today.map { it.time })
+        assertEquals(listOf("10:15", "13:30"), home.today.map { it.start })
+        assertEquals(listOf(false, true), home.today.map { it.canceled })
         assertEquals("Maths", home.reminder?.subject)
         assertEquals("15,8", home.grades.average)
     }
 
     @Test
     fun `l'accueil resume ce qu'il faut savoir`() = runTest {
-        val titles = repository(openStudent()).home().highlights.map { it.title }
+        val highlights = repository(openStudent()).home().highlights
+        // Du plus pressant au moins pressant : cours annulé, évaluation, message, note.
         assertEquals(
-            listOf(
-                "Cours annulé : Maths",
-                "Évaluation en Maths",
-                "Nouvelle note en Maths",
-                "1 message non lu",
-            ),
-            titles,
+            listOf("Cours annulé : Maths", "Évaluation en Maths", "1 message non lu", "Maths"),
+            highlights.map { it.title },
         )
+        // La note : matière en titre, chiffre et coefficient mis en avant, détail en petit.
+        val grade = highlights.last()
+        assertEquals("16/20", grade.value)
+        assertEquals("coef. 2", grade.valueSub)
+        assertEquals("DS 1 · 3 nov.", grade.detail)
     }
 
     @Test

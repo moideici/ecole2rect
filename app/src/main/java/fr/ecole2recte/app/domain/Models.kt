@@ -22,9 +22,32 @@ data class Homework(
 data class HomeworkDetail(
     val content: String,
     val attachments: List<String> = emptyList(),
+    /** Les mêmes pièces jointes, avec de quoi les télécharger. */
+    val files: List<Attachment> = emptyList(),
     /** Ce qui a été vu en cours ce jour-là dans la même matière. */
     val lessonContent: String = "",
 )
+
+/** Ce qu'a donné le fait de cocher un devoir. */
+enum class HomeworkWrite {
+    /** Gardé sur le téléphone seulement (la synchronisation est éteinte). */
+    LocalOnly,
+
+    /** Enregistré aussi chez ÉcoleDirecte. */
+    Synced,
+
+    /** Gardé sur le téléphone, mais ÉcoleDirecte n'a pas pu l'enregistrer : aucun nouvel essai automatique. */
+    SyncFailed,
+}
+
+/** D'où vient une pièce jointe : ÉcoleDirecte ne les range pas au même endroit. */
+enum class AttachmentSource { Homework, Message }
+
+/** Une pièce jointe, téléchargeable seulement après confirmation de l'utilisateur. */
+data class Attachment(val id: String, val name: String, val type: String, val source: AttachmentSource)
+
+/** Un fichier téléchargé, en mémoire (25 Mo au plus). */
+class AttachmentFile(val bytes: ByteArray, val mimeType: String?, val fileName: String)
 
 /** Un cours dans le résumé de la journée. */
 data class ScheduleSlot(val time: String, val subject: Subject)
@@ -41,6 +64,12 @@ data class ScheduleEntry(
     val end: String = "",
     val exam: Boolean = false,
     val note: String = "",
+    /** ÉcoleDirecte signale le cours comme modifié (salle, professeur, horaire). */
+    val modified: Boolean = false,
+    /** `typeCours` d'ÉcoleDirecte : COURS, PERMANENCE… */
+    val kind: String = "",
+    /** Ce que ce cours était avant d'être déplacé, remplacé ou modifié (l'agenda barre l'ancienne valeur). */
+    val before: LessonBefore? = null,
 )
 
 /**
@@ -62,17 +91,62 @@ data class NextClass(
     val afterLabel: String? = null,
 )
 
-enum class HighlightKind { Canceled, Exam, Grade, Message }
+enum class HighlightKind { Canceled, Changed, Exam, Message, Grade }
 
 /** Une chose à savoir dès l'ouverture : cours annulé, évaluation proche, nouvelle note, message. */
-data class Highlight(val kind: HighlightKind, val title: String, val detail: String)
+data class Highlight(
+    val kind: HighlightKind,
+    val title: String,
+    val detail: String,
+    /** Valeur mise en avant à droite (la note), avec son complément en petit (le coefficient). */
+    val value: String? = null,
+    val valueSub: String? = null,
+)
+
+/**
+ * D'où vient une moyenne affichée. Voir `docs/MOYENNES.md` : l'application lit la moyenne de
+ * l'établissement quand elle existe, sinon elle la calcule, et ce calcul peut différer de la vraie.
+ */
+enum class AverageSource(val shortLabel: String, val label: String) {
+    /** Lue telle quelle dans la réponse d'ÉcoleDirecte. */
+    Official("officielle", "Moyenne officielle, fournie par ÉcoleDirecte"),
+
+    /** Calculée par l'app à partir des moyennes de matières officielles, pondérées par le coefficient de matière si connu. */
+    FromSubjects(
+        "calculée",
+        "Calculée par l'app à partir des moyennes de matières (peut différer de la vraie, qui dépend de coefficients et de notes que l'app ne voit pas)",
+    ),
+
+    /** Calculée par l'app à partir des notes visibles, ramenées sur 20 et pondérées par leur coefficient. */
+    FromGrades(
+        "calculée",
+        "Calculée par l'app à partir des notes visibles (peut être inférieure à la vraie : notes non publiées, coefficients de matière inconnus)",
+    ),
+
+    /** Aucune moyenne disponible. */
+    None("", ""),
+    ;
+
+    val isOfficial: Boolean get() = this == Official
+}
 
 data class SubjectAverage(
     val subject: Subject,
     val average: String,
     val classAverage: String? = null,
     val grades: List<GradeEntry> = emptyList(),
+    val coefficient: Double? = null,
+    /** Appréciation du professeur sur la période. */
+    val appreciation: String = "",
+    /** Moyennes la plus basse et la plus haute de la classe dans cette matière. */
+    val minimum: String? = null,
+    val maximum: String? = null,
+    /** Vrai quand [average] est celle de l'établissement ; faux quand l'app l'a calculée avec les notes visibles. */
+    val averageOfficial: Boolean = false,
 )
+
+/** Une période du bulletin (trimestre, semestre) que l'on peut afficher, avec sa moyenne générale si elle est connue. */
+data class GradePeriod(val code: String, val name: String, val selected: Boolean, val average: String? = null)
 
 data class GradeOverview(
     val average: String,
@@ -80,9 +154,20 @@ data class GradeOverview(
     val bySubject: List<SubjectAverage>,
     /** Les notes les plus récentes, toutes périodes confondues. */
     val recent: List<GradeEntry> = emptyList(),
+    /** Toutes les notes chiffrées de l'année : la synchro repère les nouvelles sur l'ensemble, pas sur les six dernières. */
+    val all: List<GradeEntry> = emptyList(),
     /** Moyenne générale de chaque période, pour la courbe d'évolution. */
     val evolution: List<PeriodAverage> = emptyList(),
     val classAverage: String? = null,
+    /** Nom de la période affichée (« 1er trimestre »). */
+    val periodName: String = "",
+    val periodCode: String = "",
+    /** Toutes les périodes du bulletin, pour choisir laquelle afficher. */
+    val periods: List<GradePeriod> = emptyList(),
+    /** Appréciation générale du professeur principal pour la période affichée. */
+    val appreciation: String = "",
+    /** D'où vient [average] : l'établissement ou un calcul de l'app. */
+    val averageSource: AverageSource = AverageSource.None,
 )
 
 data class MessagePreview(
@@ -103,13 +188,59 @@ data class MessageDetail(
     val body: String,
     val recipients: List<String>,
     val attachments: List<String>,
+    val files: List<Attachment> = emptyList(),
 )
 
 /**
  * Ce que l'on sait de l'âge des données affichées. [stale] est vrai quand le réseau a échoué
  * et que l'écran montre la dernière réponse enregistrée, datée de [lastSyncMillis].
  */
-data class Freshness(val lastSyncMillis: Long? = null, val stale: Boolean = false)
+data class Freshness(val lastSyncMillis: Long? = null, val stale: Boolean = false, val cause: StaleCause? = null)
+
+/** Pourquoi l'écran montre une réponse enregistrée plutôt qu'une réponse toute fraîche. */
+enum class StaleCause(val label: String) {
+    Network("pas de réseau"),
+    Service("ÉcoleDirecte ne répond pas"),
+    Expired("la session a expiré"),
+    Blocked("compte bloqué par ÉcoleDirecte"),
+    StaleVersion("version d'API refusée (517)"),
+    Unusable("réponse d'ÉcoleDirecte inexploitable"),
+    Other("lecture impossible"),
+}
+
+/** Un enfant d'un compte famille, résumé pour la vue d'ensemble de l'accueil. */
+data class ChildSummary(
+    val studentId: String,
+    val name: String,
+    val initials: String,
+    val className: String,
+    /** « Maths · 10:15 · dans 25 min », ou rien s'il n'y a plus de cours. */
+    val nextClass: String?,
+    val urgentHomework: Int,
+    val newGrades: Int,
+    val average: String?,
+    val selected: Boolean,
+)
+
+enum class SchoolLifeKind { Absence, Late, Sanction, Encouragement, Other }
+
+data class SchoolLifeEvent(
+    val kind: SchoolLifeKind,
+    val title: String,
+    val dateLabel: String,
+    val detail: String,
+    val justified: Boolean,
+)
+
+/** Absences, retards, sanctions et encouragements, décomptés comme l'établissement les compte. */
+data class SchoolLifeSummary(
+    val absences: Int = 0,
+    val unjustified: Int = 0,
+    val lates: Int = 0,
+    val sanctions: Int = 0,
+    val encouragements: Int = 0,
+    val events: List<SchoolLifeEvent> = emptyList(),
+)
 
 /** Compteurs affichés en pastille sur les onglets. */
 data class Badges(val newGrades: Int = 0, val urgentHomework: Int = 0, val unreadMessages: Int = 0)
@@ -119,9 +250,14 @@ data class HomeData(
     val dateLabel: String,
     /** Absent quand il n'y a plus de cours à venir. */
     val nextClass: NextClass?,
-    val today: List<ScheduleSlot>,
+    /** Les cours de la journée, annulés compris, pour la frise de l'accueil. */
+    val today: List<ScheduleEntry>,
     val reminder: Homework?,
     val highlights: List<Highlight> = emptyList(),
+    /** Un résumé par enfant pour un compte famille ; vide pour un élève. */
+    val family: List<ChildSummary> = emptyList(),
+    /** Les prochains contrôles (devoirs marqués évaluation), du plus proche au plus lointain. */
+    val exams: List<UpcomingExam> = emptyList(),
     val grades: GradeOverview,
     val allSubjects: List<Subject>,
 )

@@ -1,5 +1,6 @@
 package fr.ecole2recte.app.ui.common
 
+import fr.ecole2recte.app.domain.FrenchFormat
 import android.provider.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -89,7 +90,7 @@ fun rememberAnimatedDecimal(text: String): String {
     LaunchedEffect(text) {
         if (target != null && !reduceMotion) animated.animateTo(target, tween(durationMillis = 900, easing = FastOutSlowInEasing))
     }
-    return if (target == null) text else String.format(Locale.FRENCH, "%.1f", animated.value)
+    return if (target == null) text else FrenchFormat.decimal(animated.value.toDouble())
 }
 
 /** Anneau de progression animé autour d'un contenu (prochain cours). */

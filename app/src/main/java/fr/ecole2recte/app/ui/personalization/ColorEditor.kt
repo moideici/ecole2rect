@@ -52,16 +52,10 @@ fun ColorEditor(subjects: List<Subject>, ownerKey: String, onDismiss: () -> Unit
     Dialog(onDismissRequest = onDismiss) {
         Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(AppTheme.colors.surface)) {
             Column(Modifier.padding(24.dp)) {
-                Text("Couleurs par matière", color = AppTheme.colors.ink, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "Une couleur reste identique dans tout l'espace.",
-                    color = AppTheme.colors.muted,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
-                )
-                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                Text("Couleurs", color = AppTheme.colors.ink, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Column(Modifier.padding(top = 12.dp).heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                     if (subjects.isEmpty()) {
-                        Text("Les matières apparaîtront ici dès que ton emploi du temps sera chargé.", color = AppTheme.colors.muted, fontSize = 14.sp)
+                        Text("Aucune matière pour l'instant.", color = AppTheme.colors.muted, fontSize = 14.sp)
                     }
                     subjects.forEach { subject ->
                         val chosen = overrides[subjectKey(subject.name)]

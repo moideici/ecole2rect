@@ -8,6 +8,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import fr.ecole2recte.app.data.SchoolModule
+import fr.ecole2recte.app.ui.common.LocalActiveProfile
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
@@ -29,6 +31,17 @@ const val AGENDA_HOMEWORK = 1
  */
 @Composable
 fun AgendaScreen(page: Int, onPageChange: (Int) -> Unit) {
+    val closed = LocalActiveProfile.current?.closedModules.orEmpty()
+    val scheduleOpen = SchoolModule.Schedule !in closed
+    val homeworkOpen = SchoolModule.Homework !in closed
+    if (scheduleOpen != homeworkOpen) {
+        // Un seul des deux modules est ouvert : pas de pages à glisser, on montre directement le bon.
+        Column {
+            PageHeader("Agenda")
+            if (scheduleOpen) ScheduleList(rememberLazyListState()) else HomeworkList(rememberLazyListState())
+        }
+        return
+    }
     val pagerState = rememberPagerState(initialPage = page) { 2 }
     val scope = rememberCoroutineScope()
     val scheduleState = rememberLazyListState()
@@ -42,7 +55,7 @@ fun AgendaScreen(page: Int, onPageChange: (Int) -> Unit) {
     // Retoucher l'onglet remonte la liste visible.
     ScrollToTopOnReselect("agenda", if (pagerState.currentPage == AGENDA_SCHEDULE) scheduleState else homeworkState)
     Column {
-        PageHeader("Agenda", "Ta semaine et ton travail à faire")
+        PageHeader("Agenda")
         TabRow(
             selectedTabIndex = pagerState.currentPage,
             containerColor = AppTheme.colors.background,

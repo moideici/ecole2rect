@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="agenda"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/sync_shortcut_agenda">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="fr.ecole2recte.app.MainActivity"
+            android:targetPackage="fr.ecole2recte.app.dev">
+            <extra android:name="tab" android:value="agenda" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="homework"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/sync_shortcut_homework">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="fr.ecole2recte.app.MainActivity"
+            android:targetPackage="fr.ecole2recte.app.dev">
+            <extra android:name="tab" android:value="agenda_homework" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="messages"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/sync_shortcut_messages">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="fr.ecole2recte.app.MainActivity"
+            android:targetPackage="fr.ecole2recte.app.dev">
+            <extra android:name="tab" android:value="messages" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/sync_shortcut_search">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="fr.ecole2recte.app.MainActivity"
+            android:targetPackage="fr.ecole2recte.app.dev">
+            <extra android:name="tab" android:value="recherche" />
+        </intent>
+    </shortcut>
+</shortcuts>

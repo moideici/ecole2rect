@@ -45,9 +45,9 @@ fun rememberSchoolRepository(): SchoolRepository {
 
 /** Crée (ou retrouve) un ViewModel en lui donnant le conteneur de dépendances. */
 @Composable
-inline fun <reified VM : ViewModel> appViewModel(crossinline create: (AppContainer) -> VM): VM {
+inline fun <reified VM : ViewModel> appViewModel(key: String? = null, crossinline create: (AppContainer) -> VM): VM {
     val application = LocalContext.current.applicationContext as Ecole2recteApplication
-    return viewModel(factory = viewModelFactory { initializer { create(application.container) } })
+    return viewModel(key = key, factory = viewModelFactory { initializer { create(application.container) } })
 }
 
 class BadgesViewModel(repository: SchoolRepository) : LoadingViewModel<Badges>(repository::badges, repository::invalidate)
@@ -61,15 +61,42 @@ class HomeworkViewModel(private val repository: SchoolRepository) :
     /** Coche ou décoche un devoir : la liste se met à jour tout de suite, sans nouvel appel réseau. */
     fun toggleDone(task: Homework) {
         viewModelScope.launch {
-            repository.setHomeworkDone(task.id, !task.done)
+            val written = repository.setHomeworkDone(task.id, !task.done)
+            mutableNotice.value = if (written == fr.ecole2recte.app.domain.HomeworkWrite.SyncFailed) SYNC_FAILED else null
             refresh()
         }
     }
 
+    private val mutableNotice = MutableStateFlow<String?>(null)
+
+    /** Un message à montrer quand la case n'a pu être enregistrée que sur le téléphone. */
+    val notice: StateFlow<String?> = mutableNotice.asStateFlow()
+
+    fun dismissNotice() {
+        mutableNotice.value = null
+    }
+
+    companion object {
+        const val SYNC_FAILED = "Coché sur ce téléphone, mais ÉcoleDirecte n'a pas pu l'enregistrer. Rien ne sera renvoyé tout seul."
+    }
+
     suspend fun detail(task: Homework): HomeworkDetail = repository.homeworkDetail(task)
+
+    suspend fun download(attachment: fr.ecole2recte.app.domain.Attachment) = repository.downloadAttachment(attachment)
 }
 
-class GradesViewModel(repository: SchoolRepository) : LoadingViewModel<GradeOverview>(repository::grades, repository::invalidate)
+class GradesViewModel private constructor(
+    repository: SchoolRepository,
+    private val period: java.util.concurrent.atomic.AtomicReference<String?>,
+) : LoadingViewModel<GradeOverview>({ repository.grades(period.get()) }, repository::invalidate) {
+    constructor(repository: SchoolRepository) : this(repository, java.util.concurrent.atomic.AtomicReference(null))
+
+    /** Affiche une autre période du même bulletin : aucune nouvelle requête, la réponse est déjà là. */
+    fun selectPeriod(code: String) {
+        period.set(code)
+        refresh()
+    }
+}
 
 class MessagesViewModel(private val repository: SchoolRepository) :
     LoadingViewModel<List<MessagePreview>>(repository::messages, repository::invalidate) {
@@ -112,4 +139,11 @@ class MessagesViewModel(private val repository: SchoolRepository) :
         mutableRead.value = mutableRead.value + message.id
         return detail
     }
+
+    suspend fun download(attachment: fr.ecole2recte.app.domain.Attachment) = repository.downloadAttachment(attachment)
+
+    suspend fun recipients() = repository.recipients()
+
+    /** Appelé seulement depuis le bouton « Envoyer » de la confirmation. */
+    suspend fun send(draft: fr.ecole2recte.app.domain.MessageDraft) = repository.sendMessage(draft, confirmed = true)
 }

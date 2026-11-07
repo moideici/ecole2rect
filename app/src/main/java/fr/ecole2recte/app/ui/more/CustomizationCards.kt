@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.security.AppLock
+import fr.ecole2recte.app.security.LockDelay
 import fr.ecole2recte.app.security.findFragmentActivity
 import fr.ecole2recte.app.session.ActiveProfile
 import fr.ecole2recte.app.ui.common.HomeViewModel
@@ -73,7 +74,6 @@ fun ColorsCard(profile: ActiveProfile?) {
     ListCard(onClick = { editing = true }) {
         Column(Modifier.padding(16.dp)) {
             Text("Couleurs des matières", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text("Choisis la couleur de chaque matière.", color = AppTheme.colors.muted, fontSize = 13.sp)
         }
     }
     if (editing) {
@@ -89,6 +89,8 @@ fun SecurityAndMotionCard() {
     val context = LocalContext.current
     val lockEnabled by settings.appLock.collectAsStateWithLifecycle()
     val reduceMotion by settings.reduceMotion.collectAsStateWithLifecycle()
+    val hidePreview by settings.hidePreview.collectAsStateWithLifecycle()
+    val lockDelay by settings.lockDelay.collectAsStateWithLifecycle()
     var message by remember { mutableStateOf<String?>(null) }
     ListCard {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -98,19 +100,36 @@ fun SecurityAndMotionCard() {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Verrouiller l'application", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Demande ton empreinte, ton visage ou le code de ton téléphone à l'ouverture.",
-                        color = AppTheme.colors.muted,
-                        fontSize = 13.sp,
-                    )
                 }
                 Switch(checked = lockEnabled, onCheckedChange = { toggleLock(context, lockEnabled, settings::setAppLock) { text -> message = text } })
             }
             message?.let { Text(it, color = AppTheme.colors.error, fontSize = 13.sp) }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Reverrouiller", color = if (lockEnabled) AppTheme.colors.ink else AppTheme.colors.muted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LockDelay.entries.forEach { choice ->
+                        androidx.compose.material3.FilterChip(
+                            selected = lockDelay == choice,
+                            enabled = lockEnabled,
+                            onClick = { settings.setLockDelay(choice) },
+                            label = { Text(choice.label, fontSize = 13.sp) },
+                        )
+                    }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().clickable(enabled = lockEnabled) { settings.setHidePreview(!hidePreview) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Masquer l'aperçu", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+                Switch(checked = hidePreview, enabled = lockEnabled, onCheckedChange = { settings.setHidePreview(it) })
+            }
             Row(Modifier.fillMaxWidth().clickable { settings.setReduceMotion(!reduceMotion) }, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Réduire les animations", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Les écrans apparaissent sans mouvement.", color = AppTheme.colors.muted, fontSize = 13.sp)
                 }
                 Switch(checked = reduceMotion, onCheckedChange = { settings.setReduceMotion(it) })
             }
@@ -122,11 +141,11 @@ fun SecurityAndMotionCard() {
 private fun toggleLock(context: android.content.Context, enabled: Boolean, set: (Boolean) -> Unit, report: (String?) -> Unit) {
     val activity = context.findFragmentActivity()
     if (activity == null) {
-        report("Le verrouillage n'est pas disponible ici.")
+        report("Verrouillage indisponible ici.")
         return
     }
     if (!enabled && !AppLock.isAvailable(context)) {
-        report("Configure d'abord un verrouillage d'écran (empreinte, visage ou code) dans les réglages du téléphone.")
+        report("Configure d'abord un verrouillage d'écran sur le téléphone.")
         return
     }
     report(null)

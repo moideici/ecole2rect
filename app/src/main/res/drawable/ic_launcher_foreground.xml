@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Le lapin d'ecole2recte, dans la zone sûre (66 dp au centre des 108 dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Oreilles -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,30 a5.5,5.5 0 0,1 11,0 L51,43 L40,43 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M57,30 a5.5,5.5 0 0,1 11,0 L68,43 L57,43 Z" />
+    <!-- Intérieur des oreilles -->
+    <path
+        android:fillColor="#C9CCFF"
+        android:pathData="M43.5,31 a2,2 0 0,1 4,0 L47.5,41 L43.5,41 Z" />
+    <path
+        android:fillColor="#C9CCFF"
+        android:pathData="M60.5,31 a2,2 0 0,1 4,0 L64.5,41 L60.5,41 Z" />
+    <!-- Tête -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,63 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0" />
+    <!-- Yeux et nez -->
+    <path
+        android:fillColor="#4A50D6"
+        android:pathData="M44.5,60 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0" />
+    <path
+        android:fillColor="#4A50D6"
+        android:pathData="M58.3,60 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0" />
+    <path
+        android:fillColor="#F28FA6"
+        android:pathData="M51.5,67 a2.5,1.8 0 1,0 5,0 a2.5,1.8 0 1,0 -5,0" />
+</vector>

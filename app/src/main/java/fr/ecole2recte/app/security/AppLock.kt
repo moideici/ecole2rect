@@ -15,6 +15,12 @@ import androidx.fragment.app.FragmentActivity
  * l'appareil. Rien d'autre n'est stocké : c'est Android qui décide si l'utilisateur est bien là.
  */
 object AppLock {
+    /**
+     * Mesure l'absence de l'application pour décider du reverrouillage. Unique, car l'authentification
+     * peut être demandée depuis l'écran de verrouillage comme depuis les réglages.
+     */
+    val timer = LockTimer(android.os.SystemClock::elapsedRealtime)
+
     /** Depuis Android 11 le code de l'appareil peut servir de secours ; avant, seule la biométrie est possible. */
     private val authenticators: Int
         get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) BIOMETRIC_WEAK or DEVICE_CREDENTIAL else BIOMETRIC_WEAK
@@ -29,10 +35,18 @@ object AppLock {
         onSuccess: () -> Unit,
         onFailure: (message: String) -> Unit = {},
     ) {
+        // Pendant l'authentification, l'écran du code de l'appareil peut passer devant l'application : ce n'est pas une absence.
+        timer.beginAuthentication()
         val callback = object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onSuccess()
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                timer.endAuthentication()
+                onSuccess()
+            }
 
-            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) = onFailure(errString.toString())
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                timer.endAuthentication()
+                onFailure(errString.toString())
+            }
         }
         val prompt = BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), callback)
         val info = BiometricPrompt.PromptInfo.Builder()

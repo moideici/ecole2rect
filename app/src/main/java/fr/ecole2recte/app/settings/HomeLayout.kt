@@ -2,9 +2,12 @@ package fr.ecole2recte.app.settings
 
 /** Les blocs de l'accueil, dans leur ordre d'origine. */
 enum class HomeSection(val label: String) {
+    /** Un résumé par enfant ; n'apparaît que pour un compte famille. */
+    Family("Ma famille"),
     NextClass("Prochain cours"),
     Today("Aujourd'hui"),
     Highlights("À savoir"),
+    Exams("Prochain contrôle"),
     Reminder("À ne pas oublier"),
     Grades("Dernières notes"),
 }
