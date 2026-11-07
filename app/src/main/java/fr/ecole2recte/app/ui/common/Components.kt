@@ -103,6 +103,8 @@ fun ConnectionBanner(message: String?, onRetry: () -> Unit) {
             modifier = Modifier.weight(1f).padding(end = 12.dp),
             color = Color.White,
             fontSize = 12.sp,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
         Text(
             "Réessayer",

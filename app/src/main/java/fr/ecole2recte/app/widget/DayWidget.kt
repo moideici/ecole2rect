@@ -65,7 +65,7 @@ private fun DayFrame(layout: DayLayout, hasData: Boolean, widthDp: Float) {
         GlanceModifier.fillMaxSize().background(c.surface).cornerRadius(24.dp).padding(pad).clickable(opens("agenda", "journee")),
     ) {
         when {
-            !hasData -> Empty("Ouvre ecole2recte une fois pour remplir ce widget.")
+            !hasData -> Empty("Ouvre l'app.")
             layout.state == DayState.NoLessons -> {
                 DayTitle(layout, widthDp, withBar = false)
                 Empty("Pas de cours aujourd'hui.")

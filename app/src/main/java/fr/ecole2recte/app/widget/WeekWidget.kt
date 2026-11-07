@@ -83,7 +83,7 @@ private fun WeekFrame(layout: WeekLayout, hasData: Boolean) {
             Spacer(GlanceModifier.height(4.dp))
         }
         when {
-            !hasData -> Empty("Ouvre ecole2recte une fois pour remplir ce widget.")
+            !hasData -> Empty("Ouvre l'app.")
             noLessons -> Empty("Aucun cours cette semaine.")
             layout.detail == WeekDetail.Summary -> WeekSummary(layout)
             layout.detail == WeekDetail.Columns -> WeekColumns(layout)

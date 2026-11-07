@@ -34,6 +34,7 @@ import fr.ecole2recte.app.sync.AndroidNotifier
 import fr.ecole2recte.app.sync.NotificationRules
 import fr.ecole2recte.app.sync.SyncIntervals
 import fr.ecole2recte.app.sync.SyncScheduler
+import fr.ecole2recte.app.ui.common.HelpButton
 import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.theme.AppTheme
@@ -112,7 +113,10 @@ fun NotificationsSection() {
                         }
                     }
                     RuleRow("Silence de 22 h à 7 h", rules.quietNight) { prefs.setRules(rules.copy(quietNight = it)) }
-                    Text("Vérifier toutes les", color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+                    Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Vérifier toutes les", color = AppTheme.colors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        HelpButton("Fréquence", "Plus c'est fréquent, plus l'application se connecte à ÉcoleDirecte : 4 h est un bon équilibre.")
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SyncIntervals.choices.forEach { hours ->
                             FilterChip(

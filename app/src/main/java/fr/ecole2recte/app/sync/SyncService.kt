@@ -282,8 +282,7 @@ class SyncService(
 
     private fun needsInteraction(): SyncOutcome {
         prefs.disable(
-            "ÉcoleDirecte demande une vérification que l'application ne peut pas faire seule. " +
-                "Ouvre l'application, reconnecte-toi, puis réactive les notifications.",
+            "Une vérification est requise : reconnecte-toi, puis réactive.",
         )
         return SyncOutcome.NeedsInteraction
     }
@@ -293,8 +292,7 @@ class SyncService(
         trace.failure = SyncResultCode.fromFailure(kind)
         if (prefs.recordFailure() < MAX_CONSECUTIVE_FAILURES) return SyncOutcome.Failed
         return stop(
-            "La synchronisation a échoué $MAX_CONSECUTIVE_FAILURES fois de suite : elle s'est arrêtée pour ne pas " +
-                "multiplier les connexions. Ouvre l'application pour vérifier ta connexion, puis réactive-la.",
+            "Échec $MAX_CONSECUTIVE_FAILURES fois de suite : arrêt. Vérifie ta connexion, puis réactive.",
             null,
         )
     }
@@ -310,9 +308,9 @@ class SyncService(
     }
 
     private fun stopReason(kind: FailureKind) = when (kind) {
-        FailureKind.InvalidCredentials -> "Le mot de passe n'est plus accepté. Ouvre l'application pour te reconnecter, puis réactive les notifications."
-        FailureKind.Blocked -> "ÉcoleDirecte a bloqué le compte. Aucune connexion automatique n'est tentée."
-        FailureKind.StaleVersion -> "ÉcoleDirecte n'accepte plus la version d'API utilisée (517). Cherche une mise à jour de l'application, ou change la version dans Plus > Diagnostic, puis réactive les notifications."
-        else -> "La vérification de sécurité a été refusée. Ouvre l'application pour te reconnecter."
+        FailureKind.InvalidCredentials -> "Le mot de passe est refusé : reconnecte-toi, puis réactive."
+        FailureKind.Blocked -> "Compte verrouillé : aucune connexion automatique."
+        FailureKind.StaleVersion -> "Version d'API refusée (517) : mise à jour ou Plus > Diagnostic, puis réactive."
+        else -> "Vérification refusée : reconnecte-toi."
     }
 }

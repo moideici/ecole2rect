@@ -63,7 +63,7 @@ class NextClassWidget : GlanceAppWidget() {
                     val upcoming = snapshot?.let { WidgetLogic.upcoming(it.lessons, now()) }.orEmpty()
                     val next = upcoming.firstOrNull()
                     when {
-                        snapshot == null -> Empty("Ouvre ecole2recte une fois pour remplir ce widget.", hero = true)
+                        snapshot == null -> Empty("Ouvre l'app.", hero = true)
                         next == null -> Empty("Plus de cours à venir.", hero = true)
                         else -> {
                             Chip(WidgetLogic.status(next, now()), c.heroChip, c.onHero)
@@ -96,7 +96,7 @@ class NextClassWidget : GlanceAppWidget() {
                                     GlanceModifier.background(c.heroChip).cornerRadius(14.dp).padding(horizontal = 12.dp, vertical = 5.dp)
                                         .clickable(opens("agenda", "prochain")),
                                 ) {
-                                    Text("Voir l'agenda du jour  ›", style = style(c.onHero, 12, bold = true), maxLines = 1)
+                                    Text("Agenda  ›", style = style(c.onHero, 12, bold = true), maxLines = 1)
                                 }
                             }
                         }
@@ -129,8 +129,8 @@ class HomeworkWidget : GlanceAppWidget() {
                     val tasks = snapshot?.tasks.orEmpty()
                     val soon = LocalDate.now().plusDays(1).toString()
                     when {
-                        snapshot == null -> Empty("Ouvre ecole2recte une fois pour remplir ce widget.")
-                        tasks.isEmpty() -> Empty("Rien à faire. Profites-en !")
+                        snapshot == null -> Empty("Ouvre l'app.")
+                        tasks.isEmpty() -> Empty("Rien à faire.")
                         else -> {
                             val rows = WidgetLogic.rowsThatFit(height, 36f, 38f, 7)
                             tasks.take(rows).forEach { task ->
@@ -178,7 +178,7 @@ class GradesWidget : GlanceAppWidget() {
                 val height = LocalSize.current.height.value
                 Frame("Notes", "notes") {
                     when {
-                        snapshot == null -> Empty("Ouvre ecole2recte une fois pour remplir ce widget.")
+                        snapshot == null -> Empty("Ouvre l'app.")
                         snapshot.grades.isEmpty() && snapshot.average.isBlank() -> Empty("Pas encore de notes.")
                         else -> {
                             if (snapshot.average.isNotBlank()) {
@@ -227,7 +227,7 @@ class MessagesWidget : GlanceAppWidget() {
                 val height = LocalSize.current.height.value
                 Frame("Messages", "messages", hero = true) {
                     when {
-                        snapshot == null -> Empty("Ouvre ecole2recte une fois pour remplir ce widget.", hero = true)
+                        snapshot == null -> Empty("Ouvre l'app.", hero = true)
                         snapshot.unread == 0 -> Empty("Aucun message non lu.", hero = true)
                         else -> {
                             Text(snapshot.unread.toString(), style = style(c.onHero, if (height < 140) 40 else 54, bold = true))

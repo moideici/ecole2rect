@@ -182,7 +182,7 @@ class SessionViewModel(
                                     identifier = saved.identifier,
                                     error = LoginError(
                                         if (result.kind == FailureKind.Blocked) result.message
-                                        else "ÉcoleDirecte n'accepte plus ce mot de passe. Saisis le nouveau.",
+                                        else "Mot de passe refusé. Saisis le nouveau.",
                                         result.kind,
                                     ),
                                     diagnostic = result.diagnostic,
@@ -303,7 +303,7 @@ class SessionViewModel(
             updateLogin {
                 it.copy(
                     error = LoginError(
-                        "Ces identifiants ont déjà été refusés. Modifie-les avant de réessayer.",
+                        "Déjà refusés : modifie-les.",
                         FailureKind.InvalidCredentials,
                     ),
                 )
@@ -371,7 +371,7 @@ class SessionViewModel(
                             loading = false,
                             challenge = null,
                             error = LoginError(
-                                "ÉcoleDirecte a redemandé une vérification. Reconnecte-toi pour obtenir une nouvelle question.",
+                                "Nouvelle vérification demandée. Reconnecte-toi.",
                                 FailureKind.SecurityRefused,
                             ),
                         )
@@ -506,9 +506,8 @@ class SessionViewModel(
 
     private companion object {
         const val UNREADABLE_MESSAGE =
-            "Les comptes enregistrés sur ce téléphone sont illisibles (la clé de sécurité de l'appareil a changé). " +
-                "Reconnecte-toi : rien n'a été effacé tant que tu ne l'as pas fait."
-        const val DEFAULT_QUESTION = "Réponds à la question demandée par ÉcoleDirecte."
-        const val NETWORK_MESSAGE = "Pas de connexion à ÉcoleDirecte. Vérifie ton réseau puis réessaie."
+            "Comptes illisibles (clé de l'appareil changée). Reconnecte-toi : rien n'est effacé."
+        const val DEFAULT_QUESTION = "Réponds à la question."
+        const val NETWORK_MESSAGE = "Pas de connexion. Vérifie ton réseau."
     }
 }
