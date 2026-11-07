@@ -32,7 +32,18 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
   message, rappel du soir des devoirs pour demain (à partir de l'heure choisie, 16 à 20 h) ;
   réglables une à une, discrètes sur l'écran verrouillé. Raccourcis d'application : Agenda, Devoirs,
   Messages, Rechercher.
-- **Widgets** : six widgets qui s'adaptent à leur taille.
+- **Widgets** : six widgets, aux couleurs du thème choisi (y compris « Noir » OLED), qui s'agrandissent à volonté :
+  - *Semaine complète* — petit (2×2, 3×2) : un jour par ligne avec nombre de cours et première/dernière heure ;
+    moyen (4×2, 3×3) : cinq colonnes de pastilles colorées avec l'initiale de la matière ; grand (4×3, 4×4) :
+    grille jours × heures, cours colorés avec leur nom, jour courant et cours en cours en évidence, annulés barrés ;
+    très grand (5×4 et plus) : nom complet, salle, horaire et professeur.
+  - *Journée complète* — petit : le cours en cours (ou le prochain « dans 25 min ») en grand ; moyen : la liste de
+    ce qu'il reste, pauses nommées, barre d'avancement de la journée ; grand : frise horaire de toute la journée avec
+    salles et professeurs. Une fois la journée finie, il montre le prochain jour de cours.
+  - *Prochain cours*, *Devoirs*, *Notes*, *Messages* (2×2 à 4×4). Un toucher ouvre l'onglet correspondant ; le widget
+    Prochain cours a en plus un bouton « Voir l'agenda du jour ».
+  - Les widgets ne font aucune requête : ils lisent le dernier instantané publié par la synchronisation ou l'ouverture
+    de l'app (mise à jour toutes les 30 min au plus). Changer de thème ou activer le mode « montrer » les redessine aussitôt.
 - **Hors ligne et fiabilité** : la dernière réponse valide s'affiche sous un bandeau d'ancienneté
   (« Hors ligne · Données du 5 nov. à 18 h (il y a 3 h) ») avec la vraie raison du repli (pas de réseau, compte
   verrouillé, version d'API refusée…) et l'action utile ; tirer vers le bas rafraîchit chaque écran, sans requête
@@ -81,7 +92,7 @@ derrière des réglages désactivés par défaut, avec une confirmation.
 - La durée de vie du jeton n'est pas documentée : le téléphone la mesure et adapte le rejeu.
 - Les widgets, les notifications de fond et le verrouillage biométrique ne sont vérifiables que
   sur un vrai téléphone.
-- Le mode « montrer à quelqu'un » ne masque pas (encore) les widgets ni les notifications ; la taille du
+- Le mode « montrer à quelqu'un » masque les notes des widgets mais pas (encore) les notifications ; la taille du
   texte « très grand » peut faire déborder certains écrans.
 
 ## Développer
