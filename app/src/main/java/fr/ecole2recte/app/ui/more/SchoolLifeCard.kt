@@ -20,9 +20,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -60,10 +60,11 @@ fun SchoolLifeScreen(onClose: () -> Unit) {
     val profile = LocalActiveProfile.current
     val context = LocalContext.current.applicationContext
     val closed = fr.ecole2recte.app.data.SchoolModule.SchoolLife in profile?.closedModules.orEmpty()
-    val summary by produceState<Result<SchoolLifeSummary>?>(null, repository, closed) {
-        value = if (closed) null else runCatching { repository.schoolLife() }.also { result ->
-            result.getOrNull()?.let { SchoolLifeSnapshotStore(context).publish(profile?.key.orEmpty(), it.events) }
-        }
+    var summary by remember { mutableStateOf<Result<SchoolLifeSummary>?>(null) }
+    LaunchedEffect(repository, closed) {
+        val loaded = if (closed) null else runCatching { repository.schoolLife() }
+        loaded?.getOrNull()?.let { SchoolLifeSnapshotStore(context).publish(profile?.key.orEmpty(), it.events) }
+        summary = loaded
     }
     var selectedKind by remember { mutableStateOf<SchoolLifeKind?>(null) }
     var selectedMonth by remember { mutableStateOf<String?>(null) }
