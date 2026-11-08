@@ -413,6 +413,13 @@ class EcoleDirecteRepository(
 
     override suspend fun grades(periodCode: String?): GradeOverview = overview(gradesPayload(), periodCode)
 
+    override suspend fun cachedGradePeriods(): List<GradeOverview> = withContext(ioDispatcher) {
+        if (SchoolModule.Grades in profile.closedModules) return@withContext emptyList()
+        val stored = responseCache.get(owner, "grades") ?: return@withContext emptyList()
+        val payload = Parsers.grades(readJson(stored.json))
+        payload.periods.filter { !it.annual }.ifEmpty { payload.periods }.map { overview(payload, it.code) }
+    }
+
     override suspend fun messages(): List<MessagePreview> = messagesPage(0).items
 
     override suspend fun messagesPage(page: Int): MessagesPage {

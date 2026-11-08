@@ -29,6 +29,9 @@ import fr.ecole2recte.app.widget.MessagesWidget
 import fr.ecole2recte.app.widget.NextClassWidget
 import fr.ecole2recte.app.widget.TimetableSizes
 import fr.ecole2recte.app.widget.WeekWidget
+import fr.ecole2recte.app.widget.*
+import fr.ecole2recte.app.domain.AverageSource
+import fr.ecole2recte.app.settings.AverageDecimals
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
@@ -89,9 +92,9 @@ class WidgetRenderingTest {
         )
     }
 
-    private fun render(widget: GlanceAppWidget, sizes: List<DpSize> = this.sizes): View = runBlocking {
-        val views = widget.runComposition(context, sizes = sizes).first()
-        views.apply(context, FrameLayout(context))
+    private fun render(widget: GlanceAppWidget, sizes: List<DpSize> = this.sizes, renderContext: Context = context): View = runBlocking {
+        val views = widget.runComposition(renderContext, sizes = sizes).first()
+        views.apply(renderContext, FrameLayout(renderContext))
     }
 
     private fun texts(view: View): List<String> = when (view) {
@@ -103,22 +106,27 @@ class WidgetRenderingTest {
     /** Sauvegarde le snapshot et les réglages d'apparence/vie privée, exécute [block], puis remet tout. */
     private fun withCleanState(block: (WidgetSnapshotStore) -> Unit) {
         val store = WidgetSnapshotStore(context)
-        val previous = store.read()
+        val snapshotPrefs = context.getSharedPreferences("ecole2recte_widgets", Context.MODE_PRIVATE)
+        val savedSnapshots = snapshotPrefs.all
         val prefs = context.getSharedPreferences(ThemeSelection.PREFS, Context.MODE_PRIVATE)
         val saved = prefs.all.filterKeys {
-            it in setOf(ThemeSelection.MODE_KEY, ThemeSelection.COLOR_THEME_KEY, PrivacySelection.MODE_KEY, PrivacySelection.MESSAGES_KEY)
+            it in setOf(ThemeSelection.MODE_KEY, ThemeSelection.COLOR_THEME_KEY, PrivacySelection.MODE_KEY, PrivacySelection.MESSAGES_KEY, "text_scale", AverageDecimals.KEY)
         }
         try {
             block(store)
         } finally {
-            if (previous != null) store.write(previous) else store.clear()
+            val snapshotEditor = snapshotPrefs.edit().clear()
+            savedSnapshots.forEach { (key, value) -> if (value is String) snapshotEditor.putString(key, value) }
+            snapshotEditor.commit()
             val editor = prefs.edit()
                 .remove(ThemeSelection.MODE_KEY).remove(ThemeSelection.COLOR_THEME_KEY)
                 .remove(PrivacySelection.MODE_KEY).remove(PrivacySelection.MESSAGES_KEY)
+                .remove("text_scale").remove(AverageDecimals.KEY)
             saved.forEach { (key, value) ->
                 when (value) {
                     is String -> editor.putString(key, value)
                     is Boolean -> editor.putBoolean(key, value)
+                    is Int -> editor.putInt(key, value)
                 }
             }
             editor.commit()
@@ -180,5 +188,61 @@ class WidgetRenderingTest {
         prefs.edit().putBoolean(PrivacySelection.MODE_KEY, false).commit()
         val visible = texts(render(GradesWidget(), listOf(DpSize(260.dp, 320.dp)))).joinToString(" ")
         assertTrue(visible.contains("15,8"))
+    }
+
+    private fun compactSample() = sample().copy(profileKey = "__widget_rendering__/", profileLabel = "Profil de test",
+        meanPeriods = listOf(WidgetMeanPeriod("T1", "Premier trimestre", true, WidgetMean(15.256, AverageSource.Official), 12.0,
+            listOf(WidgetSubjectMean("math", "Mathématiques", WidgetMean(15.256, AverageSource.Official)))))
+    )
+
+    private fun compactWidgets() = listOf(MeanWidget(), SmallNextClassWidget(), RemainingHomeworkWidget(), LastGradeWidget(), UnreadMessagesWidget(), ExamCountdownWidget())
+
+    @Test
+    fun lesNouveauxWidgetsSeDessinentAChaquePalierAvecEtSansDonnees() = withCleanState { store ->
+        store.clear()
+        compactWidgets().forEach { widget -> OneByOneSizes.forEach { render(widget, listOf(it)) } }
+        GoalWidgetSizes.forEach { render(GoalsWidget(), listOf(it)) }
+        store.write(compactSample())
+        compactWidgets().forEach { widget -> OneByOneSizes.forEach { render(widget, listOf(it)) } }
+        GoalWidgetSizes.forEach { render(GoalsWidget(), listOf(it)) }
+    }
+
+    @Test
+    fun lesNouveauxWidgetsSuiventThemesEtPoliceMaximale() = withCleanState { store ->
+        store.write(compactSample())
+        val prefs = context.getSharedPreferences(ThemeSelection.PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putString("text_scale", "XLarge").commit()
+        val configuration = android.content.res.Configuration(context.resources.configuration).apply { fontScale = 3f }
+        val largeFont = context.createConfigurationContext(configuration)
+        ColorTheme.entries.forEach { theme -> ThemeMode.entries.forEach { mode ->
+            choose(theme, mode)
+            compactWidgets().forEach { widget -> listOf(OneByOneSizes.first(), DpSize(180.dp, 110.dp)).forEach { render(widget, listOf(it), largeFont) } }
+            listOf(GoalWidgetSizes.first(), GoalWidgetSizes.last()).forEach { render(GoalsWidget(), listOf(it), largeFont) }
+        } }
+        compactWidgets().forEach { widget -> OneByOneSizes.forEach { render(widget, listOf(it), largeFont) } }
+        GoalWidgetSizes.forEach { render(GoalsWidget(), listOf(it), largeFont) }
+    }
+
+    @Test
+    fun moyenneObjectifsEtMessagesSontMasquesSansValeurDerivee() = withCleanState { store ->
+        val goals = GoalStore.at(context)
+        try {
+            store.write(compactSample())
+            goals.set("__widget_rendering__/", "math", 17.0)
+            val prefs = context.getSharedPreferences(ThemeSelection.PREFS, Context.MODE_PRIVATE)
+            prefs.edit().putBoolean(PrivacySelection.MODE_KEY, false).putInt(AverageDecimals.KEY, 1).putString("text_scale", "Normal").commit()
+            val normalFont = context.createConfigurationContext(android.content.res.Configuration(context.resources.configuration).apply { fontScale = 1f })
+            assertTrue(texts(render(MeanWidget(), listOf(DpSize(180.dp, 110.dp)), normalFont)).contains("15,3"))
+            val objective = texts(render(GoalsWidget(), listOf(DpSize(320.dp, 440.dp)), normalFont)).joinToString(" ")
+            assertTrue(objective.contains("15,3 / objectif 17,0"))
+            prefs.edit().putBoolean(PrivacySelection.MODE_KEY, true).putBoolean(PrivacySelection.MESSAGES_KEY, true).commit()
+            listOf(MeanWidget(), LastGradeWidget(), UnreadMessagesWidget(), GoalsWidget()).forEach { widget ->
+                val hidden = texts(render(widget, listOf(DpSize(320.dp, 440.dp)), normalFont)).joinToString(" ")
+                assertTrue(hidden.contains("•••"))
+                assertFalse(hidden.contains("15,3"))
+                assertFalse(hidden.contains("17,0"))
+                assertFalse(hidden.contains("16/20"))
+            }
+        } finally { goals.clearAccount("__widget_rendering__") }
     }
 }

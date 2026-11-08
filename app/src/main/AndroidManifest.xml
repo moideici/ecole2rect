@@ -23,6 +23,44 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <activity android:name=".widget.WidgetConfigurationActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+        <receiver android:name=".widget.MeanWidgetReceiver" android:exported="true" android:label="@string/widget_mean_label">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/mean_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.SmallNextClassWidgetReceiver" android:exported="true" android:label="@string/widget_small_next_label">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/small_next_class_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.RemainingHomeworkWidgetReceiver" android:exported="true" android:label="@string/widget_small_homework_label">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/remaining_homework_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.LastGradeWidgetReceiver" android:exported="true" android:label="@string/widget_small_grade_label">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/last_grade_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.UnreadMessagesWidgetReceiver" android:exported="true" android:label="@string/widget_small_messages_label">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/unread_messages_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.ExamCountdownWidgetReceiver" android:exported="true" android:label="@string/widget_small_exam_label">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/exam_countdown_widget_info" />
+        </receiver>
+        <receiver android:name=".widget.GoalsWidgetReceiver" android:exported="true" android:label="@string/widget_goals_label">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/goals_widget_info" />
+        </receiver>
+        <service android:name=".widget.MeanTileService" android:exported="true"
+            android:label="@string/tile_mean_label" android:icon="@drawable/ic_tile_mean"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
+        </service>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

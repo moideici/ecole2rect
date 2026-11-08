@@ -22,6 +22,8 @@ class WidgetThemeTest {
             assertTrue("texte discret $name", ratio(r.muted, r.surface) >= 4.5)
             assertTrue("accent $name", ratio(r.accent, r.surface) >= 4.5)
             assertTrue("alerte $name", ratio(r.alert, r.surface) >= 4.5)
+            assertTrue("positif $name", ratio(r.positive, r.surface) >= 4.5)
+            assertTrue("avertissement $name", ratio(r.warning, r.surface) >= 4.5)
             assertTrue("texte sur héros $name", ratio(r.onHero, r.hero) >= 4.5)
             assertTrue("texte doux sur héros $name", ratio(r.onHeroSoft, r.hero) >= 4.5)
             assertTrue("accent sur aplat doux $name", ratio(r.accent, r.accentSoft) >= 3.0)

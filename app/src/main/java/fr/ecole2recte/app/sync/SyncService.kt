@@ -167,6 +167,8 @@ class SyncService(
         val quiet = rules.isQuiet(hour)
         val toPost = mutableListOf<NotificationEvent>()
         var widgetSnapshot: WidgetSnapshot? = null
+        val widgetProfiles = mutableListOf<WidgetSnapshot>()
+        var widgetInbox = emptyList<fr.ecole2recte.app.domain.MessagePreview>()
 
         // Un passage par enfant du compte, l'un après l'autre et avec une pause : jamais en rafale.
         // Le premier est l'enfant affiché (les widgets le montrent) ; la boîte de réception est celle
@@ -181,6 +183,7 @@ class SyncService(
                 val homework = repository.homework()
                 val grades = repository.grades()
                 val inbox = if (main) repository.messagesPage(0) else null
+                if (inbox != null) widgetInbox = inbox.items
                 // Une reconnexion refusée pendant la lecture (identifiants, blocage…) arrête tout, même si
                 // le cache a permis de répondre.
                 stoppedByReconnect?.let { return it }
@@ -193,15 +196,18 @@ class SyncService(
                     val mailbox = NotificationPlanner.snapshot(GradeOverview("–", "", emptyList()), inbox?.items.orEmpty(), ScheduleWeek("", emptyList(), "", ""), emptyList(), today)
                     plan("${saved.identifier.lowercase()}|mailbox", mailbox, today, rules, hour, "", quiet, toPost)
                 }
-                if (main && inbox != null) {
-                    widgetSnapshot = fr.ecole2recte.app.widget.WidgetLogic.snapshot(
-                        clock.millis(), today, nextClass, week, homework, grades, inbox.items,
-                    )
-                }
+                val periods = repository.cachedGradePeriods()
+                val published = fr.ecole2recte.app.widget.WidgetLogic.snapshot(
+                    repository.freshness.value.lastSyncMillis ?: clock.millis(), today, nextClass, week, homework, grades,
+                    widgetInbox,
+                ).copy(profileKey = profile.key.lowercase(), profileLabel = profile.displayName,
+                    meanPeriods = periods.takeIf { it.isNotEmpty() }?.map { fr.ecole2recte.app.widget.WidgetMeanPeriod.fromOverview(it, it.periodCode == grades.periodCode) }
+                        ?: listOf(fr.ecole2recte.app.widget.WidgetMeanPeriod.fromOverview(grades)))
+                if (main) widgetSnapshot = published else widgetProfiles += published
             }
             trace.newItems = if (quiet) 0 else toPost.size
             if (toPost.isNotEmpty() && !quiet) notifier.post(toPost)
-            widgetSnapshot?.let { widgets.publish(it) }
+            widgetSnapshot?.let { widgets.publish(it.copy(profiles = widgetProfiles)) }
             keepSession(saved, session)
             prefs.recordSync(clock.millis())
             prefs.resetFailures()

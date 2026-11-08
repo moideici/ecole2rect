@@ -101,7 +101,7 @@ object WidgetLogic {
             nextClass = nextClass?.let {
                 WidgetLesson(it.subject.name, it.startLabel, it.subject.room.takeIf { room -> room.isNotBlank() }?.let { room -> "Salle $room" }.orEmpty())
             },
-            tasks = homework.filter { !it.done }.take(8).map {
+            tasks = homework.filter { !it.done }.sortedBy { it.dueDate }.map {
                 WidgetTask(it.subject, it.title, it.due, it.colorIndex, it.dueDate, it.exam)
             },
             lessons = week?.entries.orEmpty()
@@ -110,14 +110,16 @@ object WidgetLogic {
                 .map {
                     WidgetSlot(it.date, it.start, it.end, it.subject.name, it.subject.room, it.subject.teacher, it.canceled, it.subject.colorIndex)
                 },
-            grades = grades?.recent.orEmpty().filter { it.value != null }.take(6).map {
+            grades = (grades?.all?.takeIf { it.isNotEmpty() } ?: grades?.recent.orEmpty()).filter { it.value != null }.sortedByDescending { it.date }.take(6).map {
                 val value = it.value!!
                 WidgetGradeItem(
                     it.subject,
-                    (if (value % 1.0 == 0.0) value.toInt().toString() else FrenchFormat.decimal(value)) + "/" + it.scale.toInt(),
+                    (if (value % 1.0 == 0.0) value.toInt().toString() else FrenchFormat.decimal(value)) + "/" +
+                        (if (it.scale % 1.0 == 0.0) it.scale.toInt().toString() else FrenchFormat.decimal(it.scale)),
                     if (it.coefficient % 1.0 == 0.0) it.coefficient.toInt().toString() else FrenchFormat.decimal(it.coefficient),
                     it.label,
                     it.colorIndex,
+                    id = it.id, date = it.date.orEmpty(), classGap = fr.ecole2recte.app.domain.GradeMath.classGap(it),
                 )
             },
             average = (grades?.verdict?.value?.toString()?.replace('.', ',') ?: grades?.average.orEmpty()).takeIf { it != "–" }.orEmpty(),
@@ -126,6 +128,11 @@ object WidgetLogic {
             averageBehind = grades?.verdict?.behind?.firstOrNull()?.let { fr.ecole2recte.app.domain.AveragePresentation.behindText(it) }.orEmpty(),
             unread = inbox.count { it.unread },
             mails = inbox.filter { it.unread }.take(3).map { WidgetMail(it.sender, it.preview) },
+            meanPeriods = grades?.let { listOf(WidgetMeanPeriod.fromOverview(it)) }.orEmpty(),
+            gradeIds = (grades?.all?.takeIf { it.isNotEmpty() } ?: grades?.recent.orEmpty()).map { it.id },
+            exams = fr.ecole2recte.app.domain.ExamCountdown.upcoming(homework, today, Int.MAX_VALUE).map {
+                WidgetTask(it.subject, it.detail, "", it.colorIndex, it.date, true)
+            },
         )
     }
 }

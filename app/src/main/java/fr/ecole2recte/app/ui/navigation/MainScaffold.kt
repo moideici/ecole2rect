@@ -170,8 +170,27 @@ private fun MainContent(
     // Raccourci, notification ou widget : ouvre l'onglet demandé, puis oublie la demande.
     val container = rememberAppContainer()
     val pendingTab by container.pendingTab.collectAsStateWithLifecycle()
-    LaunchedEffect(pendingTab) {
+    val pendingProfile by container.pendingWidgetProfile.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingTab, pendingProfile, activeProfile?.key) {
         val requested = pendingTab ?: return@LaunchedEffect
+        val target = pendingProfile
+        if (!target.isNullOrBlank() && target != activeProfile?.key?.lowercase()) {
+            val account = accounts.firstOrNull { target.startsWith(it.identifier.lowercase() + "/") }
+            if (account != null) {
+                if (activeProfile?.identifier?.equals(account.identifier, ignoreCase = true) != true) {
+                    accountActions.onSwitch(account.identifier)
+                    return@LaunchedEffect
+                }
+                val child = target.removePrefix(account.identifier.lowercase() + "/")
+                if (child.isNotBlank() && account.students.any { it.id == child } && child != activeProfile?.studentId) {
+                    accountActions.onSelectStudent(child)
+                    return@LaunchedEffect
+                }
+            }
+            // Un profil supprimé n'ouvre jamais une matière homonyme d'un autre compte.
+            if (target != activeProfile?.key?.lowercase()) container.pendingWidgetSubject.value = null
+        }
+        container.pendingWidgetProfile.value = null
         if (requested == SEARCH_ROUTE) {
             navController.navigate(SEARCH_ROUTE) { launchSingleTop = true }
         } else if (requested == "agenda_homework") {

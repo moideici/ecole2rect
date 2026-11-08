@@ -72,6 +72,7 @@ import fr.ecole2recte.app.ui.common.LocalPrivacy
 import fr.ecole2recte.app.ui.theme.AppTheme
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.FilterChip
 import androidx.compose.ui.text.font.FontStyle
 import fr.ecole2recte.app.domain.RawGrade
@@ -107,6 +108,20 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
     var firstSeen by remember(ownerKey) { mutableStateOf(container.seenGrades.firstSeen(ownerKey)) }
     LaunchedEffect(grades.all, ownerKey) { firstSeen = container.seenGrades.record(ownerKey, grades.all.map { it.id }) }
     val now = remember(firstSeen) { System.currentTimeMillis() }
+    val requested by container.pendingWidgetSubject.collectAsStateWithLifecycle()
+    var focusedSubject by remember(ownerKey) { mutableStateOf<String?>(null) }
+    LaunchedEffect(requested, grades.bySubject, ownerKey) {
+        val request = requested ?: return@LaunchedEffect
+        if ((request.first.isBlank() || request.first == ownerKey.lowercase()) && grades.bySubject.isNotEmpty()) {
+            val index = grades.bySubject.indexOfFirst { it.id == request.second }
+            if (index >= 0) {
+                focusedSubject = request.second
+                val offset = 4 + (if (grades.periods.size > 1) 1 else 0) + (if (grades.recent.isNotEmpty()) 2 else 0)
+                listState.animateScrollToItem(offset + index)
+            }
+            container.pendingWidgetSubject.value = null
+        }
+    }
     val isNew: (GradeEntry) -> Boolean = { isNewGrade(firstSeen[it.id], now) }
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageHeader("Notes") }
@@ -137,10 +152,9 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
         }
         item { SectionLabel("Par matière") }
         if (grades.bySubject.isEmpty()) item { EmptyState("Pas encore de notes") }
-        item {
-            Column {
-                grades.bySubject.forEachIndexed { index, line -> SubjectCard(line, grades, isNew, Modifier.entrance(index).padding(start = if (line.isSubSubject) 20.dp else 0.dp)) { opened = it } }
-            }
+        itemsIndexed(grades.bySubject, key = { _, line -> "subject:${line.id}" }) { index, line ->
+            SubjectCard(line, grades, isNew, Modifier.entrance(index).padding(start = if (line.isSubSubject) 20.dp else 0.dp),
+                initiallyExpanded = focusedSubject == line.id) { opened = it }
         }
     }
     opened?.let { grade ->
@@ -324,9 +338,12 @@ private fun GradePill(grade: GradeEntry) {
 }
 
 @Composable
-private fun SubjectCard(line: SubjectAverage, overview: GradeOverview, isNew: (GradeEntry) -> Boolean, modifier: Modifier, onGrade: (GradeEntry) -> Unit) {
+private fun SubjectCard(line: SubjectAverage, overview: GradeOverview, isNew: (GradeEntry) -> Boolean, modifier: Modifier, initiallyExpanded: Boolean = false, onGrade: (GradeEntry) -> Unit) {
     val digits = averageDigits()
     var expanded by remember { mutableStateOf(false) }
+    val profileKey = LocalActiveProfile.current?.key.orEmpty()
+    val privacy = LocalPrivacy.current
+    LaunchedEffect(initiallyExpanded) { if (initiallyExpanded) expanded = true }
     ListCard(modifier, onClick = { expanded = !expanded }) {
         Column {
             Row(Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -359,8 +376,11 @@ private fun SubjectCard(line: SubjectAverage, overview: GradeOverview, isNew: (G
             line.verdict?.behind?.forEach { grade ->
                 Text(AveragePresentation.behindText(grade), color = AppTheme.colors.accent, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 17.dp).clickable { onGrade(grade) }.padding(vertical = 4.dp))
             }
-            AnimatedVisibility(expanded && line.grades.isNotEmpty()) {
+            AnimatedVisibility(expanded) {
                 Column(Modifier.padding(bottom = 12.dp)) {
+                    if (!privacy.hidesGrades) {
+                        Column(Modifier.padding(horizontal = 17.dp)) { GoalEditor(profileKey, line.id, line.subject.name) }
+                    }
                     line.grades.forEach { grade ->
                         Row(
                             Modifier.fillMaxWidth().clickable { onGrade(grade) }.padding(horizontal = 17.dp, vertical = 8.dp),

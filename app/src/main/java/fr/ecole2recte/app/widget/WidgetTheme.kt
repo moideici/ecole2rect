@@ -39,6 +39,8 @@ data class WidgetRoles(
     val subjectSoft: List<Int>,
     /** Le texte lisible posé sur l'aplat de la matière. */
     val onSubject: List<Int>,
+    val positive: Int,
+    val warning: Int,
 )
 
 /** Les couleurs d'un widget le jour et la nuit : le système choisit selon son mode sombre. */
@@ -85,6 +87,8 @@ object WidgetThemes {
             subject = p.subject,
             subjectSoft = p.subject.map { blend(surface, it, SUBJECT_TINT) },
             onSubject = p.subject.map(::onColor),
+            positive = Contrast.readableOn(p.positive, surface),
+            warning = Contrast.readableOn(p.warningTitle, surface),
         )
     }
 

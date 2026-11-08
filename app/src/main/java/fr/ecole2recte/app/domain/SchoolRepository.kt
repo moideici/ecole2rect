@@ -35,6 +35,8 @@ interface SchoolRepository {
 
     /** Les notes d'une période du bulletin ; `null` : la période en cours. Sans nouvelle requête (même bulletin). */
     suspend fun grades(periodCode: String?): GradeOverview = grades()
+    /** Bulletins déjà enregistrés, dans l'ordre des périodes. Ne déclenche aucune lecture réseau. */
+    suspend fun cachedGradePeriods(): List<GradeOverview> = emptyList()
     suspend fun messages(): List<MessagePreview>
     suspend fun badges(): Badges
 
