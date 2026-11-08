@@ -11,7 +11,7 @@ class MeanWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Responsive(OneByOneSizes)
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val widgetId = (id as? AppWidgetId)?.appWidgetId ?: AppWidgetManager.INVALID_APPWIDGET_ID
+        val widgetId = runCatching { androidx.glance.appwidget.GlanceAppWidgetManager(context).getAppWidgetId(id) }.getOrDefault(AppWidgetManager.INVALID_APPWIDGET_ID)
         val config = WidgetConfigStore.at(context).read(widgetId)
         val snapshot = instanceSnapshot(context, config)
         val reading = MeanWidgetData.read(snapshot, config, AverageDecimals.read(context), PrivacySelection.mode(context))
@@ -27,7 +27,7 @@ class MeanWidget : GlanceAppWidget() {
     }
 
     override suspend fun onDelete(context: Context, glanceId: GlanceId) {
-        (glanceId as? AppWidgetId)?.let { WidgetConfigStore.at(context).remove(it.appWidgetId) }
+        runCatching { androidx.glance.appwidget.GlanceAppWidgetManager(context).getAppWidgetId(glanceId) }.getOrNull()?.let { WidgetConfigStore.at(context).remove(it) }
         super.onDelete(context, glanceId)
     }
 }

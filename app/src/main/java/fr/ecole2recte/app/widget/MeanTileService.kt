@@ -38,6 +38,7 @@ class MeanTileService : TileService() {
         tile.updateTile()
     }
 
+    @android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
         val open = {

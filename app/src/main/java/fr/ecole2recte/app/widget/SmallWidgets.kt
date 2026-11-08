@@ -10,7 +10,7 @@ abstract class SmallWidget(private val kind: SmallWidgetKind) : GlanceAppWidget(
     override val sizeMode = SizeMode.Responsive(OneByOneSizes)
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val widgetId = (id as? AppWidgetId)?.appWidgetId ?: 0
+        val widgetId = runCatching { androidx.glance.appwidget.GlanceAppWidgetManager(context).getAppWidgetId(id) }.getOrDefault(0)
         val config = WidgetConfigStore.at(context).read(widgetId)
         val snapshot = instanceSnapshot(context, config)
         val data = SmallWidgetData.read(kind, snapshot, LocalDateTime.now(), System.currentTimeMillis(), PrivacySelection.mode(context))
@@ -23,7 +23,7 @@ abstract class SmallWidget(private val kind: SmallWidgetKind) : GlanceAppWidget(
     }
 
     override suspend fun onDelete(context: Context, glanceId: GlanceId) {
-        (glanceId as? AppWidgetId)?.let { WidgetConfigStore.at(context).remove(it.appWidgetId) }
+        runCatching { androidx.glance.appwidget.GlanceAppWidgetManager(context).getAppWidgetId(glanceId) }.getOrNull()?.let { WidgetConfigStore.at(context).remove(it) }
         super.onDelete(context, glanceId)
     }
 }

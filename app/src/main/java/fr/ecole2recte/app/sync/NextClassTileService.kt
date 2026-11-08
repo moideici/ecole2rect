@@ -21,6 +21,7 @@ class NextClassTileService : TileService() {
     }
 
     @Suppress("DEPRECATION")
+    @android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         val open = Intent(this, MainActivity::class.java).putExtra("tab", "agenda").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         unlockAndRun {

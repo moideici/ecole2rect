@@ -61,9 +61,8 @@ fun SchoolLifeScreen(onClose: () -> Unit) {
     val context = LocalContext.current.applicationContext
     val closed = fr.ecole2recte.app.data.SchoolModule.SchoolLife in profile?.closedModules.orEmpty()
     val summary by produceState<Result<SchoolLifeSummary>?>(null, repository, closed) {
-        if (!closed) {
-            value = runCatching { repository.schoolLife() }
-            value?.getOrNull()?.let { SchoolLifeSnapshotStore(context).publish(profile?.key.orEmpty(), it.events) }
+        value = if (closed) null else runCatching { repository.schoolLife() }.also { result ->
+            result.getOrNull()?.let { SchoolLifeSnapshotStore(context).publish(profile?.key.orEmpty(), it.events) }
         }
     }
     var selectedKind by remember { mutableStateOf<SchoolLifeKind?>(null) }
