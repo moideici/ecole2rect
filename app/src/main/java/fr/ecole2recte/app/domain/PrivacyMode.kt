@@ -33,6 +33,7 @@ data class PrivacyMode(val enabled: Boolean = false, val hideMessages: Boolean =
             classAverageValue = null,
             minimumValue = null,
             maximumValue = null,
+            classPosition = null,
         )
 
     fun mask(overview: GradeOverview): GradeOverview =
@@ -49,6 +50,7 @@ data class PrivacyMode(val enabled: Boolean = false, val hideMessages: Boolean =
             appreciation = "",
             verdict = null,
             classAverageValue = null,
+            classPosition = null,
         )
 
     fun mask(child: ChildSummary): ChildSummary =

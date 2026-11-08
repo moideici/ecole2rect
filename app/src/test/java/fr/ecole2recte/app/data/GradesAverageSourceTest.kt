@@ -22,6 +22,19 @@ import java.time.ZoneId
 /** Une moyenne est « officielle » ou « calculée par l'app » : ce que dit l'écran doit être ce que fait le code. */
 class GradesAverageSourceTest {
     @Test
+    fun `les statistiques de classe et coefficients de periode arrivent au modele affiche`() = runTest {
+        body = payload("""{"idPeriode":"A001","periode":"T1",$dates,"coef":2,"ensembleMatieres":{
+            "moyenneGenerale":"14","rang":3,"effectif":28,"mediane":"13,5","moyenneMin":6,"moyenneClasse":12,
+            "disciplines":[{"discipline":"MATHS","moyenne":"14","rang":2,"effectif":27,"moyenneMediane":13}]}}""", "")
+        val overview = repository().grades()
+        assertEquals(2.0, overview.periods.single().coefficient!!, 0.0)
+        assertEquals("Rang : 3 sur 28", overview.classPosition!!.rankLabel())
+        assertEquals(13.5, overview.classPosition!!.median!!, 0.0)
+        assertEquals("Rang : 2 sur 27", overview.bySubject.single().classPosition!!.rankLabel())
+        assertEquals(13.0, overview.bySubject.single().classPosition!!.median!!, 0.0)
+    }
+
+    @Test
     fun `la capture garde les homonymes et range la specialite sous sa mere sans double comptage`() = runTest {
         val fixture = javaClass.getResource("/captures/grades_subjects.json")!!.readText()
         body = """{"code":200,"data":$fixture}"""

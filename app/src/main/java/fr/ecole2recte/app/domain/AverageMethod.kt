@@ -86,6 +86,26 @@ object AverageMethod {
                 "Avec une note x sur le barème choisi et un coefficient c, la projection sur 20 vaut (moyenne affichée × W + note sur 20 × c) ÷ (W + c). Le barème vaut 20 par défaut ; il doit être positif et la note doit être comprise entre 0 et ce barème.",
                 "« Quelle note pour atteindre X » calcule (X × (W + c) − moyenne affichée × W) ÷ c, puis convertit dans le barème choisi et arrondit au dixième supérieur. Au-delà du barème, l'objectif est hors d'atteinte en une évaluation ; un résultat nul ou négatif signifie qu'il est déjà acquis.",
                 "L'effet sur la moyenne générale remplace la matière par sa projection dans la pondération par coefficients de matière. Si la générale est officielle, ou si sa pondération ne peut pas être reproduite à 0,055 point près, l'effet est une estimation : générale + (matière projetée − matière affichée) × coefficient de matière ÷ somme des coefficients admissibles. Une sous-matière ou une matière exclue ne donne pas d'effet général.",
+                "Les scénarios combinent plusieurs devoirs hypothétiques, chacun avec sa note, son barème et son coefficient. Une note réelle comptée peut être remplacée ou retirée dans le scénario : ses points sur 20 et son coefficient sont soustraits à la base affichée × W, puis les éventuels nouveaux points et coefficients sont ajoutés. Les effets de plusieurs matières se cumulent sur la générale. Tous les résultats restent étiquetés « estimation ».",
+                "Retirer toutes les notes d'une matière ne crée pas un zéro : la matière et l'effet général deviennent non estimables. Si l'écart entre la moyenne affichée et les notes visibles rend le résultat incohérent (hors de 0 à 20), le scénario est refusé. Une note disparue ou une matière absente de la période invalide aussi le scénario : aucune modification n'est ignorée silencieusement.",
+                "Un scénario nommé sauvegarde uniquement ses modifications sur le téléphone, chiffrées, pour le profil et la période choisis. Il peut être chargé, modifié ou supprimé. Il ne modifie aucune note chez ÉcoleDirecte. Changer de profil ou de période isole le brouillon ; supprimer le compte efface ses scénarios. Le mode « montrer à quelqu'un » masque le simulateur.",
+            ),
+        ),
+        MethodSection(
+            "Moyenne annuelle et projection",
+            listOf(
+                "L'annuelle calculée par l'app combine les moyennes des trimestres ou semestres disponibles, sans compter à nouveau la période « Année ». La période affichée utilise la moyenne affichée, officielle ou recalculée. Les périodes sans moyenne et celles de coefficient 0 sont exclues, jamais remplacées par zéro.",
+                "Quand tous les coefficients des périodes retenues sont connus et positifs, l'annuelle est pondérée par ces coefficients. Sinon toutes les périodes retenues ont le même poids et l'écran indique « Moyenne à plat : coefficients de période inconnus ou incomplets ». Le nombre de périodes utilisées est affiché : une annuelle partielle n'est pas un bulletin annuel complet.",
+                "La projection de fin d'année choisit un nombre entier de 0 à 1 000 évaluations restantes par matière de la période affichée. Chaque évaluation hypothétique est de coefficient 1 et sur 20. Meilleur cas : 20 à chacune ; pire cas : 0 ; cas probable : maintien de la moyenne actuelle de chaque matière. Zéro évaluation conserve les valeurs actuelles.",
+                "Les trois cas utilisent le moteur du simulateur pour la période et la générale, puis remplacent cette période dans l'annuelle. Les autres périodes connues restent inchangées ; les périodes sans moyenne ne font l'objet d'aucune hypothèse. Les résultats sont des estimations sur les périodes disponibles, jamais des prédictions des notes futures ni de l'annuelle officielle.",
+            ),
+        ),
+        MethodSection(
+            "Position dans la classe",
+            listOf(
+                "Le rang et l'effectif sont affichés uniquement quand l'établissement les fournit comme entiers positifs. S'ils sont tous deux connus, le rang doit être inférieur ou égal à l'effectif. Un rang 0, une valeur absente ou invalide est masqué ; un effectif connu peut être affiché seul et aucun rang n'est estimé à partir d'une moyenne.",
+                "La comparaison de la matière et de la générale utilise un histogramme horizontal sur une échelle commune de 0 à 20 : minimum, moyenne de classe, moi, médiane et maximum quand ces valeurs sont fournies. Chaque barre porte son nom et sa valeur ; une donnée absente n'est pas inventée. La médiane vient du champ mediane ou moyenneMediane de l'établissement.",
+                "Une phrase accessible au lecteur d'écran décrit le rang disponible et toutes les valeurs présentes. La couleur ne porte jamais seule l'information. Le mode « montrer à quelqu'un » masque aussi le rang, l'effectif, les statistiques et la projection annuelle.",
             ),
         ),
         MethodSection(

@@ -148,6 +148,7 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
         if (focusedSubject == null) {
             item { AverageCard(grades, onOpenMethod, Modifier.entrance(0)) { opened = it } }
             item { SimulatorCard(grades, Modifier.entrance(1)) }
+            item { AnnualProjectionCard(grades) }
         } else item { androidx.compose.material3.TextButton(onClick = { focusedSubject = null }) { Text("Toutes les matières") } }
         if (grades.recent.isNotEmpty() && focusedSubject == null) {
             item { SectionLabel("Dernières notes") }
@@ -224,6 +225,7 @@ private fun AverageCard(grades: GradeOverview, onOpenMethod: () -> Unit, modifie
                 Spacer(Modifier.height(4.dp))
                 EvolutionChart(grades.evolution)
             }
+            ClassPositionChart("Moyenne générale", grades.classPosition, grades.average, Modifier.padding(top = 12.dp))
             Text(
                 "Comment la moyenne est calculée ?",
                 color = AppTheme.colors.accent,
@@ -393,7 +395,8 @@ private fun SubjectCard(line: SubjectAverage, overview: GradeOverview, isNew: (G
             line.verdict?.behind?.forEach { grade ->
                 Text(AveragePresentation.behindText(grade), color = AppTheme.colors.accent, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 17.dp).clickable { onGrade(grade) }.padding(vertical = 4.dp))
             }
-            AnimatedVisibility(expanded) {
+            if (expanded) ClassPositionChart(line.subject.name, line.classPosition, line.average, Modifier.padding(horizontal = 17.dp, vertical = 8.dp))
+            AnimatedVisibility(expanded && line.grades.isNotEmpty()) {
                 Column(Modifier.padding(bottom = 12.dp)) {
                     if (!privacy.hidesGrades) {
                         Column(Modifier.padding(horizontal = 17.dp)) { GoalEditor(profileKey, line.id, line.subject.name) }

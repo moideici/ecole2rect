@@ -52,6 +52,17 @@ internal fun JSONObject.num(vararg keys: String): Double? {
     return null
 }
 
+/** Rang 0 = non publié ; pas d'arrondi d'un rang ni d'invention d'effectif. */
+internal fun classPosition(primary: JSONObject, fallback: JSONObject? = null): fr.ecole2recte.app.domain.ClassPosition {
+    fun number(vararg keys: String) = primary.num(*keys) ?: fallback?.num(*keys)
+    fun positiveInt(key: String): Int? = number(key)?.takeIf { it >= 1 && it <= Int.MAX_VALUE && it % 1.0 == 0.0 }?.toInt()
+    return fr.ecole2recte.app.domain.ClassPosition(
+        rank = positiveInt("rang"), size = positiveInt("effectif"),
+        minimum = number("moyenneMin"), average = number("moyenneClasse"), maximum = number("moyenneMax"),
+        median = number("mediane", "moyenneMediane"),
+    )
+}
+
 private fun Any?.asFlag(default: Boolean): Boolean = when (this) {
     is Boolean -> this
     is Number -> toInt() != 0
