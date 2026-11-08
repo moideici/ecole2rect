@@ -4,9 +4,20 @@ import fr.ecole2recte.app.domain.Recipient
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Base64
+import java.text.Normalizer
+import java.util.Locale
 
 /** Lecture des contacts et mise en forme d'un message à envoyer. */
 object Recipients {
+    /** Recherche locale, tolérante aux accents, à la casse et aux espaces multiples. */
+    fun search(contacts: List<Recipient>, query: String): List<Recipient> {
+        val needle = normalized(query)
+        return if (needle.isEmpty()) contacts else contacts.filter { normalized(it.name).contains(needle) }
+    }
+
+    private fun normalized(text: String): String = Normalizer.normalize(text.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace(Regex("\\p{M}+"), "").trim().replace(Regex("\\s+"), " ")
+
     /**
      * Les contacts d'un groupe. Forme attendue (documentation de la communauté, non vérifiée sur
      * un vrai compte) : un tableau, ou un objet qui contient un tableau, d'objets `{id, nom, prenom, civilite, type}`.

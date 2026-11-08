@@ -32,5 +32,15 @@ data class MessageDraft(val recipients: List<Recipient>, val subject: String, va
         const val MAX_RECIPIENTS = 20
         const val MAX_SUBJECT = 120
         const val MAX_BODY = 10_000
+
+        fun replyTo(subject: String, sender: Recipient): MessageDraft = MessageDraft(
+            listOf(sender),
+            if (Regex("^re\\s*:", RegexOption.IGNORE_CASE).containsMatchIn(subject.trim())) subject.trim() else "Re : ${subject.trim()}",
+            "",
+        )
+
+        /** Une coupure peut survenir après réception : on ne promet jamais que rien n'est parti. */
+        fun failureNotice(reason: String?): String =
+            (reason ?: "Envoi échoué.") + " Le brouillon est conservé. Vérifie les messages envoyés avant de réessayer."
     }
 }

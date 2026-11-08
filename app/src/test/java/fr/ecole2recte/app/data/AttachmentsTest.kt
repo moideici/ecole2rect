@@ -6,13 +6,15 @@ import fr.ecole2recte.app.domain.AttachmentSource
 import fr.ecole2recte.app.session.ActiveProfile
 import fr.ecole2recte.app.session.ApiSession
 import fr.ecole2recte.app.ui.common.AttachmentFiles
-import fr.ecole2recte.app.ui.common.AttachmentSafety
+import fr.ecole2recte.app.domain.AttachmentSafety
+import fr.ecole2recte.app.data.api.Parsers
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import okio.Buffer
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -31,6 +33,44 @@ import java.io.File
 class AttachmentSafetyTest {
     @get:Rule
     val folder = TemporaryFolder()
+
+    @Test
+    fun `le controle porte sur le nom qui sera reellement ecrit`() {
+        listOf("outil.apk ", "page.HTML.", "image.svg\u0000", "script.j?s", "../outil.exe...").forEach {
+            assertNotNull(it, AttachmentSafety.blockedReason(it))
+        }
+        listOf("../", "a\\", "", ".", "..", "x".repeat(500) + ".pdf").forEach {
+            val written = AttachmentFiles(File(folder.root, "attachments")).write(byteArrayOf(1), it)
+            assertEquals(File(folder.root, "attachments").canonicalFile, written.parentFile.parentFile.canonicalFile)
+            assertTrue(written.name.length <= 80)
+        }
+    }
+
+    @Test
+    fun `un type executable ou incompatible ne se cache pas derriere une extension de document`() {
+        listOf("text/html", "image/svg+xml", "application/javascript", "application/vnd.android.package-archive").forEach {
+            assertNotNull(it, AttachmentSafety.blockedReason("fiche.pdf", it))
+        }
+        assertNotNull(AttachmentSafety.blockedReason("fiche.pdf", "image/png"))
+        assertNull(AttachmentSafety.blockedReason("fiche.pdf", "Application/PDF; charset=binary"))
+        assertNull(AttachmentSafety.blockedReason("fiche.pdf", "application/octet-stream"))
+        assertEquals("application/pdf", AttachmentSafety.mimeType("image/png", "fiche.pdf"))
+    }
+
+    @Test
+    fun `taille et type sont annonces avant de telecharger sans inventer les valeurs absentes`() {
+        assertEquals("application/pdf · 1,5 Mo", AttachmentSafety.description("fiche.pdf", null, 1572864))
+        assertEquals("application/pdf · Taille inconnue", AttachmentSafety.description("fiche.pdf", null, null))
+        assertEquals("Type inconnu · Taille inconnue", AttachmentSafety.description("document", null, null))
+    }
+
+    @Test
+    fun `la fixture des pieces conserve les metadonnees disponibles`() {
+        val raw = javaClass.getResource("/captures/attachments_metadata.json")!!.readText()
+        val parsed = Parsers.attachmentsOf(JSONObject(raw))
+        assertEquals(listOf(1572864L, null, null), parsed.map { it.sizeBytes })
+        assertEquals(listOf("application/pdf", null, null), parsed.map { it.mimeType })
+    }
 
     @Test
     fun `les programmes, scripts et pages web ne sont jamais ouverts`() {
@@ -131,6 +171,65 @@ class AttachmentDownloadTest {
         .setBody(Buffer().write(pdf))
 
     @Test
+    fun `un document texte est un fichier valable`() {
+        answer = { MockResponse().addHeader("Content-Type", "text/plain; charset=utf-8").setBody("Énoncé du devoir") }
+        assertEquals("Énoncé du devoir", String(client().download("/telechargement.awp", emptyMap()).bytes, Charsets.UTF_8))
+    }
+
+    @Test
+    fun `les erreurs 401 et 404 donnent une action utile meme sans type de contenu`() {
+        for ((status, expected) in listOf(401 to "Reconnecte", 404 to "introuvable")) {
+            answer = { MockResponse().setResponseCode(status) }
+            try {
+                client().download("/telechargement.awp", emptyMap())
+                fail("HTTP $status")
+            } catch (error: EcoleDirecteException) {
+                assertTrue(error.message!!, error.message!!.contains(expected))
+            }
+        }
+    }
+
+    @Test
+    fun `la limite de 25 Mo est appliquee meme sans longueur annoncee`() {
+        assertEquals(25 * 1024 * 1024, MAX_DOWNLOAD_BYTES)
+        answer = { MockResponse().addHeader("Content-Type", "application/pdf").setChunkedBody(Buffer().write(ByteArray(MAX_DOWNLOAD_BYTES + 1)), 16384) }
+        try {
+            client().download("/telechargement.awp", emptyMap())
+            fail("25 Mo depasses")
+        } catch (error: EcoleDirecteException) {
+            assertTrue(error.message!!, error.message!!.contains("25 Mo"))
+        }
+    }
+
+    @Test
+    fun `les pieces interdites sont refusees avant toute requete quelle que soit leur source`() = runTest {
+        for (source in AttachmentSource.entries) {
+            try {
+                repository().downloadAttachment(Attachment("1", "page.html ", "", source))
+                fail("fichier interdit")
+            } catch (error: EcoleDirecteException) {
+                assertTrue(error.message!!.contains("sécurité"))
+            }
+        }
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun `le nom et le type recus sont controles pour toutes les sources`() = runTest {
+        for (source in AttachmentSource.entries) {
+            for ((name, mime) in listOf("page.svg" to "application/pdf", "fiche.pdf" to "application/javascript", "fiche.pdf" to "image/png")) {
+                answer = { MockResponse().addHeader("Content-Type", mime).addHeader("Content-Disposition", "attachment; filename=\"$name\"").setBody(Buffer().write(pdf)) }
+                try {
+                    repository().downloadAttachment(Attachment("1", "fiche.pdf", "", source))
+                    fail("fichier incompatible")
+                } catch (error: EcoleDirecteException) {
+                    assertTrue(error.message!!, error.message!!.contains("sécurité") || error.message!!.contains("correspond"))
+                }
+            }
+        }
+    }
+
+    @Test
     fun `les octets arrivent intacts avec leur type et leur nom`() {
         answer = ::pdfResponse
         val download = client().download("/telechargement.awp", mapOf("fichierId" to "42", "leTypeDeFichier" to "PIECE_JOINTE"))
@@ -204,13 +303,15 @@ class AttachmentDownloadTest {
         repository.downloadAttachment(Attachment("1", "a.pdf", "FICHIER", AttachmentSource.Message))
         repository.downloadAttachment(Attachment("2", "b.pdf", "", AttachmentSource.Homework))
         repository.downloadAttachment(Attachment("3", "c.pdf", "FICHIER_CDT", AttachmentSource.Message))
+        repository.downloadAttachment(Attachment("4", "d.pdf", "DOCUMENT", AttachmentSource.Document))
         assertEquals(
-            listOf("PIECE_JOINTE", "FICHIER_CDT", "FICHIER_CDT"),
+            listOf("PIECE_JOINTE", "FICHIER_CDT", "FICHIER_CDT", "DOCUMENT"),
             requests.map { it.requestUrl!!.queryParameter("leTypeDeFichier") },
         )
         // Une pièce de message annonce l'année des messages, pas celle d'un devoir.
         assertEquals("", requests[0].requestUrl!!.queryParameter("anneeMessages"))
         assertNull(requests[1].requestUrl!!.queryParameter("anneeMessages"))
+        assertNull(requests[3].requestUrl!!.queryParameter("anneeMessages"))
     }
 
     @Test

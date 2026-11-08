@@ -19,7 +19,10 @@ data class ApiLesson(
     val kind: String = "",
 )
 
-data class ApiAttachment(val id: String, val name: String, val type: String)
+data class ApiAttachment(
+    val id: String, val name: String, val type: String,
+    val sizeBytes: Long? = null, val mimeType: String? = null,
+)
 
 data class ApiHomework(
     val id: String,
@@ -110,6 +113,7 @@ data class ApiMessageDetail(
     val body: String,
     val recipients: List<String>,
     val attachments: List<ApiAttachment>,
+    val replyTo: fr.ecole2recte.app.domain.Recipient? = null,
 )
 
 data class ApiSchoolLife(
@@ -194,7 +198,11 @@ object Parsers {
         for (key in listOf("documents", "files", "fichiers", "piecesJointes")) {
             val found = source.opt(key).objects().mapNotNull { raw ->
                 val id = raw.str("id", "idDocument", "fichierId")
-                if (id.isEmpty()) null else ApiAttachment(id, raw.str("libelle", "nom", "name").ifEmpty { "Document" }, raw.str("type"))
+                if (id.isEmpty()) null else ApiAttachment(
+                    id, raw.str("libelle", "nom", "name").ifEmpty { "Document" }, raw.str("type"),
+                    sizeBytes = raw.opt("taille")?.toString()?.toLongOrNull()?.takeIf { it >= 0 },
+                    mimeType = raw.str("mimeType").takeIf { it.isNotBlank() },
+                )
             }
             if (found.isNotEmpty()) return found
         }
@@ -367,6 +375,14 @@ object Parsers {
             body = if (encoded.isEmpty()) "" else plainText(base64DecodeOrRaw(encoded)),
             recipients = source.opt("to").objects().map { personName(it) }.filter { it.isNotEmpty() },
             attachments = attachmentsOf(source),
+            replyTo = source.optJSONObject("from")?.let { from ->
+                val type = from.str("type", "role")
+                if (type.isBlank()) null else Recipients.parse(
+                    org.json.JSONArray().put(from),
+                    when (type) { "P" -> "Enseignants"; "A" -> "Administration"; else -> "Expéditeur" },
+                    type,
+                ).singleOrNull()
+            },
         )
     }
 

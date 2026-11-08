@@ -1,0 +1,7 @@
+{
+  "documents": [
+    { "id": 101, "libelle": "Fiche.pdf", "type": "FICHIER_CDT", "taille": 1572864, "mimeType": "application/pdf" },
+    { "id": 102, "libelle": "Consigne.txt", "type": "PIECE_JOINTE" },
+    { "id": 103, "libelle": "Autre.pdf", "taille": -1 }
+  ]
+}

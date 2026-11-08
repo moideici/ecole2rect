@@ -3,6 +3,11 @@ package fr.ecole2recte.app.ui.common
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.app.Activity
+import android.net.Uri
+import android.provider.DocumentsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,60 +36,14 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import fr.ecole2recte.app.data.EcoleDirecteException
 import fr.ecole2recte.app.domain.Attachment
+import fr.ecole2recte.app.domain.AttachmentSafety
 import fr.ecole2recte.app.domain.AttachmentFile
 import fr.ecole2recte.app.ui.theme.AppTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
-
-/**
- * Les règles de prudence sur un fichier venu d'ailleurs : on n'ouvre jamais ce qui s'exécute ou
- * s'interprète (programmes, scripts, pages web), et un nom de fichier ne sort jamais du dossier prévu.
- */
-object AttachmentSafety {
-    private val refused = setOf(
-        "apk", "xapk", "apks", "aab", "dex", "jar", "exe", "msi", "bat", "cmd", "com", "scr", "dll", "so",
-        "sh", "bash", "ps1", "vbs", "js", "jse", "wsf", "lnk", "html", "htm", "xhtml", "mht", "svg", "swf",
-    )
-
-    private val known = mapOf(
-        "pdf" to "application/pdf",
-        "png" to "image/png", "jpg" to "image/jpeg", "jpeg" to "image/jpeg", "gif" to "image/gif", "webp" to "image/webp",
-        "txt" to "text/plain", "csv" to "text/csv",
-        "doc" to "application/msword",
-        "docx" to "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "xls" to "application/vnd.ms-excel",
-        "xlsx" to "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "ppt" to "application/vnd.ms-powerpoint",
-        "pptx" to "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "odt" to "application/vnd.oasis.opendocument.text",
-        "ods" to "application/vnd.oasis.opendocument.spreadsheet",
-        "odp" to "application/vnd.oasis.opendocument.presentation",
-        "zip" to "application/zip",
-        "mp3" to "audio/mpeg", "mp4" to "video/mp4",
-    )
-
-    private fun extensionOf(name: String) = name.substringAfterLast('.', "").lowercase()
-
-    /** Pourquoi on refuse d'ouvrir ce fichier, ou null s'il peut être proposé. */
-    fun blockedReason(name: String): String? =
-        if (extensionOf(name) in refused) "Ce type de fichier (.${extensionOf(name)}) n'est jamais ouvert par sécurité." else null
-
-    /** Un nom sans chemin ni caractère de contrôle, de longueur raisonnable. */
-    fun safeFileName(name: String): String {
-        val cleaned = name.substringAfterLast('/').substringAfterLast('\\')
-            .filter { it.code >= 32 && it !in "<>:\"|?*" }
-            .trim().trim('.')
-        val shortened = if (cleaned.length > 80) cleaned.takeLast(80) else cleaned
-        return shortened.ifBlank { "document" }
-    }
-
-    /** Le type annoncé par le serveur, sauf s'il est vague : alors l'extension décide. */
-    fun mimeType(announced: String?, name: String): String {
-        val generic = announced.isNullOrBlank() || announced == "application/octet-stream" || announced.startsWith("text/html")
-        return if (!generic) announced!! else known[extensionOf(name)] ?: "application/octet-stream"
-    }
-}
 
 /** Le dossier privé des pièces jointes ouvertes : vidé à chaque lancement et quand l'application se ferme. */
 class AttachmentFiles(private val directory: File) {
@@ -115,19 +74,53 @@ fun AttachmentList(files: List<Attachment>, download: suspend (Attachment) -> At
     var asked by remember { mutableStateOf<Attachment?>(null) }
     var busy by remember { mutableStateOf<String?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf<Attachment?>(null) }
+    val saveDocument = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val file = saving
+        saving = null
+        val uri = result.data?.data
+        if (file != null && result.resultCode == Activity.RESULT_OK && uri != null) {
+            busy = file.id
+            scope.launch {
+                try {
+                    val downloaded = download(file)
+                    AttachmentSafety.blockedReason(downloaded.fileName, downloaded.mimeType)?.let { throw EcoleDirecteException(it) }
+                    withContext(Dispatchers.IO) {
+                        val output = context.contentResolver.openOutputStream(uri, "w")
+                            ?: throw java.io.IOException("Destination indisponible")
+                        output.use { it.write(downloaded.bytes) }
+                    }
+                    notice = "Fichier enregistré à l'emplacement choisi."
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: EcoleDirecteException) {
+                    problem = error.message
+                } catch (error: Exception) {
+                    problem = "Enregistrement impossible. Vérifie l'espace disponible et l'emplacement choisi."
+                } finally {
+                    busy = null
+                }
+            }
+        }
+    }
 
     Column {
         files.forEach { file ->
-            val blocked = AttachmentSafety.blockedReason(file.name)
+            val blocked = AttachmentSafety.blockedReason(file.name, file.mimeType)
             Row(
-                Modifier.fillMaxWidth().clickable(enabled = busy == null) {
+                Modifier.fillMaxWidth().clickable(enabled = busy == null && saving == null) {
                     problem = blocked
+                    notice = null
                     if (blocked == null) asked = file
                 }.padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Outlined.AttachFile, contentDescription = null, tint = AppTheme.colors.muted)
-                Text(file.name, color = AppTheme.colors.ink, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp).weight(1f))
+                Column(Modifier.padding(start = 8.dp).weight(1f)) {
+                    Text(file.name, color = AppTheme.colors.ink, fontSize = 14.sp)
+                    Text(AttachmentSafety.description(file.name, file.mimeType, file.sizeBytes), color = AppTheme.colors.muted, fontSize = 12.sp)
+                }
                 if (busy == file.id) {
                     CircularProgressIndicator(Modifier.size(18.dp), color = AppTheme.colors.accent, strokeWidth = 2.dp)
                 } else if (blocked == null) {
@@ -136,38 +129,57 @@ fun AttachmentList(files: List<Attachment>, download: suspend (Attachment) -> At
             }
         }
         problem?.let { Text(it, color = AppTheme.colors.error, fontSize = 13.sp) }
+        notice?.let { Text(it, color = AppTheme.colors.muted, fontSize = 13.sp) }
     }
 
     asked?.let { file ->
         AlertDialog(
             onDismissRequest = { asked = null },
-            title = { Text("Ouvrir ce fichier ?") },
+            title = { Text("Télécharger ce fichier ?") },
             text = {
                 Text(
-                    "« ${file.name} » sera téléchargé, ouvert avec l'application de ton choix, puis effacé. N'ouvre que les fichiers que tu attends.",
+                    "« ${file.name} »\n${AttachmentSafety.description(file.name, file.mimeType, file.sizeBytes)}\n\nLe fichier ouvert est effacé à la fermeture de l'app. Une copie enregistrée reste à l'emplacement choisi. N'ouvre que les fichiers que tu attends.",
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    asked = null
-                    problem = null
-                    busy = file.id
-                    scope.launch {
-                        try {
-                            open(context, download(file))
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (error: EcoleDirecteException) {
-                            problem = error.message
-                        } catch (error: ActivityNotFoundException) {
-                            problem = "Aucune application pour ce fichier."
-                        } catch (error: Exception) {
-                            problem = "Téléchargement impossible."
-                        } finally {
-                            busy = null
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = {
+                        asked = null
+                        problem = null
+                        busy = file.id
+                        scope.launch {
+                            try {
+                                open(context, download(file))
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (error: EcoleDirecteException) {
+                                problem = error.message
+                            } catch (error: ActivityNotFoundException) {
+                                problem = "Aucune application pour ce fichier."
+                            } catch (error: Exception) {
+                                problem = "Téléchargement impossible."
+                            } finally {
+                                busy = null
+                            }
                         }
-                    }
-                }) { Text("Télécharger et ouvrir") }
+                    }) { Text("Télécharger et ouvrir") }
+                    TextButton(onClick = {
+                        asked = null
+                        problem = null
+                        saving = file
+                        try {
+                            saveDocument.launch(
+                                Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                                    .setType(AttachmentSafety.mimeType(file.mimeType, file.name))
+                                    .putExtra(Intent.EXTRA_TITLE, AttachmentSafety.safeFileName(file.name))
+                                    .putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse("content://com.android.providers.downloads.documents/root/downloads")),
+                            )
+                        } catch (error: ActivityNotFoundException) {
+                            saving = null
+                            problem = "Le sélecteur de fichiers Android n'est pas disponible."
+                        }
+                    }) { Text("Enregistrer dans Téléchargements") }
+                }
             },
             dismissButton = { TextButton(onClick = { asked = null }) { Text("Annuler") } },
         )
@@ -175,7 +187,7 @@ fun AttachmentList(files: List<Attachment>, download: suspend (Attachment) -> At
 }
 
 private fun open(context: Context, file: AttachmentFile) {
-    AttachmentSafety.blockedReason(file.fileName)?.let { throw EcoleDirecteException(it) }
+    AttachmentSafety.blockedReason(file.fileName, file.mimeType)?.let { throw EcoleDirecteException(it) }
     val saved = AttachmentFiles.at(context).write(file.bytes, file.fileName)
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", saved)
     val view = Intent(Intent.ACTION_VIEW)

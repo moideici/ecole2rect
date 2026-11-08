@@ -20,6 +20,7 @@ import fr.ecole2recte.app.data.api.ParseReport
 import fr.ecole2recte.app.domain.Attachment
 import fr.ecole2recte.app.domain.AttachmentFile
 import fr.ecole2recte.app.domain.AttachmentSource
+import fr.ecole2recte.app.domain.AttachmentSafety
 import fr.ecole2recte.app.data.api.Recipients
 import fr.ecole2recte.app.domain.Freshness
 import fr.ecole2recte.app.domain.MessageDraft
@@ -388,7 +389,7 @@ class EcoleDirecteRepository(
         return HomeworkDetail(
             content = match?.content.orEmpty(),
             attachments = match?.attachments?.map { it.name }.orEmpty(),
-            files = match?.attachments?.map { Attachment(it.id, it.name, it.type, AttachmentSource.Homework) }.orEmpty(),
+            files = match?.attachments?.map { Attachment(it.id, it.name, it.type, AttachmentSource.Homework, it.sizeBytes, it.mimeType) }.orEmpty(),
             lessonContent = lesson?.content.orEmpty(),
         )
     }
@@ -444,7 +445,8 @@ class EcoleDirecteRepository(
             body = detail.body.ifBlank { "(message vide)" },
             recipients = detail.recipients,
             attachments = detail.attachments.map { it.name },
-            files = detail.attachments.map { Attachment(it.id, it.name, it.type, AttachmentSource.Message) },
+            files = detail.attachments.map { Attachment(it.id, it.name, it.type, AttachmentSource.Message, it.sizeBytes, it.mimeType) },
+            replyTo = detail.replyTo,
         )
     }
 
@@ -478,8 +480,14 @@ class EcoleDirecteRepository(
     }
 
     override suspend fun downloadAttachment(attachment: Attachment): AttachmentFile {
+        AttachmentSafety.blockedReason(attachment.name, attachment.mimeType)?.let { throw EcoleDirecteException(it) }
+        if ((attachment.sizeBytes ?: 0) > MAX_DOWNLOAD_BYTES) throw EcoleDirecteException("Ce fichier est trop volumineux (plus de 25 Mo).")
         val download = withApi { api, _ -> api.attachment(attachment.id, attachment.type, attachment.source) }
-        return AttachmentFile(download.bytes, download.contentType?.substringBefore(';')?.trim(), download.fileName ?: attachment.name)
+        val name = download.fileName ?: attachment.name
+        AttachmentSafety.blockedReason(name, download.contentType)?.let { throw EcoleDirecteException(it) }
+        // Le nom et le type de la liste restent contrôlés même si l'en-tête change le nom.
+        AttachmentSafety.blockedReason(attachment.name, download.contentType)?.let { throw EcoleDirecteException(it) }
+        return AttachmentFile(download.bytes, AttachmentSafety.mimeType(download.contentType, name), AttachmentSafety.safeFileName(name))
     }
 
     /**

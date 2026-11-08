@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ecole2recte.app.domain.MessageDraft
 import fr.ecole2recte.app.domain.Recipient
+import fr.ecole2recte.app.data.api.Recipients
 import fr.ecole2recte.app.ui.common.MessagesViewModel
 import fr.ecole2recte.app.ui.theme.AppTheme
 import kotlinx.coroutines.CancellationException
@@ -41,21 +42,21 @@ import kotlinx.coroutines.launch
  * rejoué tout seul : le message reste ici, et c'est à l'utilisateur de retoucher « Envoyer ».
  */
 @Composable
-fun ComposeSheet(viewModel: MessagesViewModel, onSent: () -> Unit) {
+fun ComposeSheet(viewModel: MessagesViewModel, initialDraft: MessageDraft? = null, onSent: () -> Unit) {
     val scope = rememberCoroutineScope()
     var recipients by remember { mutableStateOf<List<Recipient>?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
-    var chosen by remember { mutableStateOf(setOf<Recipient>()) }
+    var chosen by remember { mutableStateOf(initialDraft?.recipients.orEmpty().toSet()) }
     var filter by remember { mutableStateOf("") }
-    var subject by remember { mutableStateOf("") }
-    var body by remember { mutableStateOf("") }
+    var subject by remember { mutableStateOf(initialDraft?.subject.orEmpty()) }
+    var body by remember { mutableStateOf(initialDraft?.body.orEmpty()) }
     var confirming by remember { mutableStateOf(false) }
     var sending by remember { mutableStateOf(false) }
     var sendError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         try {
-            recipients = viewModel.recipients()
+            recipients = (initialDraft?.recipients.orEmpty() + viewModel.recipients()).distinctBy { it.id to it.type }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
@@ -74,9 +75,8 @@ fun ComposeSheet(viewModel: MessagesViewModel, onSent: () -> Unit) {
             recipients!!.isEmpty() -> Text("Aucun destinataire.", color = AppTheme.colors.muted, fontSize = 14.sp)
             else -> {
                 OutlinedTextField(filter, { filter = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Chercher un nom") })
-                val needle = filter.trim().lowercase()
                 Column(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
-                    recipients!!.filter { needle.isEmpty() || it.name.lowercase().contains(needle) }.forEach { person ->
+                    Recipients.search(recipients!!, filter).forEach { person ->
                         Row(
                             Modifier.fillMaxWidth().clickable { chosen = if (person in chosen) chosen - person else chosen + person },
                             verticalAlignment = Alignment.CenterVertically,
@@ -130,7 +130,7 @@ fun ComposeSheet(viewModel: MessagesViewModel, onSent: () -> Unit) {
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (error: Exception) {
-                            sendError = (error.message ?: "Envoi échoué.") + " Rien n'est parti."
+                            sendError = MessageDraft.failureNotice(error.message)
                         } finally {
                             sending = false
                         }
