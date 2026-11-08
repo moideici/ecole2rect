@@ -37,7 +37,7 @@ object AppShortcuts {
                 maskPinned(context, disabled)
                 ShortcutManagerCompat.disableShortcuts(context, disabled, "Raccourci indisponible")
             }
-            val enabled = items.map { it.id } + if (!hidden && !snapshot?.owner.isNullOrBlank()) listOf("next-class") else emptyList()
+            val enabled = items + if (!hidden && !snapshot?.owner.isNullOrBlank()) listOf(nextClassShortcut(context)) else emptyList()
             if (enabled.isNotEmpty()) ShortcutManagerCompat.enableShortcuts(context, enabled)
             ShortcutManagerCompat.setDynamicShortcuts(context, items)
         }
@@ -45,10 +45,13 @@ object AppShortcuts {
 
     fun pinNextClass(context: Context): Boolean {
         if (PrivacySelection.mode(context).enabled || !ShortcutManagerCompat.isRequestPinShortcutSupported(context)) return false
-        return ShortcutManagerCompat.requestPinShortcut(context, ShortcutInfoCompat.Builder(context, "next-class")
-            .setShortLabel("Prochain cours").setIcon(IconCompat.createWithResource(context, R.drawable.ic_stat_ecole2recte))
-            .setIntent(intent(context, "ecole2recte://agenda")).build(), null)
+        return ShortcutManagerCompat.requestPinShortcut(context, nextClassShortcut(context), null)
     }
+
+    private fun nextClassShortcut(context: Context): ShortcutInfoCompat =
+        ShortcutInfoCompat.Builder(context, "next-class")
+            .setShortLabel("Prochain cours").setIcon(IconCompat.createWithResource(context, R.drawable.ic_stat_ecole2recte))
+            .setIntent(intent(context, "ecole2recte://agenda")).build()
 
     fun clear(context: Context) {
         runCatching {

@@ -150,4 +150,12 @@ Autres fichiers :
 | `README.md` | Fonctions, confidentialité et limites actualisées. |
 | `RESULTAT-VIE-NOTIF.md` | Bilan, commandes réelles et vérifications restantes. |
 
+## Correction après validation du hub — tentative 1
+
+- Le hub a constaté un échec de `compileDebugKotlin` dans `AppShortcuts.kt` : `ShortcutManagerCompat.enableShortcuts` attend une liste de `ShortcutInfoCompat`, mais recevait une liste d'identifiants `String`.
+- L'appel reçoit désormais les objets des raccourcis de matières et, lorsque permis, celui de « Prochain cours ». La construction de ce dernier est partagée avec l'épinglage, avec la même destination Agenda.
+- Aucun test modifié ni ajouté : la compilation existante détecte cette incompatibilité de types.
+- Commande exacte du hub tentée avant et après le correctif : `bash /c/Users/G/Dev-clean/Dev/projet/copilot-worktrees/ecole2rect/_run/test.sh .`. Bash échoue toujours avant Gradle (`CreateFileMapping`, `Win32 error 5`, code de sortie 1). La compilation et les tests restent donc à relancer par le hub ; aucun succès annoncé.
+- À vérifier sur téléphone : réactivation des raccourcis de matières et de « Prochain cours » en quittant le mode montrer.
+
 Résumé : V1 à V3 implémentés, V4 documenté. Validation Gradle et validation sur téléphone restent à faire par le hub ; aucun test Kotlin n'a tourné dans ce bac à sable.
