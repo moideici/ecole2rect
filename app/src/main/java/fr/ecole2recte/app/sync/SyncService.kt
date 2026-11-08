@@ -39,6 +39,8 @@ interface NotificationSink {
 /** Où part l'instantané des widgets. Abstrait pour les tests. */
 interface WidgetSink {
     suspend fun publish(snapshot: WidgetSnapshot)
+    val wantsSchoolLife: Boolean get() = false
+    suspend fun publishSchoolLife(owner: String, events: List<fr.ecole2recte.app.domain.SchoolLifeEvent>) {}
 }
 
 enum class SyncOutcome {
@@ -184,6 +186,12 @@ class SyncService(
                 val grades = repository.grades()
                 val inbox = if (main) repository.messagesPage(0) else null
                 if (inbox != null) widgetInbox = inbox.items
+                stoppedByReconnect?.let { return it }
+                if (main && widgets.wantsSchoolLife && fr.ecole2recte.app.data.SchoolModule.SchoolLife !in profile.closedModules) {
+                    val life = repository.schoolLife()
+                    stoppedByReconnect?.let { return it }
+                    widgets.publishSchoolLife(profile.key, life.events)
+                }
                 // Une reconnexion refusée pendant la lecture (identifiants, blocage…) arrête tout, même si
                 // le cache a permis de répondre.
                 stoppedByReconnect?.let { return it }
@@ -201,6 +209,7 @@ class SyncService(
                     repository.freshness.value.lastSyncMillis ?: clock.millis(), today, nextClass, week, homework, grades,
                     widgetInbox,
                 ).copy(profileKey = profile.key.lowercase(), profileLabel = profile.displayName,
+                    owner = profile.key, shortcutSubjects = grades.bySubject.map { it.id },
                     meanPeriods = periods.takeIf { it.isNotEmpty() }?.map { fr.ecole2recte.app.widget.WidgetMeanPeriod.fromOverview(it, it.periodCode == grades.periodCode) }
                         ?: listOf(fr.ecole2recte.app.widget.WidgetMeanPeriod.fromOverview(grades)))
                 if (main) widgetSnapshot = published else widgetProfiles += published

@@ -21,9 +21,9 @@ class ManifestOnDeviceTest {
     }
 
     @Test
-    fun lesSixWidgetsSontDeclaresAvecUnApercuEtUneTailleMinimale() {
+    fun lesSeptWidgetsSontDeclaresAvecUnApercuEtUneTailleMinimale() {
         val providers = AppWidgetManager.getInstance(context).installedProviders.filter { it.provider.packageName == context.packageName }
-        assertEquals("six widgets déclarés", 6, providers.size)
+        assertEquals("sept widgets déclarés", 7, providers.size)
         providers.forEach { provider ->
             assertTrue("aperçu manquant pour ${provider.provider.className}", provider.previewImage != 0)
             assertTrue(provider.minWidth > 0 && provider.minHeight > 0)
@@ -32,8 +32,8 @@ class ManifestOnDeviceTest {
     }
 
     @Test
-    fun lesQuatreRaccourcisSontDeclares() {
+    fun lesRaccourcisStatiquesLaissentLesPlacesAuxMatieresDynamiques() {
         val manager = context.getSystemService(ShortcutManager::class.java)
-        assertEquals(setOf("agenda", "homework", "messages", "search"), manager.manifestShortcuts.map { it.id }.toSet())
+        assertTrue(manager.manifestShortcuts.isEmpty())
     }
 }

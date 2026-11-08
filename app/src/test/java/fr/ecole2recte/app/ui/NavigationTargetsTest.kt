@@ -28,10 +28,12 @@ class NavigationTargetsTest {
     }
 
     @Test
-    fun `chaque raccourci d'application vise un onglet existant`() {
+    fun `chaque fonctionnalite App Actions vise un onglet existant`() {
         val xml = file("src/main/res/xml/shortcuts.xml").readText()
-        val tabs = Regex("""android:name="tab"\s+android:value="([^"]+)"""").findAll(xml).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("agenda", "agenda_homework", "messages", SEARCH_ROUTE), tabs)
+        val features = Regex("""android:shortcutId="([^"]+)"""").findAll(xml).map { it.groupValues[1] }.toList()
+        assertEquals(listOf("agenda", "devoirs", "notes", "messages"), features)
+        val tabs = features.map { fr.ecole2recte.app.domain.DeepLinks.feature(it)!!.tab }
         tabs.forEach { assertTrue(it, it in known) }
+        assertTrue(xml.contains("actions.intent.OPEN_APP_FEATURE"))
     }
 }

@@ -21,6 +21,15 @@
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ecole2recte" android:host="notes" />
+                <data android:scheme="ecole2recte" android:host="agenda" />
+                <data android:scheme="ecole2recte" android:host="devoirs" />
+                <data android:scheme="ecole2recte" android:host="messages" />
+            </intent-filter>
         </activity>
 
         <activity android:name=".widget.WidgetConfigurationActivity" android:exported="true">
@@ -61,6 +70,12 @@
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
         </service>
+        <service android:name=".sync.NextClassTileService"
+            android:exported="true" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:icon="@drawable/ic_stat_ecole2recte" android:label="Prochain cours">
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"
@@ -71,6 +86,10 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <receiver android:name=".widget.SchoolLifeWidgetReceiver" android:exported="true" android:label="Vie scolaire">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/school_life_widget_info" />
+        </receiver>
         <receiver
             android:name=".widget.NextClassWidgetReceiver"
             android:exported="true"

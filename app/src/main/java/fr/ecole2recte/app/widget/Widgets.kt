@@ -273,6 +273,7 @@ suspend fun updateAllWidgets(context: Context) {
         UnreadMessagesWidget().updateAll(context)
         ExamCountdownWidget().updateAll(context)
         GoalsWidget().updateAll(context)
+        SchoolLifeWidget().updateAll(context)
     }
 }
 
@@ -291,13 +292,20 @@ object WidgetRefresh {
 
 /** Enregistre l'instantané puis redessine tous les widgets déjà posés sur l'écran d'accueil. */
 class WidgetUpdater(private val context: Context) : WidgetSink {
+    override val wantsSchoolLife: Boolean get() = fr.ecole2recte.app.widget.wantsSchoolLife(context)
+    override suspend fun publishSchoolLife(owner: String, events: List<fr.ecole2recte.app.domain.SchoolLifeEvent>) {
+        SchoolLifeSnapshotStore(context).publish(owner, events)
+    }
     override suspend fun publish(snapshot: WidgetSnapshot) {
+        if (snapshot.owner.isNotBlank() && fr.ecole2recte.app.sync.LocalFeaturePreferences(context).activeOwner != snapshot.owner) return
         val seen = (context.applicationContext as fr.ecole2recte.app.Ecole2recteApplication).container.seenGrades
         fun mark(value: WidgetSnapshot): WidgetSnapshot {
             val times = seen.record(value.profileKey, value.gradeIds.ifEmpty { value.grades.map { it.id } })
             return value.copy(grades = value.grades.map { it.copy(firstSeenAt = times[it.id] ?: 0L) })
         }
         WidgetSnapshotStore(context).write(mark(snapshot).copy(profiles = snapshot.profiles.map(::mark)))
+        runCatching { fr.ecole2recte.app.sync.CurrentCourseScheduler.refresh(context) }
+        fr.ecole2recte.app.sync.AppShortcuts.refresh(context)
         updateAllWidgets(context)
     }
 }

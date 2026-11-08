@@ -193,14 +193,22 @@ private fun MainContent(
         container.pendingWidgetProfile.value = null
         if (requested == SEARCH_ROUTE) {
             navController.navigate(SEARCH_ROUTE) { launchSingleTop = true }
+        } else if (requested == "vie-scolaire") {
+            if (SchoolModule.SchoolLife !in closedModules) navController.navigate("vie-scolaire") { launchSingleTop = true }
         } else if (requested == "agenda_homework") {
             if (AppTab.Agenda in tabs) {
                 agendaPage = AGENDA_HOMEWORK
                 navController.navigateToTab(AppTab.Agenda)
             }
+        } else if (requested == "agenda") {
+            if (AppTab.Agenda in tabs) {
+                agendaPage = AGENDA_SCHEDULE
+                navController.navigateToTab(AppTab.Agenda)
+            }
         } else {
             tabs.firstOrNull { it.route == requested }?.let(navController::navigateToTab)
         }
+        if (requested != "notes" || AppTab.Grades !in tabs) container.pendingSubject.value = null
         container.pendingTab.value = null
     }
 
@@ -293,6 +301,7 @@ private fun MainContent(
                             composable(AppTab.Agenda.route) { AgendaScreen(agendaPage) { agendaPage = it } }
                             composable(AppTab.Grades.route) { GradesRoute(onOpenMethod = { navController.navigate(METHOD_ROUTE) { launchSingleTop = true } }) }
                             composable(METHOD_ROUTE) { AverageMethodScreen(onClose = { navController.popBackStack() }) }
+                            composable("vie-scolaire") { fr.ecole2recte.app.ui.more.SchoolLifeScreen(onClose = { navController.popBackStack() }) }
                             composable(AppTab.Messages.route) { MessagesRoute() }
                             composable(SEARCH_ROUTE) {
                                 // Un résultat ouvre l'onglet concerné (même chemin qu'un raccourci ou une notification).
@@ -302,6 +311,7 @@ private fun MainContent(
                                 MoreScreen(
                                     onOpenSearch = { navController.navigate(SEARCH_ROUTE) { launchSingleTop = true } },
                                     onOpenMethod = { navController.navigate(METHOD_ROUTE) { launchSingleTop = true } },
+                                    onOpenSchoolLife = { navController.navigate("vie-scolaire") { launchSingleTop = true } },
                                     profile = activeProfile,
                                     connection = connection,
                                     connectionMessage = connectionMessage,

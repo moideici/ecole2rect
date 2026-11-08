@@ -105,19 +105,26 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
     // Notes « nouvelles » : retenues par profil sur le téléphone, mises en avant pendant trois jours.
     val container = rememberAppContainer()
     val ownerKey = LocalActiveProfile.current?.key.orEmpty()
+    val requestedSubject by container.pendingSubject.collectAsStateWithLifecycle()
+    var focusedSubject by remember(ownerKey) { mutableStateOf<String?>(null) }
+    LaunchedEffect(requestedSubject, grades.bySubject) {
+        val requested = requestedSubject ?: return@LaunchedEffect
+        if (grades.bySubject.isEmpty()) return@LaunchedEffect
+        focusedSubject = fr.ecole2recte.app.domain.ShortcutLogic.resolveSubject(requested, grades.bySubject)
+        container.pendingSubject.value = null
+        listState.scrollToItem(0)
+    }
     var firstSeen by remember(ownerKey) { mutableStateOf(container.seenGrades.firstSeen(ownerKey)) }
     LaunchedEffect(grades.all, ownerKey) { firstSeen = container.seenGrades.record(ownerKey, grades.all.map { it.id }) }
     val now = remember(firstSeen) { System.currentTimeMillis() }
     val requested by container.pendingWidgetSubject.collectAsStateWithLifecycle()
-    var focusedSubject by remember(ownerKey) { mutableStateOf<String?>(null) }
     LaunchedEffect(requested, grades.bySubject, ownerKey) {
         val request = requested ?: return@LaunchedEffect
         if ((request.first.isBlank() || request.first == ownerKey.lowercase()) && grades.bySubject.isNotEmpty()) {
             val index = grades.bySubject.indexOfFirst { it.id == request.second }
             if (index >= 0) {
                 focusedSubject = request.second
-                val offset = 4 + (if (grades.periods.size > 1) 1 else 0) + (if (grades.recent.isNotEmpty()) 2 else 0)
-                listState.animateScrollToItem(offset + index)
+                listState.scrollToItem(0)
             }
             container.pendingWidgetSubject.value = null
         }
@@ -138,9 +145,11 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
                 }
             }
         }
-        item { AverageCard(grades, onOpenMethod, Modifier.entrance(0)) { opened = it } }
-        item { SimulatorCard(grades, Modifier.entrance(1)) }
-        if (grades.recent.isNotEmpty()) {
+        if (focusedSubject == null) {
+            item { AverageCard(grades, onOpenMethod, Modifier.entrance(0)) { opened = it } }
+            item { SimulatorCard(grades, Modifier.entrance(1)) }
+        } else item { androidx.compose.material3.TextButton(onClick = { focusedSubject = null }) { Text("Toutes les matières") } }
+        if (grades.recent.isNotEmpty() && focusedSubject == null) {
             item { SectionLabel("Dernières notes") }
             item {
                 Column {
@@ -152,7 +161,8 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
         }
         item { SectionLabel("Par matière") }
         if (grades.bySubject.isEmpty()) item { EmptyState("Pas encore de notes") }
-        itemsIndexed(grades.bySubject, key = { _, line -> "subject:${line.id}" }) { index, line ->
+        val shownSubjects = grades.bySubject.filter { focusedSubject == null || it.id == focusedSubject }
+        itemsIndexed(shownSubjects, key = { _, line -> "subject:${line.id}" }) { index, line ->
             SubjectCard(line, grades, isNew, Modifier.entrance(index).padding(start = if (line.isSubSubject) 20.dp else 0.dp),
                 initiallyExpanded = focusedSubject == line.id) { opened = it }
         }
@@ -340,11 +350,18 @@ private fun GradePill(grade: GradeEntry) {
 @Composable
 private fun SubjectCard(line: SubjectAverage, overview: GradeOverview, isNew: (GradeEntry) -> Boolean, modifier: Modifier, initiallyExpanded: Boolean = false, onGrade: (GradeEntry) -> Unit) {
     val digits = averageDigits()
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember(line.id, initiallyExpanded) { mutableStateOf(initiallyExpanded) }
     val profileKey = LocalActiveProfile.current?.key.orEmpty()
     val privacy = LocalPrivacy.current
-    LaunchedEffect(initiallyExpanded) { if (initiallyExpanded) expanded = true }
-    ListCard(modifier, onClick = { expanded = !expanded }) {
+    val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    fun recordVisit() {
+        if (!privacy.enabled) {
+            fr.ecole2recte.app.sync.AppShortcuts.visits(context).record(profileKey, line.id, line.subject.name, System.currentTimeMillis())
+            fr.ecole2recte.app.sync.AppShortcuts.refresh(context)
+        }
+    }
+    LaunchedEffect(line.id, initiallyExpanded) { if (initiallyExpanded) recordVisit() }
+    ListCard(modifier, onClick = { expanded = !expanded; if (expanded) recordVisit() }) {
         Column {
             Row(Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
                 SubjectBadge(line.subject.name, line.subject.colorIndex, size = 36.dp)

@@ -42,6 +42,7 @@ fun MoreScreen(
     onRetryConnection: () -> Unit,
     onOpenSearch: () -> Unit = {},
     onOpenMethod: () -> Unit = {},
+    onOpenSchoolLife: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     ScrollToTopOnReselect("plus", listState)
@@ -73,8 +74,10 @@ fun MoreScreen(
                 }
             }
         }
-        item { Section("Vie scolaire") }
-        item { SchoolLifeCard() }
+        if (fr.ecole2recte.app.data.SchoolModule.SchoolLife !in profile?.closedModules.orEmpty()) {
+            item { Section("Vie scolaire") }
+            item { SchoolLifeCard(onOpenSchoolLife) }
+        }
         item { Section("Accueil") }
         item { HomeLayoutCard() }
         item { Section("Couleurs") }

@@ -54,6 +54,14 @@ fun NotificationsSection() {
     val rules by prefs.rulesFlow.collectAsStateWithLifecycle()
     val interval by prefs.intervalHours.collectAsStateWithLifecycle()
     var blocked by remember { mutableStateOf(false) }
+    val localPrefs = remember { fr.ecole2recte.app.sync.LocalFeaturePreferences(context) }
+    var currentCourse by remember { mutableStateOf(localPrefs.currentCourse) }
+    var absenceDays by remember { mutableStateOf(localPrefs.absenceReminderDays) }
+    val localPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        blocked = !granted
+        fr.ecole2recte.app.sync.CurrentCourseScheduler.refresh(context)
+        fr.ecole2recte.app.sync.AbsenceReminderScheduler.refresh(context)
+    }
 
     fun enable() {
         prefs.setEnabled(true)
@@ -93,6 +101,40 @@ fun NotificationsSection() {
                         }
                     },
                 )
+            }
+            RuleRow("Cours en cours (sur cet appareil)", currentCourse) {
+                currentCourse = it
+                localPrefs.currentCourse = it
+                if (it && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    localPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                fr.ecole2recte.app.sync.CurrentCourseScheduler.refresh(context)
+            }
+            Text("Utilise l’emploi du temps enregistré. Les mises à jour aux changements de cours peuvent être retardées par Android.", color = AppTheme.colors.muted, fontSize = 12.sp)
+            if (!fr.ecole2recte.app.ui.common.LocalPrivacy.current.enabled) {
+                androidx.compose.material3.TextButton(onClick = { fr.ecole2recte.app.sync.AppShortcuts.pinNextClass(context) }) {
+                    Text("Épingler « Prochain cours »")
+                }
+            }
+            if (fr.ecole2recte.app.data.SchoolModule.SchoolLife !in fr.ecole2recte.app.ui.common.LocalActiveProfile.current?.closedModules.orEmpty()) {
+                RuleRow("Rappel : justificatif attendu", absenceDays != null) {
+                    absenceDays = if (it) 5 else null
+                    localPrefs.absenceReminderDays = absenceDays
+                    if (it && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) localPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    fr.ecole2recte.app.sync.AbsenceReminderScheduler.refresh(context)
+                }
+                if (absenceDays != null) {
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(2, 5, 7).forEach { days -> item {
+                            FilterChip(selected = absenceDays == days, onClick = {
+                                absenceDays = days
+                                localPrefs.absenceReminderDays = days
+                                fr.ecole2recte.app.sync.AbsenceReminderScheduler.refresh(context)
+                            }, label = { Text("$days jours") })
+                        } }
+                    }
+                    Text("Ouvre Vie scolaire pour actualiser les absences. Rappel fondé sur les dernières données enregistrées.", color = AppTheme.colors.muted, fontSize = 12.sp)
+                }
             }
             if (enabled) {
                 Column(Modifier.padding(top = 10.dp)) {

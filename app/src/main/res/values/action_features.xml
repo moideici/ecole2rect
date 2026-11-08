@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_notes">Notes</string>
+    <string-array name="feature_agenda"><item>Agenda</item><item>Emploi du temps</item></string-array>
+    <string-array name="feature_homework"><item>Devoirs</item><item>Travail à faire</item></string-array>
+    <string-array name="feature_grades"><item>Notes</item><item>Moyennes</item></string-array>
+    <string-array name="feature_messages"><item>Messages</item><item>Messagerie</item></string-array>
+</resources>

@@ -30,8 +30,19 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
 - **Comptes** : plusieurs comptes, élèves d'un compte famille, vue d'ensemble de la famille.
 - **Notifications** (désactivées par défaut) : cours annulé, modifié ou déplacé (« 10:00 → 14:00 »), nouvelle note,
   message, rappel du soir des devoirs pour demain (à partir de l'heure choisie, 16 à 20 h) ;
-  réglables une à une, discrètes sur l'écran verrouillé. Raccourcis d'application : Agenda, Devoirs,
-  Messages, Rechercher.
+  réglables une à une, discrètes sur l'écran verrouillé. Une option indépendante « Cours en cours » affiche la matière,
+  la salle, la progression et le cours suivant à partir de l'emploi du temps enregistré, sans service au premier plan.
+  Les mises à jour locales sont inexactes et peuvent être retardées par Android ; la notification expire à la fin du cours.
+- **Vie scolaire** (Plus) : écran en lecture seule, absences, retards, sanctions et encouragements regroupés par mois,
+  filtres et détail des événements. Les heures non justifiées additionnent uniquement les durées explicites fournies
+  par l'établissement ; les durées manquantes sont signalées. Rappel optionnel « justificatif attendu » après 2, 5 ou 7 jours,
+  désactivé par défaut, fondé sur les dernières données enregistrées.
+- **Raccourcis** : jusqu'à quatre matières consultées, classées par fréquence puis récence, ouvrent leurs notes.
+  « Prochain cours » peut être épinglé depuis Plus > Notifications ; une tuile Réglages rapides ouvre aussi l'Agenda.
+  Les liens `ecole2recte://notes?matiere=…`, `ecole2recte://agenda`, `ecole2recte://devoirs` et `ecole2recte://messages`
+  ouvrent directement les écrans. Les App Actions déclarent l'ouverture d'Agenda, Devoirs, Notes et Messages ; elles ne donnent
+  pas de réponse vocale personnalisée sur les moyennes. En mode « montrer », les raccourcis de matières sont retirés et les
+  raccourcis épinglés sont anonymisés puis désactivés (leur icône reste sous le contrôle du lanceur).
 - **Widgets** : treize widgets, aux couleurs du thème choisi (y compris « Noir » OLED), avec plusieurs paliers de taille :
   - *Semaine complète* — petit (2×2, 3×2) : un jour par ligne avec nombre de cours et première/dernière heure ;
     moyen (4×2, 3×3) : cinq colonnes de pastilles colorées avec l'initiale de la matière ; grand (4×3, 4×4) :
@@ -59,6 +70,9 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
     d'écran et au toucher dans l'application.
   - Une tuile *Moyenne* peut être ajoutée aux Réglages rapides : elle ouvre Notes et affiche « Verrouillé » si
     l'appareil est verrouillé ou si le verrou de l'application est activé.
+  - *Vie scolaire* (1×1, redimensionnable) : absences non justifiées ; aux tailles supérieures, durée connue et date de mise
+    à jour. Au plus petit palier avec de grands caractères, le compteur reste seul et sa légende est accessible au lecteur d'écran.
+    Il se met à jour à l'ouverture de Vie scolaire et lors des synchronisations habituelles si le widget est posé ou le rappel activé.
   - Les widgets ne font aucune requête : ils lisent le dernier instantané publié par la synchronisation ou l'ouverture
     de l'app (mise à jour toutes les 30 min au plus). Changer de thème ou activer le mode « montrer » les redessine aussitôt.
 - **Hors ligne et fiabilité** : la dernière réponse valide s'affiche sous un bandeau d'ancienneté
@@ -109,8 +123,9 @@ derrière des réglages désactivés par défaut, avec une confirmation.
 - La durée de vie du jeton n'est pas documentée : le téléphone la mesure et adapte le rejeu.
 - Les widgets, les notifications de fond et le verrouillage biométrique ne sont vérifiables que
   sur un vrai téléphone.
-- Le mode « montrer à quelqu'un » masque les notes des widgets mais pas (encore) les notifications ; la taille du
-  texte « très grand » peut faire déborder certains écrans.
+- Le mode « montrer à quelqu'un » masque les notes des widgets, la vie scolaire et le contenu de la notification « Cours en cours » ;
+  les anciennes notifications de notes/messages gardent leur comportement antérieur. La taille du texte « très grand » peut encore
+  faire déborder des écrans préexistants ; le nouvel écran Vie scolaire adapte ses compteurs et fait défiler ses filtres.
 
 ## Développer
 

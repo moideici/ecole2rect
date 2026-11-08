@@ -353,7 +353,7 @@ object Parsers {
                     justified = raw.flag("justifie", "justifiee"),
                     reason = raw.str("motif", "parMotif"),
                     comment = raw.str("commentaire"),
-                    duration = raw.str("displayDate", "duree"),
+                    duration = raw.str("duree", "displayDate"),
                 )
             }
         }

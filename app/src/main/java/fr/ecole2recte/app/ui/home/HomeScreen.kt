@@ -111,6 +111,7 @@ private fun PublishWidgets(data: HomeData, repository: fr.ecole2recte.app.domain
     val context = LocalContext.current.applicationContext
     val profile = LocalActiveProfile.current
     LaunchedEffect(data, profile?.key) {
+    val owner = profile?.key.orEmpty()
         // Tout est déjà en mémoire : ces appels ne coûtent pas de nouvelle requête.
         val week = runCatching { repository.schedule() }.getOrNull()
         val homework = runCatching { repository.homework() }.getOrDefault(emptyList())
@@ -118,7 +119,8 @@ private fun PublishWidgets(data: HomeData, repository: fr.ecole2recte.app.domain
         val periods = repository.cachedGradePeriods()
         WidgetUpdater(context).publish(
             WidgetLogic.snapshot(repository.freshness.value.lastSyncMillis ?: System.currentTimeMillis(), java.time.LocalDate.now(), data, week, homework, data.grades, inbox)
-                .copy(profileKey = profile?.key?.lowercase().orEmpty(), profileLabel = profile?.displayName.orEmpty(),
+                .copy(owner = owner, shortcutSubjects = data.grades.bySubject.map { it.id },
+                    profileKey = profile?.key?.lowercase().orEmpty(), profileLabel = profile?.displayName.orEmpty(),
                     meanPeriods = periods.takeIf { it.isNotEmpty() }?.map { fr.ecole2recte.app.widget.WidgetMeanPeriod.fromOverview(it, it.periodCode == data.grades.periodCode) }
                         ?: listOf(fr.ecole2recte.app.widget.WidgetMeanPeriod.fromOverview(data.grades))),
         )
