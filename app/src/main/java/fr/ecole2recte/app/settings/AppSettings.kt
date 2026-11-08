@@ -55,6 +55,7 @@ class AppSettings(context: Context) {
     fun setTextScale(scale: TextScale) {
         preferences.edit().putString("text_scale", scale.name).apply()
         mutableTextScale.value = scale
+        refreshWidgets()
     }
 
     /** Supprime les animations de l'application, en plus du réglage Android du même nom. */

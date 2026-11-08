@@ -19,16 +19,17 @@ object WidgetPrivacy {
         var result = snapshot
         if (mode.hidesGrades) {
             result = result.copy(
-                grades = result.grades.map { it.copy(value = MASKED, label = "") },
+                grades = result.grades.map { it.copy(value = MASKED, label = "", classGap = null, firstSeenAt = 0) },
                 average = if (result.average.isBlank()) "" else MASKED,
                 averageLabel = "",
                 officialAverage = "",
                 averageBehind = "",
+                meanPeriods = emptyList(),
             )
         }
         if (mode.hidesMessages) {
-            result = result.copy(mails = result.mails.map { it.copy(sender = MASKED, subject = MASKED) })
+            result = result.copy(unread = 0, mails = result.mails.map { it.copy(sender = MASKED, subject = MASKED) })
         }
-        return result
+        return result.copy(profiles = result.profiles.map { apply(it, mode) })
     }
 }

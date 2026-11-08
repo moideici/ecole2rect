@@ -32,7 +32,7 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
   message, rappel du soir des devoirs pour demain (à partir de l'heure choisie, 16 à 20 h) ;
   réglables une à une, discrètes sur l'écran verrouillé. Raccourcis d'application : Agenda, Devoirs,
   Messages, Rechercher.
-- **Widgets** : six widgets, aux couleurs du thème choisi (y compris « Noir » OLED), qui s'agrandissent à volonté :
+- **Widgets** : treize widgets, aux couleurs du thème choisi (y compris « Noir » OLED), avec plusieurs paliers de taille :
   - *Semaine complète* — petit (2×2, 3×2) : un jour par ligne avec nombre de cours et première/dernière heure ;
     moyen (4×2, 3×3) : cinq colonnes de pastilles colorées avec l'initiale de la matière ; grand (4×3, 4×4) :
     grille jours × heures, cours colorés avec leur nom, jour courant et cours en cours en évidence, annulés barrés ;
@@ -42,6 +42,23 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
     salles et professeurs. Une fois la journée finie, il montre le prochain jour de cours.
   - *Prochain cours*, *Devoirs*, *Notes*, *Messages* (2×2 à 4×4). Un toucher ouvre l'onglet correspondant ; le widget
     Prochain cours a en plus un bouton « Voir l'agenda du jour ».
+  - *Moyenne* (1×1 à 2×1) : générale, matière, classe ou écart à un objectif ; période courante ou précédente,
+    titre court, seuils de couleur et tendance configurables par instance. Le format suit les décimales choisies
+    dans Plus. La version large ajoute la période, la tendance quand ses origines sont comparables et l'origine
+    de la moyenne (avec le bulletin si elle est recalculée). L'ancienneté des données apparaît en heures.
+  - Cinq petits widgets *1×1* : *Prochain cours*, *Devoirs restants*, *Dernière note*, *Messages non lus*,
+    *Prochain contrôle*. En les agrandissant : salle, première matière à travailler ou écart de la note à la classe.
+    Une note nouvellement vue porte « Nouveau » pendant trois jours ; les cours annulés sont ignorés.
+  - *Objectifs* (2×2 minimum) : moyenne actuelle → objectif par matière, jauges et tri par écart (les objectifs les
+    plus éloignés d'abord), au plus quatre matières au petit palier, davantage en grand. Les objectifs se modifient
+    dans la configuration ou en dépliant une matière dans Notes ; ils restent sur le téléphone.
+  - Les nouveaux widgets proposent le choix du profil/enfant déjà enregistré. Plusieurs instances peuvent afficher
+    des données différentes. La roue de réglage, ou « Reconfigurer » dans le menu du lanceur, rouvre leurs réglages.
+    Un toucher ouvre l'onglet et, pour une moyenne de matière ou un objectif, la matière concernée dans son profil.
+    À très petite taille ou grande police, les détails sont réduits ; le texte complet reste accessible au lecteur
+    d'écran et au toucher dans l'application.
+  - Une tuile *Moyenne* peut être ajoutée aux Réglages rapides : elle ouvre Notes et affiche « Verrouillé » si
+    l'appareil est verrouillé ou si le verrou de l'application est activé.
   - Les widgets ne font aucune requête : ils lisent le dernier instantané publié par la synchronisation ou l'ouverture
     de l'app (mise à jour toutes les 30 min au plus). Changer de thème ou activer le mode « montrer » les redessine aussitôt.
 - **Hors ligne et fiabilité** : la dernière réponse valide s'affiche sous un bandeau d'ancienneté

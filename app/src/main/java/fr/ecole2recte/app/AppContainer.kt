@@ -45,6 +45,8 @@ class AppContainer(context: Context) {
 
     /** Onglet demandé par un raccourci, une notification ou un widget ; consommé par l'écran principal. */
     val pendingTab = MutableStateFlow<String?>(null)
+    val pendingWidgetSubject = MutableStateFlow<Pair<String, String>?>(null)
+    val pendingWidgetProfile = MutableStateFlow<String?>(null)
 
     /** Durées de vie du jeton mesurées sur ce téléphone. */
     val tokenLog: TokenLifetimeLog = PrefsTokenLog(context)

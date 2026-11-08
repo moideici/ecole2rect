@@ -1,0 +1,13 @@
+<resources>
+    <string name="widget_mean_label">Moyenne</string>
+    <string name="widget_mean_description">Moyenne personnalisable par profil, matière et période.</string>
+    <string name="widget_small_next_label">Prochain cours · 1×1</string>
+    <string name="widget_small_homework_label">Devoirs restants · 1×1</string>
+    <string name="widget_small_grade_label">Dernière note · 1×1</string>
+    <string name="widget_small_messages_label">Messages non lus · 1×1</string>
+    <string name="widget_small_exam_label">Prochain contrôle · 1×1</string>
+    <string name="widget_small_description">Un aperçu local, personnalisable par profil.</string>
+    <string name="widget_goals_label">Objectifs</string>
+    <string name="widget_goals_description">Moyennes actuelles et objectifs par matière.</string>
+    <string name="tile_mean_label">Moyenne</string>
+</resources>

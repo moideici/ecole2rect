@@ -223,6 +223,7 @@ class MessagesWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val snapshot = loadSnapshot(context)
         val colors = WidgetColors.load(context)
+        val messagesHidden = fr.ecole2recte.app.settings.PrivacySelection.mode(context).hidesMessages
         provideContent {
             WidgetTheming(colors) {
                 val c = LocalWidgetColors.current
@@ -230,6 +231,7 @@ class MessagesWidget : GlanceAppWidget() {
                 Frame("Messages", "messages", hero = true) {
                     when {
                         snapshot == null -> Empty("Ouvre l'app.", hero = true)
+                        messagesHidden -> Text(MASKED, style = style(c.onHero, 40, bold = true))
                         snapshot.unread == 0 -> Empty("Aucun message non lu.", hero = true)
                         else -> {
                             Text(snapshot.unread.toString(), style = style(c.onHero, if (height < 140) 40 else 54, bold = true))
@@ -264,6 +266,13 @@ suspend fun updateAllWidgets(context: Context) {
         HomeworkWidget().updateAll(context)
         GradesWidget().updateAll(context)
         MessagesWidget().updateAll(context)
+        MeanWidget().updateAll(context)
+        SmallNextClassWidget().updateAll(context)
+        RemainingHomeworkWidget().updateAll(context)
+        LastGradeWidget().updateAll(context)
+        UnreadMessagesWidget().updateAll(context)
+        ExamCountdownWidget().updateAll(context)
+        GoalsWidget().updateAll(context)
     }
 }
 
@@ -283,7 +292,12 @@ object WidgetRefresh {
 /** Enregistre l'instantané puis redessine tous les widgets déjà posés sur l'écran d'accueil. */
 class WidgetUpdater(private val context: Context) : WidgetSink {
     override suspend fun publish(snapshot: WidgetSnapshot) {
-        WidgetSnapshotStore(context).write(snapshot)
+        val seen = (context.applicationContext as fr.ecole2recte.app.Ecole2recteApplication).container.seenGrades
+        fun mark(value: WidgetSnapshot): WidgetSnapshot {
+            val times = seen.record(value.profileKey, value.gradeIds.ifEmpty { value.grades.map { it.id } })
+            return value.copy(grades = value.grades.map { it.copy(firstSeenAt = times[it.id] ?: 0L) })
+        }
+        WidgetSnapshotStore(context).write(mark(snapshot).copy(profiles = snapshot.profiles.map(::mark)))
         updateAllWidgets(context)
     }
 }

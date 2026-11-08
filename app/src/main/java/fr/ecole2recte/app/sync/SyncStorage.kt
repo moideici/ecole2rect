@@ -170,7 +170,10 @@ data class WidgetSlot(
     val colorIndex: Int,
 )
 
-data class WidgetGradeItem(val subject: String, val value: String, val coefficient: String, val label: String, val colorIndex: Int)
+data class WidgetGradeItem(
+    val subject: String, val value: String, val coefficient: String, val label: String, val colorIndex: Int,
+    val id: String = "", val date: String = "", val classGap: Double? = null, val firstSeenAt: Long = 0,
+)
 
 data class WidgetMail(val sender: String, val subject: String)
 
@@ -187,6 +190,13 @@ data class WidgetSnapshot(
     val averageLabel: String = "",
     val officialAverage: String = "",
     val averageBehind: String = "",
+    val meanPeriods: List<fr.ecole2recte.app.widget.WidgetMeanPeriod> = emptyList(),
+    val profileKey: String = "",
+    val profileLabel: String = "",
+    /** Autres enfants déjà lus pendant le même passage de synchro. */
+    val profiles: List<WidgetSnapshot> = emptyList(),
+    val exams: List<WidgetTask> = emptyList(),
+    val gradeIds: List<String> = emptyList(),
 ) {
     fun toJson(): String = JSONObject()
         .put("updatedAt", updatedAt)
@@ -194,6 +204,11 @@ data class WidgetSnapshot(
         .put("averageLabel", averageLabel)
         .put("officialAverage", officialAverage)
         .put("averageBehind", averageBehind)
+        .put("meanPeriods", JSONArray(meanPeriods.map { it.json() }))
+        .put("profileKey", profileKey).put("profileLabel", profileLabel)
+        .put("profiles", JSONArray(profiles.map { JSONObject(it.copy(profiles = emptyList()).toJson()) }))
+        .put("exams", JSONArray(exams.map { JSONObject().put("subject", it.subject).put("dueDate", it.dueDate).put("title", it.title).put("color", it.colorIndex) }))
+        .put("gradeIds", JSONArray(gradeIds))
         .put("unread", unread)
         .put(
             "lessons",
@@ -210,6 +225,7 @@ data class WidgetSnapshot(
                 grades.map {
                     JSONObject().put("subject", it.subject).put("value", it.value).put("coef", it.coefficient)
                         .put("label", it.label).put("color", it.colorIndex)
+                        .put("id", it.id).put("date", it.date).put("gap", it.classGap).put("seen", it.firstSeenAt)
                 },
             ),
         )
@@ -252,12 +268,18 @@ data class WidgetSnapshot(
                     )
                 },
                 grades = root.objects("grades").map {
-                    WidgetGradeItem(it.optString("subject"), it.optString("value"), it.optString("coef"), it.optString("label"), it.optInt("color"))
+                    WidgetGradeItem(it.optString("subject"), it.optString("value"), it.optString("coef"), it.optString("label"), it.optInt("color"),
+                        it.optString("id"), it.optString("date"), it.optDouble("gap").takeIf { number -> number.isFinite() }, it.optLong("seen"))
                 },
                 average = root.optString("average"),
                 averageLabel = root.optString("averageLabel"),
                 officialAverage = root.optString("officialAverage"),
                 averageBehind = root.optString("averageBehind"),
+                meanPeriods = root.objects("meanPeriods").map(fr.ecole2recte.app.widget.WidgetMeanPeriod::fromJson),
+                profileKey = root.optString("profileKey"), profileLabel = root.optString("profileLabel"),
+                profiles = root.objects("profiles").mapNotNull { fromJson(it.toString()) },
+                exams = root.objects("exams").map { WidgetTask(it.optString("subject"), it.optString("title"), "", it.optInt("color"), it.optString("dueDate"), true) },
+                gradeIds = root.optJSONArray("gradeIds")?.let { ids -> (0 until ids.length()).map { ids.optString(it) } }.orEmpty(),
                 unread = root.optInt("unread"),
                 mails = root.objects("mails").map { WidgetMail(it.optString("sender"), it.optString("subject")) },
             )
@@ -273,13 +295,27 @@ private fun JSONObject.objects(key: String): List<JSONObject> {
 class WidgetSnapshotStore(context: Context) {
     private val preferences = context.getSharedPreferences("ecole2recte_widgets", Context.MODE_PRIVATE)
 
-    fun read(): WidgetSnapshot? = preferences.getString("snapshot", null)?.let(WidgetSnapshot::fromJson)
+    fun read(profile: String = ""): WidgetSnapshot? = preferences.getString(if (profile.isBlank()) "snapshot" else "profile:$profile", null)?.let(WidgetSnapshot::fromJson)
+
+    fun profiles(): List<WidgetSnapshot> = preferences.all.keys.filter { it.startsWith("profile:") }.mapNotNull { read(it.removePrefix("profile:")) }.sortedBy { it.profileLabel }
 
     fun write(snapshot: WidgetSnapshot) {
-        preferences.edit().putString("snapshot", snapshot.toJson()).apply()
+        val editor = preferences.edit().putString("snapshot", snapshot.copy(profiles = emptyList()).toJson())
+        (listOf(snapshot) + snapshot.profiles).filter { it.profileKey.isNotBlank() }.forEach {
+            editor.putString("profile:${it.profileKey}", it.copy(profiles = emptyList()).toJson())
+        }
+        editor.apply()
     }
 
     fun clear() {
-        preferences.edit().remove("snapshot").apply()
+        preferences.edit().clear().apply()
+    }
+
+    fun clearAccount(identifier: String) {
+        val prefix = identifier.lowercase() + "/"
+        val editor = preferences.edit()
+        preferences.all.keys.filter { it.startsWith("profile:$prefix") }.forEach { editor.remove(it) }
+        if (read()?.profileKey?.startsWith(prefix) == true) editor.remove("snapshot")
+        editor.apply()
     }
 }

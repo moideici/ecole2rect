@@ -27,6 +27,7 @@ import fr.ecole2recte.app.ui.navigation.MainScaffold
 /** Racine de l'interface : connexion ou application selon la session, sans écran d'attente. */
 @Composable
 fun AppRoot() {
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val session = appViewModel { SessionViewModel(
             it.credentialStore,
             clientFactory = { EcoleDirecteClient(apiVersion = it.settings.apiVersion.value) },
@@ -39,6 +40,10 @@ fun AppRoot() {
                 it.messageMarks.clear(id)
                 it.homeworkFilter.clear(id)
                 it.seenGrades.clear(id)
+                fr.ecole2recte.app.widget.GoalStore.at(appContext).clearAccount(id)
+                fr.ecole2recte.app.widget.WidgetConfigStore.at(appContext).clearAccount(id)
+                fr.ecole2recte.app.sync.WidgetSnapshotStore(appContext).clearAccount(id)
+                fr.ecole2recte.app.widget.WidgetRefresh.requestAll(appContext)
                 it.forgetRepositories(id)
             },
         ) }
