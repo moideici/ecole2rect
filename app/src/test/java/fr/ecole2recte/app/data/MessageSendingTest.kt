@@ -1,6 +1,7 @@
 package fr.ecole2recte.app.data
 
 import fr.ecole2recte.app.data.api.Recipients
+import fr.ecole2recte.app.data.api.Parsers
 import fr.ecole2recte.app.data.cache.InMemoryResponseCache
 import fr.ecole2recte.app.domain.MessageDraft
 import fr.ecole2recte.app.domain.Recipient
@@ -11,10 +12,14 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -34,7 +39,9 @@ class MessageSendingTest {
     private lateinit var server: MockWebServer
     private val requests = mutableListOf<RecordedRequest>()
     private val sentBodies = mutableListOf<String>()
+    private val sentBytes = mutableListOf<ByteArray>()
     private var postAnswer = """{"code":200,"data":{}}"""
+    private var postResponse: (() -> MockResponse)? = null
     private val clock = Clock.fixed(Instant.parse("2026-11-05T08:50:00Z"), ZoneId.of("Europe/Paris"))
 
     @Before
@@ -45,8 +52,10 @@ class MessageSendingTest {
                 requests += request
                 val path = request.requestUrl!!.encodedPath
                 if (request.requestUrl!!.queryParameter("verbe") == "post") {
-                    sentBodies += URLDecoder.decode(request.body.readUtf8().removePrefix("data="), "UTF-8")
-                    return MockResponse().setBody(postAnswer)
+                    val bytes = request.body.readByteArray()
+                    sentBytes += bytes
+                    sentBodies += URLDecoder.decode(String(bytes, Charsets.UTF_8).removePrefix("data="), "UTF-8")
+                    return postResponse?.invoke() ?: MockResponse().setBody(postAnswer)
                 }
                 val body = when {
                     path.endsWith("/professeurs.awp") ->
@@ -69,9 +78,10 @@ class MessageSendingTest {
     private val vieScolaire = Recipient("3", "Vie scolaire", "A", "Administration")
     private val draft = MessageDraft(listOf(paul, vieScolaire), "Absence du 6 novembre", "Bonjour,\nTom sera absent <jeudi> & vendredi.\nMerci.")
 
-    private fun repository(allowed: () -> Boolean, account: Account = Account("10", "E", "Jean", "DUPONT")): EcoleDirecteRepository {
+    private fun repository(allowed: () -> Boolean, account: Account = Account("10", "E", "Jean", "DUPONT"), configureSession: (ApiSession) -> Unit = {}): EcoleDirecteRepository {
         val session = ApiSession()
         session.open("jdupont", EcoleDirecteClient(apiBase = server.url("/v3").toString().trimEnd('/')), listOf(account))
+        configureSession(session)
         val writes = object : WriteAccess {
             override fun homeworkSync() = false
             override fun messageSending() = allowed()
@@ -110,7 +120,78 @@ class MessageSendingTest {
         expectFailure({ repository.sendMessage(draft.copy(recipients = emptyList()), true) }, "destinataire")
         expectFailure({ repository.sendMessage(draft.copy(subject = " "), true) }, "objet")
         expectFailure({ repository.sendMessage(draft.copy(body = ""), true) }, "message")
-        assertEquals(0, posts().size)
+        expectFailure({ repository.sendMessage(draft.copy(subject = "x".repeat(MessageDraft.MAX_SUBJECT + 1)), true) }, "long")
+        expectFailure({ repository.sendMessage(draft.copy(body = "x".repeat(MessageDraft.MAX_BODY + 1)), true) }, "long")
+        expectFailure({ repository.sendMessage(draft.copy(recipients = List(MessageDraft.MAX_RECIPIENTS + 1) { paul }), true) }, "destinataires")
+        assertEquals(0, requests.size)
+    }
+
+    @Test
+    fun `les octets de la requete restent identiques a l instantane fictif`() = runTest {
+        repository(allowed = { true }).sendMessage(draft, confirmed = true)
+        val expected = javaClass.getResource("/captures/message_send_request.form")!!.readText().trimEnd('\r', '\n').toByteArray(Charsets.UTF_8)
+        assertArrayEquals(expected, sentBytes.single())
+        assertEquals("application/x-www-form-urlencoded", posts().single().getHeader("Content-Type"))
+    }
+
+    @Test
+    fun `une expiration pendant l envoi ne rouvre pas la session et ne rejoue pas le message`() {
+        var reauthentications = 0
+        val repository = repository(allowed = { true }, configureSession = { session ->
+            session.reauthenticator = { reauthentications++; true }
+        })
+        postAnswer = """{"code":520}"""
+        expectFailure({ repository.sendMessage(draft, true) }, "expiré")
+        assertEquals(1, posts().size)
+        assertEquals(0, reauthentications)
+    }
+
+    @Test
+    fun `une coupure apres reception des octets ne declenche aucun second envoi`() {
+        postResponse = { MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST) }
+        expectFailure({ repository(allowed = { true }).sendMessage(draft, true) }, "réseau")
+        assertEquals(1, posts().size)
+    }
+
+    @Test
+    fun `une redirection ne transporte jamais le message vers une seconde adresse`() {
+        postResponse = { MockResponse().setResponseCode(307).addHeader("Location", server.url("/v3/eleves/10/messages.awp?verbe=post")) }
+        expectFailure({ repository(allowed = { true }).sendMessage(draft, true) }, "")
+        assertEquals(1, requests.size)
+    }
+
+    @Test
+    fun `la recherche de destinataires utilise une fixture fictive sans accents ni casse`() {
+        val json = JSONObject(javaClass.getResource("/captures/recipients.json")!!.readText())
+        val contacts = Recipients.parse(json, "Enseignants", "P")
+        assertEquals(3, contacts.size)
+        assertEquals(listOf("Élodie NOËL"), Recipients.search(contacts, "  ELODIE   noel ").map { it.name })
+        assertEquals(contacts, Recipients.search(contacts, " "))
+        assertTrue(Recipients.search(contacts, "inconnu").isEmpty())
+    }
+
+    @Test
+    fun `la reponse reprend uniquement un expediteur identifie et son objet`() {
+        val json = JSONObject(javaClass.getResource("/captures/message_reply.json")!!.readText())
+        val detail = Parsers.messageDetail(json)!!
+        assertNotNull(detail.replyTo)
+        assertEquals("77", detail.replyTo!!.id)
+        assertEquals("P", detail.replyTo!!.type)
+        val reply = MessageDraft.replyTo(detail.subject, detail.replyTo!!)
+        assertEquals(listOf(detail.replyTo), reply.recipients)
+        assertEquals("Re : Correction du DM", reply.subject)
+        assertEquals("", reply.body)
+        assertEquals("Re : Correction du DM", MessageDraft.replyTo(reply.subject, detail.replyTo!!).subject)
+        json.getJSONObject("from").remove("id")
+        assertNull(Parsers.messageDetail(json)!!.replyTo)
+    }
+
+    @Test
+    fun `un echec ne pretend pas que le serveur n a rien recu`() {
+        val notice = MessageDraft.failureNotice("Connexion réseau impossible.")
+        assertTrue(notice.contains("brouillon"))
+        assertTrue(notice.contains("Vérifie"))
+        assertFalse(notice.contains("Rien n'est parti"))
     }
 
     @Test
@@ -180,7 +261,7 @@ class MessageSendingTest {
     @Test
     fun `le texte du message est protege`() {
         assertEquals("a &lt;b&gt;<br>c &amp; d", Recipients.toHtml(" a <b>\r\nc & d "))
-        assertEquals("<br>", Recipients.toHtml("\n").let { "<br>" })
+        assertEquals("", Recipients.toHtml("\n"))
         assertEquals(
             "Bonjour",
             String(Base64.getDecoder().decode(Recipients.encodedContent("Bonjour")), Charsets.UTF_8),

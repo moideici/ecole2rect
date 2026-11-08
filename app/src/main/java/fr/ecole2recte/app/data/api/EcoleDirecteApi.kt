@@ -116,7 +116,15 @@ class EcoleDirecteApi(private val client: EcoleDirecteClient) {
             .put("content", Recipients.encodedContent(text))
             .put("to", to)
             .put("files", org.json.JSONArray())
-        client.call("/$segment/$mailboxId/messages.awp", "post", body = JSONObject().put("message", message).put("anneeMessages", schoolYear))
+        try {
+            client.call("/$segment/$mailboxId/messages.awp", "post", body = JSONObject().put("message", message).put("anneeMessages", schoolYear))
+        } catch (expired: fr.ecole2recte.app.data.SessionExpiredException) {
+            // Une écriture ne doit pas emprunter le rejeu de session réservé aux lectures du dépôt.
+            throw fr.ecole2recte.app.data.EcoleDirecteException(
+                "La session ÉcoleDirecte a expiré pendant l'envoi. Vérifie les messages envoyés avant de réessayer.",
+                expired, fr.ecole2recte.app.data.FailureKind.Service,
+            )
+        }
     }
 
     fun messageDetail(segment: String, mailboxId: String, id: String): String =

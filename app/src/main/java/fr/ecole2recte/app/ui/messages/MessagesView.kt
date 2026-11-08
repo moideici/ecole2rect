@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.ecole2recte.app.domain.MessageDetail
 import fr.ecole2recte.app.domain.MessagePreview
+import fr.ecole2recte.app.domain.MessageDraft
 import fr.ecole2recte.app.ui.common.AttachmentList
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.ListCard
@@ -92,6 +94,7 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
     var opened by remember { mutableStateOf<MessagePreview?>(null) }
     val canSend by rememberAppContainer().settings.sendMessages.collectAsStateWithLifecycle()
     var composing by remember { mutableStateOf(false) }
+    var initialDraft by remember { mutableStateOf<MessageDraft?>(null) }
     var sentNotice by remember { mutableStateOf(false) }
 
     // Marques locales (lu / non lu choisis ici, jamais écrits chez ÉcoleDirecte) : elles passent après « ouvert pendant cette visite ».
@@ -125,7 +128,7 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
                     color = AppTheme.colors.accent,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    modifier = Modifier.clickable { composing = true }.padding(horizontal = 22.dp, vertical = 8.dp),
+                    modifier = Modifier.clickable { initialDraft = null; composing = true }.padding(horizontal = 22.dp, vertical = 8.dp),
                 )
             }
         }
@@ -191,12 +194,19 @@ private fun MessagesContent(first: List<MessagePreview>, viewModel: MessagesView
     }
     opened?.let { message ->
         ModalBottomSheet(onDismissRequest = { opened = null }, containerColor = AppTheme.colors.surface) {
-            MessageSheet(message, viewModel, onOpened = { container.messageMarks.forget(ownerKey, message.id) })
+            MessageSheet(message, viewModel, canReply = canSend,
+                onOpened = { container.messageMarks.forget(ownerKey, message.id) },
+                onReply = { draft ->
+                    initialDraft = draft
+                    opened = null
+                    composing = true
+                },
+            )
         }
     }
     if (composing && canSend) {
         ModalBottomSheet(onDismissRequest = { composing = false }, containerColor = AppTheme.colors.surface) {
-            ComposeSheet(viewModel, onSent = {
+            ComposeSheet(viewModel, initialDraft = initialDraft, onSent = {
                 composing = false
                 sentNotice = true
             })
@@ -248,7 +258,7 @@ private fun MessageRow(message: MessagePreview, modifier: Modifier, onToggleRead
 }
 
 @Composable
-private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel, onOpened: () -> Unit) {
+private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel, canReply: Boolean, onOpened: () -> Unit, onReply: (MessageDraft) -> Unit) {
     var detail by remember(message.id) { mutableStateOf<Result<MessageDetail>?>(null) }
     LaunchedEffect(message.id) {
         detail = runCatching { viewModel.open(message) }
@@ -270,6 +280,9 @@ private fun MessageSheet(message: MessagePreview, viewModel: MessagesViewModel, 
                         Text(linkified(content.body), color = AppTheme.colors.ink, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 8.dp))
                     }
                     AttachmentList(content.files, viewModel::download)
+                    if (canReply) content.replyTo?.let { sender ->
+                        TextButton(onClick = { onReply(MessageDraft.replyTo(content.subject, sender)) }) { Text("Répondre") }
+                    }
                 },
                 onFailure = {
                     Text("Ouverture impossible.", color = AppTheme.colors.error, fontSize = 14.sp)

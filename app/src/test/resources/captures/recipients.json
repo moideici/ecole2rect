@@ -1,0 +1,10 @@
+{
+  "professeurs": [
+    { "id": 7, "prenom": "Élodie", "nom": "NOËL", "type": "P" },
+    { "id": 12, "prenom": "Paul", "nom": "PETIT", "civilite": "M.", "type": "P" },
+    { "id": 15, "prenom": "Anne", "nom": "ABEL" },
+    { "id": 7, "prenom": "Élodie", "nom": "NOËL", "type": "P" },
+    { "nom": "Sans identifiant" },
+    { "id": 20 }
+  ]
+}

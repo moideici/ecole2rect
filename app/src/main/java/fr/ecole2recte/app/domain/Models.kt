@@ -41,10 +41,13 @@ enum class HomeworkWrite {
 }
 
 /** D'où vient une pièce jointe : ÉcoleDirecte ne les range pas au même endroit. */
-enum class AttachmentSource { Homework, Message }
+enum class AttachmentSource { Homework, Message, Document }
 
 /** Une pièce jointe, téléchargeable seulement après confirmation de l'utilisateur. */
-data class Attachment(val id: String, val name: String, val type: String, val source: AttachmentSource)
+data class Attachment(
+    val id: String, val name: String, val type: String, val source: AttachmentSource,
+    val sizeBytes: Long? = null, val mimeType: String? = null,
+)
 
 /** Un fichier téléchargé, en mémoire (25 Mo au plus). */
 class AttachmentFile(val bytes: ByteArray, val mimeType: String?, val fileName: String)
@@ -189,6 +192,7 @@ data class MessageDetail(
     val recipients: List<String>,
     val attachments: List<String>,
     val files: List<Attachment> = emptyList(),
+    val replyTo: Recipient? = null,
 )
 
 /**

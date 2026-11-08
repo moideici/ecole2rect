@@ -273,6 +273,8 @@ class EcoleDirecteClient(
      * jeton, cookies, au plus deux appels à la fois. La réponse est refusée au-delà de [maxBytes].
      */
     fun download(path: String, query: Map<String, String>, maxBytes: Int = MAX_DOWNLOAD_BYTES): Download {
+        require(maxBytes > 0)
+        val limit = minOf(maxBytes, MAX_DOWNLOAD_BYTES)
         dataGate.acquireUninterruptibly()
         try {
             val extra = query.entries.joinToString("") { (name, value) -> "&" + formEncode(name) + "=" + formEncode(value) }
@@ -287,9 +289,15 @@ class EcoleDirecteClient(
                 captureCookies(connection.headerFields)
                 headerValue(connection.headerFields, "X-Token").takeIf { it.isNotBlank() }?.let { token = it }
                 val contentType = connection.contentType
+                if (status == 401) throw EcoleDirecteException("Accès au fichier expiré (401). Reconnecte-toi dans Plus > Comptes.")
+                if (status == 403) throw EcoleDirecteException("Ce compte n'a pas accès à ce fichier (403).")
+                if (status == 404) throw EcoleDirecteException("Ce fichier est introuvable (404). Il a peut-être été supprimé.")
+                if (status >= 500) throw EcoleDirecteException("ÉcoleDirecte ne peut pas fournir ce fichier pour le moment (HTTP $status).", kind = FailureKind.Service)
+                if (connection.contentLengthLong > limit) throw EcoleDirecteException("Ce fichier est trop volumineux (plus de ${limit / (1024 * 1024)} Mo).")
                 val stream = if (status in 200..399) connection.inputStream else connection.errorStream
-                val bytes = stream?.use { readAtMost(it, maxBytes) } ?: ByteArray(0)
-                if (contentType == null || contentType.startsWith("application/json") || contentType.startsWith("text/")) {
+                val bytes = stream?.use { readAtMost(it, limit) } ?: ByteArray(0)
+                val mime = contentType?.substringBefore(';')?.trim()?.lowercase(java.util.Locale.ROOT)
+                if (mime == null || mime == "application/json" || mime.startsWith("text/")) {
                     // Une réponse JSON à la place du fichier : c'est une erreur d'ÉcoleDirecte (jeton expiré, accès refusé…).
                     val code = runCatching { JSONObject(String(bytes, Charsets.UTF_8)).optInt("code", 0) }.getOrDefault(0)
                     when (code) {
@@ -297,7 +305,9 @@ class EcoleDirecteClient(
                         ApiCode.STALE_VERSION -> throw EcoleDirecteException("La version d'API utilisée n'est plus acceptée par ÉcoleDirecte (517).", kind = FailureKind.StaleVersion)
                         ApiCode.BLOCKED, ApiCode.BLOCKED_ALT -> throw EcoleDirecteException("ÉcoleDirecte est momentanément indisponible pour ce compte.", kind = FailureKind.Blocked)
                     }
-                    throw EcoleDirecteException("Ce fichier n'est pas disponible pour le moment.", kind = FailureKind.Other)
+                    if (code != 0 || mime == "application/json" || mime == "text/html") {
+                        throw EcoleDirecteException("Ce fichier n'est pas disponible pour le moment.", kind = FailureKind.Other)
+                    }
                 }
                 if (status !in 200..299 || bytes.isEmpty()) {
                     throw EcoleDirecteException(
@@ -407,6 +417,12 @@ class EcoleDirecteClient(
             // default JSON separators and application/x-www-form-urlencoded.
             val encodedPayload = formEncode(payload.toPythonJson())
             val body = "data=$encodedPayload"
+            if (verb == "post" && path.endsWith("/messages.awp")) {
+                // Le mode tampon de HttpURLConnection peut rejouer un POST après une coupure.
+                // Le mode streaming interdit ce rejeu implicite ; une redirection ne doit pas renvoyer le message non plus.
+                connection.setFixedLengthStreamingMode(body.toByteArray(Charsets.UTF_8).size)
+                connection.instanceFollowRedirects = false
+            }
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val httpStatus = connection.responseCode
             val stream = if (httpStatus in 200..399) connection.inputStream else connection.errorStream
