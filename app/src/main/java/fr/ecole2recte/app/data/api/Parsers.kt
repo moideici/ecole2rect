@@ -1,6 +1,7 @@
 package fr.ecole2recte.app.data.api
 
 import org.json.JSONObject
+import fr.ecole2recte.app.domain.ClassPosition
 
 /** Ce qu'ÉcoleDirecte rend, débarrassé de la forme qu'il lui donne. Les dates sont des chaînes ISO locales. */
 
@@ -50,6 +51,8 @@ data class ApiPeriod(
     /** Appréciation générale du professeur principal. */
     val appreciation: String = "",
     val computedOn: String? = null,
+    val coefficient: Double? = null,
+    val classPosition: ClassPosition? = null,
 )
 
 data class ApiSubjectAverage(
@@ -66,6 +69,7 @@ data class ApiSubjectAverage(
     val subCode: String = "",
     val isSubSubject: Boolean = false,
     val isGroup: Boolean = false,
+    val classPosition: ClassPosition? = null,
 )
 
 data class ApiGrade(
@@ -264,6 +268,8 @@ object Parsers {
                 classAverage = raw.num("moyenneClasse") ?: set?.num("moyenneClasse"),
                 annual = raw.flag("annuel"),
                 start = raw.date("dateDebut"),
+                coefficient = raw.num("coef", "coefficient"),
+                classPosition = classPosition(raw, set),
                 end = raw.date("dateFin"),
                 appreciation = set?.str("appreciationPP", "appreciationGenerale").orEmpty(),
                 computedOn = set?.date("dateCalcul"),
@@ -286,6 +292,7 @@ object Parsers {
                     subCode = discipline.str("codeSousMatiere"),
                     isSubSubject = discipline.flag("sousMatiere") || discipline.str("codeSousMatiere").isNotBlank(),
                     isGroup = discipline.flag("groupeMatiere"),
+                    classPosition = classPosition(discipline),
                 )
             }
         }

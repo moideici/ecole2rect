@@ -52,6 +52,7 @@ class AppContainer(context: Context) {
     /** Les données du profil actif. */
     val apiSession = ApiSession(tokenLog = tokenLog)
     val subjectColors = SubjectColorStore(PrefsTextStorage(context, "ecole2recte_colors", "overrides"))
+    val gradeScenarios = fr.ecole2recte.app.data.GradeScenarioStore(PrefsTextStorage(context, "ecole2recte_scenarios", "saved"), KeystoreCipher())
     val homeworkStatus: HomeworkStatusStore = PrefsHomeworkStatusStore(context)
 
     /** « Lu » / « non lu » choisis dans la liste des messages : locaux, jamais écrits chez ÉcoleDirecte. */

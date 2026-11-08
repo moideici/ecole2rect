@@ -793,6 +793,7 @@ class EcoleDirecteRepository(
                 classAverageValue = line?.classAverage,
                 minimumValue = line?.minimum,
                 maximumValue = line?.maximum,
+                classPosition = line?.classPosition,
             )
         }
         // Moyenne générale : celle de l'établissement, sinon la moyenne des matières (pondérée par
@@ -823,11 +824,12 @@ class EcoleDirecteRepository(
             classAverage = current?.classAverage?.let(::decimal),
             periodName = current?.name.orEmpty(),
             periodCode = current?.code.orEmpty(),
-            periods = periods.map { GradePeriod(it.code, it.name, selected = it.code == current?.code, average = it.average?.let(::decimal), value = it.average) },
+            periods = periods.map { GradePeriod(it.code, it.name, selected = it.code == current?.code, average = it.average?.let(::decimal), value = it.average, coefficient = it.coefficient, annual = it.annual) },
             appreciation = current?.appreciation.orEmpty(),
             averageSource = source,
             verdict = verdict,
             classAverageValue = current?.classAverage,
+            classPosition = current?.classPosition,
         )
     }
 

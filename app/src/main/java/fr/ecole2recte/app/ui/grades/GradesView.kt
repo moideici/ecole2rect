@@ -125,6 +125,7 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
         }
         item { AverageCard(grades, onOpenMethod, Modifier.entrance(0)) { opened = it } }
         item { SimulatorCard(grades, Modifier.entrance(1)) }
+        item { AnnualProjectionCard(grades) }
         if (grades.recent.isNotEmpty()) {
             item { SectionLabel("Dernières notes") }
             item {
@@ -200,6 +201,7 @@ private fun AverageCard(grades: GradeOverview, onOpenMethod: () -> Unit, modifie
                 Spacer(Modifier.height(4.dp))
                 EvolutionChart(grades.evolution)
             }
+            ClassPositionChart("Moyenne générale", grades.classPosition, grades.average, Modifier.padding(top = 12.dp))
             Text(
                 "Comment la moyenne est calculée ?",
                 color = AppTheme.colors.accent,
@@ -359,6 +361,7 @@ private fun SubjectCard(line: SubjectAverage, overview: GradeOverview, isNew: (G
             line.verdict?.behind?.forEach { grade ->
                 Text(AveragePresentation.behindText(grade), color = AppTheme.colors.accent, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 17.dp).clickable { onGrade(grade) }.padding(vertical = 4.dp))
             }
+            if (expanded) ClassPositionChart(line.subject.name, line.classPosition, line.average, Modifier.padding(horizontal = 17.dp, vertical = 8.dp))
             AnimatedVisibility(expanded && line.grades.isNotEmpty()) {
                 Column(Modifier.padding(bottom = 12.dp)) {
                     line.grades.forEach { grade ->

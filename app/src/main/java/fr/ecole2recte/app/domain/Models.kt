@@ -151,10 +151,14 @@ data class SubjectAverage(
     val classAverageValue: Double? = null,
     val minimumValue: Double? = null,
     val maximumValue: Double? = null,
+    val classPosition: ClassPosition? = null,
 )
 
 /** Une période du bulletin (trimestre, semestre) que l'on peut afficher, avec sa moyenne générale si elle est connue. */
-data class GradePeriod(val code: String, val name: String, val selected: Boolean, val average: String? = null, val value: Double? = null)
+data class GradePeriod(
+    val code: String, val name: String, val selected: Boolean, val average: String? = null, val value: Double? = null,
+    val coefficient: Double? = null, val annual: Boolean = false,
+)
 
 data class GradeOverview(
     val average: String,
@@ -178,6 +182,7 @@ data class GradeOverview(
     val averageSource: AverageSource = AverageSource.None,
     val verdict: AverageVerdict? = null,
     val classAverageValue: Double? = null,
+    val classPosition: ClassPosition? = null,
 )
 
 data class MessagePreview(

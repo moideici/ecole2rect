@@ -36,6 +36,7 @@ fun AppRoot() {
                 it.responseCache.clear(id)
                 it.homeworkStatus.clear(id)
                 it.subjectColors.clear(id)
+                it.gradeScenarios.clear(id)
                 it.messageMarks.clear(id)
                 it.homeworkFilter.clear(id)
                 it.seenGrades.clear(id)

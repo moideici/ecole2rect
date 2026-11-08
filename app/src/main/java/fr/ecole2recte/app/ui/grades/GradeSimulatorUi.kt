@@ -11,9 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,10 +22,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import fr.ecole2recte.app.domain.GradeEntry
 import fr.ecole2recte.app.domain.GradeSimulation
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.AverageEngine
@@ -43,8 +39,9 @@ import fr.ecole2recte.app.ui.theme.AppTheme
  */
 @Composable
 fun SimulatorCard(overview: GradeOverview, modifier: Modifier = Modifier) {
+    if (fr.ecole2recte.app.ui.common.LocalPrivacy.current.hidesGrades) return
     val subjects = overview.bySubject
-    val usable = remember(subjects) { subjects.filter { line -> line.grades.any { it.counted && it.value != null } } }
+    val usable = remember(subjects) { subjects.filter { line -> GradeSimulation.parse(line.average) != null || line.grades.any { it.counted && it.value != null } } }
     if (usable.isEmpty()) return
     var open by rememberSaveable { mutableStateOf(false) }
     var chosen by rememberSaveable { mutableStateOf(usable.first().id) }
@@ -71,6 +68,7 @@ fun SimulatorCard(overview: GradeOverview, modifier: Modifier = Modifier) {
                     }
                 }
                 SimulatorPanel(line, overview)
+                GradeScenariosPanel(overview, line)
             }
         }
     }
@@ -93,29 +91,15 @@ fun SimulatorPanel(line: SubjectAverage, overview: GradeOverview, modifier: Modi
 
     Column(modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Avant : ${line.average} / 20", color = AppTheme.colors.muted, fontSize = 13.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FilterChip(!hypothesis, { hypothesis = false }, label = { Text("Pour atteindre…", fontSize = 13.sp) })
             FilterChip(hypothesis, { hypothesis = true }, label = { Text("Si j'obtiens…", fontSize = 13.sp) })
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (hypothesis) {
-                OutlinedTextField(
-                    guess, { guess = it }, label = { Text("Note") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f),
-                )
-            } else {
-                OutlinedTextField(
-                    target, { target = it }, label = { Text("Moyenne visée") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f),
-                )
-            }
-            OutlinedTextField(
-                coefficient, { coefficient = it }, label = { Text("Coefficient") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f),
-            )
-        }
-        OutlinedTextField(scale, { scale = it }, label = { Text("Barème") }, singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+        AnalysisFields(listOf(
+            { field -> if (hypothesis) DecimalField(guess, { guess = it }, "Note", field) else DecimalField(target, { target = it }, "Moyenne visée", field) },
+            { field -> DecimalField(coefficient, { coefficient = it }, "Coefficient", field) },
+            { field -> DecimalField(scale, { scale = it }, "Barème", field) },
+        ))
         val text: String
         val need = GradeSimulation.need(grades, target, coefficient, scale, displayed)
         val projection = GradeSimulation.projection(grades, if (hypothesis) guess else (need as? GradeSimulation.Need.Needed)?.grade?.toString().orEmpty(), coefficient, scale, displayed)
@@ -149,7 +133,7 @@ fun SimulatorPanel(line: SubjectAverage, overview: GradeOverview, modifier: Modi
             val weights = overview.bySubject.map { AverageEngine.SubjectWeight(it.id, GradeSimulation.parse(it.average), it.coefficient, it.isSubSubject) }
             val general = AverageEngine.projectGeneral(weights, line.id, projection.projected, GradeSimulation.parse(overview.average), overview.averageSource.isOfficial)
             general?.let {
-                Text("Moyenne générale : ${overview.average} → ${FrenchFormat.decimal(it.value, digits)}" + if (it.estimated) " (estimation)" else " (calculée par l'app)", color = AppTheme.colors.ink, fontSize = 13.sp)
+                Text("Moyenne générale : ${overview.average} → ${FrenchFormat.decimal(it.value, digits)} (estimation)", color = AppTheme.colors.ink, fontSize = 13.sp)
             }
         }
         Text(
