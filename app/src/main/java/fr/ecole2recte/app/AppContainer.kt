@@ -30,6 +30,7 @@ import fr.ecole2recte.app.session.ApiSession
 
 /** Point unique où les dépendances sont assemblées (injection à la main, sans framework). */
 class AppContainer(context: Context) {
+    private val appContext = context.applicationContext
     val credentialStore: CredentialStore = SecureCredentialStore(context)
     val settings: AppSettings = AppSettings(context)
     val syncPreferences = SyncPreferences(context)
@@ -45,6 +46,39 @@ class AppContainer(context: Context) {
 
     /** Onglet demandé par un raccourci, une notification ou un widget ; consommé par l'écran principal. */
     val pendingTab = MutableStateFlow<String?>(null)
+    val pendingSubject = MutableStateFlow<String?>(null)
+
+    fun clearLocalFeatures(identifier: String? = null) {
+        identifier?.let { fr.ecole2recte.app.sync.AppShortcuts.visits(appContext).clear(it) }
+        identifier?.let { fr.ecole2recte.app.widget.SchoolLifeSnapshotStore(appContext).forgetAccount(it) }
+        val owner = fr.ecole2recte.app.sync.LocalFeaturePreferences(appContext).activeOwner
+        if (identifier != null && owner != null && !owner.startsWith("$identifier/", ignoreCase = true)) return
+        fr.ecole2recte.app.sync.LocalFeaturePreferences(appContext).activeOwner = null
+        fr.ecole2recte.app.sync.AppShortcuts.clear(appContext)
+        fr.ecole2recte.app.sync.WidgetSnapshotStore(appContext).clear()
+        fr.ecole2recte.app.widget.SchoolLifeSnapshotStore(appContext).clear()
+        fr.ecole2recte.app.sync.CurrentCourseScheduler.refresh(appContext)
+        fr.ecole2recte.app.sync.AbsenceReminderScheduler.refresh(appContext)
+        fr.ecole2recte.app.widget.WidgetRefresh.requestAll(appContext)
+    }
+
+    fun useLocalProfile(profile: ActiveProfile) {
+        fr.ecole2recte.app.sync.LocalFeaturePreferences(appContext).activeOwner = profile.key
+        val snapshotStore = fr.ecole2recte.app.sync.WidgetSnapshotStore(appContext)
+        val lifeStore = fr.ecole2recte.app.widget.SchoolLifeSnapshotStore(appContext)
+        if (snapshotStore.read()?.owner != profile.key) snapshotStore.clear()
+        snapshotStore.read()?.let { snapshot ->
+            snapshotStore.write(snapshot.copy(
+                shortcutSubjects = if (fr.ecole2recte.app.data.SchoolModule.Grades in profile.closedModules) emptyList() else snapshot.shortcutSubjects,
+                lessons = if (fr.ecole2recte.app.data.SchoolModule.Schedule in profile.closedModules) emptyList() else snapshot.lessons,
+            ))
+        }
+        if (lifeStore.owner != profile.key || fr.ecole2recte.app.data.SchoolModule.SchoolLife in profile.closedModules) lifeStore.clear()
+        fr.ecole2recte.app.sync.AppShortcuts.refresh(appContext)
+        fr.ecole2recte.app.sync.CurrentCourseScheduler.refresh(appContext)
+        fr.ecole2recte.app.sync.AbsenceReminderScheduler.refresh(appContext)
+        fr.ecole2recte.app.widget.WidgetRefresh.requestAll(appContext)
+    }
 
     /** Durées de vie du jeton mesurées sur ce téléphone. */
     val tokenLog: TokenLifetimeLog = PrefsTokenLog(context)

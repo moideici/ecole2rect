@@ -85,9 +85,15 @@ private class MemoryState : NotificationStateStore {
     }
 }
 
-private class Recorder : NotificationSink, WidgetSink {
+private class Recorder(override val wantsSchoolLife: Boolean = false) : NotificationSink, WidgetSink {
     val posted = mutableListOf<NotificationEvent>()
     var snapshot: WidgetSnapshot? = null
+    var schoolLifeOwner: String? = null
+    var schoolLife: List<fr.ecole2recte.app.domain.SchoolLifeEvent>? = null
+    override suspend fun publishSchoolLife(owner: String, events: List<fr.ecole2recte.app.domain.SchoolLifeEvent>) {
+        schoolLifeOwner = owner
+        schoolLife = events
+    }
     override fun post(events: List<NotificationEvent>) {
         posted += events
     }
@@ -138,6 +144,7 @@ class SyncServiceTest {
                         {"idPeriode":"A1","periode":"T1","cloture":false,"isCurrent":true,"moyenneGenerale":"15","ensembleMatieres":{"disciplines":[]}}],
                         "notes":$notes}}"""
                     path.endsWith("/messages.awp") -> inbox
+                    path.endsWith("/viescolaire.awp") -> """{"code":200,"data":{"absencesRetards":[{"id":1,"typeElement":"Absence","date":"2026-11-01","duree":"1 h 30","justifie":false}]}}"""
                     else -> """{"code":404}"""
                 }
                 return response.setBody(body)
@@ -198,6 +205,28 @@ class SyncServiceTest {
         assertEquals("Philosophie", recorder.snapshot?.nextClass?.subject)
         assertEquals(listOf("Maths"), recorder.snapshot?.tasks?.map { it.subject })
         assertNotNull(prefs.lastSync)
+        assertFalse(paths.any { it.endsWith("/viescolaire.awp") })
+        assertEquals("jdupont/", recorder.snapshot?.owner)
+    }
+
+    @Test
+    fun `la vie scolaire demandee est publiee pour le profil actif`() = runTest {
+        loginBodies += accountBody
+        val recorder = Recorder(wantsSchoolLife = true)
+        assertEquals(SyncOutcome.Done, service(MemoryStore(saved), MemoryPrefs(), MemoryState(), recorder).run())
+        assertEquals("jdupont/", recorder.schoolLifeOwner)
+        assertEquals(90, recorder.schoolLife?.single()?.countedMinutes)
+        assertEquals(1, paths.count { it.endsWith("/viescolaire.awp") })
+    }
+
+    @Test
+    fun `un module vie scolaire ferme ne declenche aucun appel ni publication`() = runTest {
+        loginBodies += accountBody.replace("\"nom\":\"DUPONT\"", "\"nom\":\"DUPONT\",\"modules\":[{\"code\":\"VIE_SCOLAIRE\",\"enable\":false}]")
+        val recorder = Recorder(wantsSchoolLife = true)
+        val closed = saved.copy(profile = AccountProfile("Jean", "DUPONT", "E", modules = mapOf("VIE_SCOLAIRE" to false)))
+        assertEquals(SyncOutcome.Done, service(MemoryStore(closed), MemoryPrefs(), MemoryState(), recorder).run())
+        assertTrue(recorder.schoolLife == null)
+        assertFalse(paths.any { it.endsWith("/viescolaire.awp") })
     }
 
     @Test

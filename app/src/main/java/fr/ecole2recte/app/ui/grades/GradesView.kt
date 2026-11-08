@@ -104,6 +104,15 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
     // Notes « nouvelles » : retenues par profil sur le téléphone, mises en avant pendant trois jours.
     val container = rememberAppContainer()
     val ownerKey = LocalActiveProfile.current?.key.orEmpty()
+    val requestedSubject by container.pendingSubject.collectAsStateWithLifecycle()
+    var focusedSubject by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(requestedSubject, grades.bySubject) {
+        val requested = requestedSubject ?: return@LaunchedEffect
+        if (grades.bySubject.isEmpty()) return@LaunchedEffect
+        focusedSubject = fr.ecole2recte.app.domain.ShortcutLogic.resolveSubject(requested, grades.bySubject)
+        container.pendingSubject.value = null
+        listState.scrollToItem(0)
+    }
     var firstSeen by remember(ownerKey) { mutableStateOf(container.seenGrades.firstSeen(ownerKey)) }
     LaunchedEffect(grades.all, ownerKey) { firstSeen = container.seenGrades.record(ownerKey, grades.all.map { it.id }) }
     val now = remember(firstSeen) { System.currentTimeMillis() }
@@ -123,9 +132,11 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
                 }
             }
         }
-        item { AverageCard(grades, onOpenMethod, Modifier.entrance(0)) { opened = it } }
-        item { SimulatorCard(grades, Modifier.entrance(1)) }
-        if (grades.recent.isNotEmpty()) {
+        if (focusedSubject == null) {
+            item { AverageCard(grades, onOpenMethod, Modifier.entrance(0)) { opened = it } }
+            item { SimulatorCard(grades, Modifier.entrance(1)) }
+        } else item { androidx.compose.material3.TextButton(onClick = { focusedSubject = null }) { Text("Toutes les matières") } }
+        if (grades.recent.isNotEmpty() && focusedSubject == null) {
             item { SectionLabel("Dernières notes") }
             item {
                 Column {
@@ -139,7 +150,7 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
         if (grades.bySubject.isEmpty()) item { EmptyState("Pas encore de notes") }
         item {
             Column {
-                grades.bySubject.forEachIndexed { index, line -> SubjectCard(line, grades, isNew, Modifier.entrance(index).padding(start = if (line.isSubSubject) 20.dp else 0.dp)) { opened = it } }
+                grades.bySubject.filter { focusedSubject == null || it.id == focusedSubject }.forEachIndexed { index, line -> SubjectCard(line, grades, isNew, Modifier.entrance(index).padding(start = if (line.isSubSubject) 20.dp else 0.dp), forceExpanded = line.id == focusedSubject) { opened = it } }
             }
         }
     }
@@ -324,10 +335,20 @@ private fun GradePill(grade: GradeEntry) {
 }
 
 @Composable
-private fun SubjectCard(line: SubjectAverage, overview: GradeOverview, isNew: (GradeEntry) -> Boolean, modifier: Modifier, onGrade: (GradeEntry) -> Unit) {
+private fun SubjectCard(line: SubjectAverage, overview: GradeOverview, isNew: (GradeEntry) -> Boolean, modifier: Modifier, forceExpanded: Boolean = false, onGrade: (GradeEntry) -> Unit) {
     val digits = averageDigits()
-    var expanded by remember { mutableStateOf(false) }
-    ListCard(modifier, onClick = { expanded = !expanded }) {
+    var expanded by remember(line.id, forceExpanded) { mutableStateOf(forceExpanded) }
+    val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val owner = LocalActiveProfile.current?.key.orEmpty()
+    val hidden = LocalPrivacy.current.enabled
+    fun recordVisit() {
+        if (!hidden) {
+            fr.ecole2recte.app.sync.AppShortcuts.visits(context).record(owner, line.id, line.subject.name, System.currentTimeMillis())
+            fr.ecole2recte.app.sync.AppShortcuts.refresh(context)
+        }
+    }
+    LaunchedEffect(line.id, forceExpanded) { if (forceExpanded) recordVisit() }
+    ListCard(modifier, onClick = { expanded = !expanded; if (expanded) recordVisit() }) {
         Column {
             Row(Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
                 SubjectBadge(line.subject.name, line.subject.colorIndex, size = 36.dp)

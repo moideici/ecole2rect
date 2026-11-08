@@ -55,6 +55,7 @@ class AppSettings(context: Context) {
     fun setTextScale(scale: TextScale) {
         preferences.edit().putString("text_scale", scale.name).apply()
         mutableTextScale.value = scale
+        refreshWidgets()
     }
 
     /** Supprime les animations de l'application, en plus du réglage Android du même nom. */
@@ -83,6 +84,9 @@ class AppSettings(context: Context) {
         preferences.edit().putBoolean(PrivacySelection.MODE_KEY, enabled).apply()
         mutablePrivacyMode.value = enabled
         refreshWidgets()
+        fr.ecole2recte.app.sync.CurrentCourseScheduler.refresh(appContext)
+        fr.ecole2recte.app.sync.AbsenceReminderScheduler.refresh(appContext)
+        fr.ecole2recte.app.sync.AppShortcuts.refresh(appContext)
     }
 
     private val mutablePrivacyHideMessages = MutableStateFlow(preferences.getBoolean(PrivacySelection.MESSAGES_KEY, false))

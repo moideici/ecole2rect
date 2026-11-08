@@ -109,13 +109,15 @@ fun HomeRoute(
 @Composable
 private fun PublishWidgets(data: HomeData, repository: fr.ecole2recte.app.domain.SchoolRepository) {
     val context = LocalContext.current.applicationContext
+    val owner = LocalActiveProfile.current?.key.orEmpty()
     LaunchedEffect(data) {
         // Tout est déjà en mémoire : ces appels ne coûtent pas de nouvelle requête.
         val week = runCatching { repository.schedule() }.getOrNull()
         val homework = runCatching { repository.homework() }.getOrDefault(emptyList())
         val inbox = runCatching { repository.messagesPage(0).items }.getOrDefault(emptyList())
         WidgetUpdater(context).publish(
-            WidgetLogic.snapshot(System.currentTimeMillis(), java.time.LocalDate.now(), data, week, homework, data.grades, inbox),
+            WidgetLogic.snapshot(System.currentTimeMillis(), java.time.LocalDate.now(), data, week, homework, data.grades, inbox)
+                .copy(owner = owner, shortcutSubjects = data.grades.bySubject.map { it.id }),
         )
     }
 }

@@ -187,9 +187,13 @@ data class WidgetSnapshot(
     val averageLabel: String = "",
     val officialAverage: String = "",
     val averageBehind: String = "",
+    val owner: String = "",
+    val shortcutSubjects: List<String> = emptyList(),
 ) {
     fun toJson(): String = JSONObject()
         .put("updatedAt", updatedAt)
+        .put("owner", owner)
+        .put("shortcutSubjects", JSONArray(shortcutSubjects))
         .put("average", average)
         .put("averageLabel", averageLabel)
         .put("officialAverage", officialAverage)
@@ -237,6 +241,8 @@ data class WidgetSnapshot(
             val tasks = root.optJSONArray("tasks") ?: JSONArray()
             WidgetSnapshot(
                 updatedAt = root.optLong("updatedAt"),
+                owner = root.optString("owner"),
+                shortcutSubjects = root.optJSONArray("shortcutSubjects")?.let { array -> (0 until array.length()).map { array.getString(it) } }.orEmpty(),
                 nextClass = next?.let { WidgetLesson(it.optString("subject"), it.optString("time"), it.optString("place")) },
                 tasks = (0 until tasks.length()).mapNotNull { tasks.optJSONObject(it) }
                     .map {

@@ -264,6 +264,7 @@ suspend fun updateAllWidgets(context: Context) {
         HomeworkWidget().updateAll(context)
         GradesWidget().updateAll(context)
         MessagesWidget().updateAll(context)
+        SchoolLifeWidget().updateAll(context)
     }
 }
 
@@ -282,8 +283,15 @@ object WidgetRefresh {
 
 /** Enregistre l'instantané puis redessine tous les widgets déjà posés sur l'écran d'accueil. */
 class WidgetUpdater(private val context: Context) : WidgetSink {
+    override val wantsSchoolLife: Boolean get() = fr.ecole2recte.app.widget.wantsSchoolLife(context)
+    override suspend fun publishSchoolLife(owner: String, events: List<fr.ecole2recte.app.domain.SchoolLifeEvent>) {
+        SchoolLifeSnapshotStore(context).publish(owner, events)
+    }
     override suspend fun publish(snapshot: WidgetSnapshot) {
+        if (snapshot.owner.isNotBlank() && fr.ecole2recte.app.sync.LocalFeaturePreferences(context).activeOwner != snapshot.owner) return
         WidgetSnapshotStore(context).write(snapshot)
+        runCatching { fr.ecole2recte.app.sync.CurrentCourseScheduler.refresh(context) }
+        fr.ecole2recte.app.sync.AppShortcuts.refresh(context)
         updateAllWidgets(context)
     }
 }

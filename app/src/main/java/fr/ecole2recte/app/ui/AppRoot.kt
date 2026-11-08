@@ -40,12 +40,18 @@ fun AppRoot() {
                 it.homeworkFilter.clear(id)
                 it.seenGrades.clear(id)
                 it.forgetRepositories(id)
+                it.clearLocalFeatures(id)
             },
         ) }
     val state by session.state.collectAsStateWithLifecycle()
     // Le jeton renouvelé est gardé (chiffré) pour éviter une connexion au prochain lancement.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { session.saveSession() }
     val container = rememberAppContainer()
+    androidx.compose.runtime.LaunchedEffect(state.active?.key, state.active?.closedModules, state.status) {
+        val profile = state.active
+        if (state.status == AuthStatus.SignedOut) container.clearLocalFeatures()
+        else if (profile != null) container.useLocalProfile(profile)
+    }
     val replay by container.replayOnboarding.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize()) {
     Crossfade(targetState = state.status == AuthStatus.SignedOut || state.adding, animationSpec = tween(300), label = "root") { showLogin ->

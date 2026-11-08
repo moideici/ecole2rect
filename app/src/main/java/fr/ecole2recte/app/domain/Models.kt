@@ -240,6 +240,10 @@ data class SchoolLifeEvent(
     val dateLabel: String,
     val detail: String,
     val justified: Boolean,
+    val id: String = "",
+    val date: String = "",
+    val duration: String = "",
+    val countedMinutes: Int? = null,
 )
 
 /** Absences, retards, sanctions et encouragements, décomptés comme l'établissement les compte. */

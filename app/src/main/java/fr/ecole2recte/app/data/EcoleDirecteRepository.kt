@@ -539,6 +539,10 @@ class EcoleDirecteRepository(
                 dateLabel = shortDay(event.start.take(10)).orEmpty() + event.duration.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
                 detail = listOf(event.reason, event.comment).filter { it.isNotBlank() }.joinToString(" — "),
                 justified = event.justified,
+                id = event.id,
+                date = event.start.take(10),
+                duration = event.duration,
+                countedMinutes = fr.ecole2recte.app.domain.SchoolLifeLogic.countedMinutes(event.duration),
             )
         }
         return SchoolLifeSummary(

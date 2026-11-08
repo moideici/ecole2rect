@@ -1,47 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
-    <shortcut
-        android:shortcutId="agenda"
-        android:enabled="true"
-        android:shortcutShortLabel="@string/sync_shortcut_agenda">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:targetClass="fr.ecole2recte.app.MainActivity"
-            android:targetPackage="fr.ecole2recte.app.dev">
-            <extra android:name="tab" android:value="agenda" />
-        </intent>
+    <!-- Inventaire App Actions : pas d'intent de raccourci statique, les quatre places restent dynamiques. -->
+    <shortcut android:shortcutId="agenda" android:shortcutShortLabel="@string/sync_shortcut_agenda">
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding android:key="feature" android:value="@array/feature_agenda" />
+        </capability-binding>
     </shortcut>
-    <shortcut
-        android:shortcutId="homework"
-        android:enabled="true"
-        android:shortcutShortLabel="@string/sync_shortcut_homework">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:targetClass="fr.ecole2recte.app.MainActivity"
-            android:targetPackage="fr.ecole2recte.app.dev">
-            <extra android:name="tab" android:value="agenda_homework" />
-        </intent>
+    <shortcut android:shortcutId="devoirs" android:shortcutShortLabel="@string/sync_shortcut_homework">
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding android:key="feature" android:value="@array/feature_homework" />
+        </capability-binding>
     </shortcut>
-    <shortcut
-        android:shortcutId="messages"
-        android:enabled="true"
-        android:shortcutShortLabel="@string/sync_shortcut_messages">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:targetClass="fr.ecole2recte.app.MainActivity"
-            android:targetPackage="fr.ecole2recte.app.dev">
-            <extra android:name="tab" android:value="messages" />
-        </intent>
+    <shortcut android:shortcutId="notes" android:shortcutShortLabel="@string/shortcut_notes">
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding android:key="feature" android:value="@array/feature_grades" />
+        </capability-binding>
     </shortcut>
-    <shortcut
-        android:shortcutId="search"
-        android:enabled="true"
-        android:shortcutShortLabel="@string/sync_shortcut_search">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:targetClass="fr.ecole2recte.app.MainActivity"
-            android:targetPackage="fr.ecole2recte.app.dev">
-            <extra android:name="tab" android:value="recherche" />
-        </intent>
+    <shortcut android:shortcutId="messages" android:shortcutShortLabel="@string/sync_shortcut_messages">
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding android:key="feature" android:value="@array/feature_messages" />
+        </capability-binding>
     </shortcut>
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="fr.ecole2recte.app.dev" android:targetClass="fr.ecole2recte.app.MainActivity">
+            <parameter android:name="feature" android:key="feature" />
+        </intent>
+    </capability>
 </shortcuts>

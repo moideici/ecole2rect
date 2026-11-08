@@ -31,9 +31,16 @@ class MainActivity : FragmentActivity() {
 
     /** Un raccourci, une notification ou un widget demande un onglet précis. */
     private fun publishRequestedTab(intent: Intent?) {
-        intent?.getStringExtra(AndroidNotifier.TAB_EXTRA)?.let {
-            (application as Ecole2recteApplication).container.pendingTab.value = it
-        }
+        if (intent == null) return
+        val container = (application as Ecole2recteApplication).container
+        val target = if (intent.data?.scheme == "ecole2recte") {
+            fr.ecole2recte.app.domain.DeepLinks.parse(intent.dataString)
+        } else {
+            fr.ecole2recte.app.domain.DeepLinks.feature(intent.getStringExtra("feature")) ?: intent.getStringExtra(AndroidNotifier.TAB_EXTRA)?.takeIf { it in setOf("accueil", "agenda", "agenda_homework", "notes", "messages", "plus", "recherche", "vie-scolaire") }
+                ?.let { fr.ecole2recte.app.domain.NavigationTarget(it, if (it == "notes") fr.ecole2recte.app.domain.DeepLinks.subject(intent.getStringExtra("subject")) else null) }
+        } ?: return
+        container.pendingSubject.value = target.subject
+        container.pendingTab.value = target.tab
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
