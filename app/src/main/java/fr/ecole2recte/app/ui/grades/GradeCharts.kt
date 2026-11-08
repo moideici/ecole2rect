@@ -26,7 +26,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ecole2recte.app.domain.GradeCurves
-import fr.ecole2recte.app.domain.GradeMath
+import fr.ecole2recte.app.domain.FrenchFormat
+import fr.ecole2recte.app.ui.common.averageDigits
 import fr.ecole2recte.app.ui.theme.AppTheme
 
 /** Un point d'une courbe : sa valeur (sur 20) et le nom affiché dessous. */
@@ -47,6 +48,7 @@ fun LineChart(
     height: Dp = 104.dp,
 ) {
     if (line.isEmpty()) return
+    val digits = averageDigits()
     val accent = AppTheme.colors.accent
     val ink = AppTheme.colors.ink
     val muted = AppTheme.colors.muted
@@ -71,8 +73,8 @@ fun LineChart(
                 drawLine(faint, Offset(0f, y(bound)), Offset(size.width, y(bound)), strokeWidth = 1.dp.toPx())
             }
             val tick = TextStyle(color = muted, fontSize = 10.sp)
-            drawText(measurer, GradeMath.decimal(high), Offset(0f, y(high) - 14.dp.toPx()), tick)
-            drawText(measurer, GradeMath.decimal(low), Offset(0f, y(low) - 14.dp.toPx()), tick)
+            drawText(measurer, FrenchFormat.decimal(high, digits), Offset(0f, y(high) - 14.dp.toPx()), tick)
+            drawText(measurer, FrenchFormat.decimal(low, digits), Offset(0f, y(low) - 14.dp.toPx()), tick)
 
             if (n > 1) {
                 val path = Path()
@@ -92,7 +94,7 @@ fun LineChart(
                 drawCircle(surface, 7.dp.toPx(), Offset(x(index), y(point.value)))
                 drawCircle(accent, 5.dp.toPx(), Offset(x(index), y(point.value)))
                 if (few || index == 0 || index == n - 1) {
-                    val label = measurer.measure(GradeMath.decimal(point.value), TextStyle(color = ink, fontSize = 12.sp, fontWeight = FontWeight.Bold))
+                    val label = measurer.measure(FrenchFormat.decimal(point.value, digits), TextStyle(color = ink, fontSize = 12.sp, fontWeight = FontWeight.Bold))
                     val left = (x(index) - label.size.width / 2f).coerceIn(0f, size.width - label.size.width)
                     drawText(label, topLeft = Offset(left, (y(point.value) - 12.dp.toPx() - label.size.height).coerceAtLeast(0f)))
                 }

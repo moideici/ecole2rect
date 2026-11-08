@@ -18,6 +18,7 @@ data class GradeEntry(
     val periodCode: String = "",
     /** « Abs », « Disp », « NE »… quand la note n'est pas un nombre ; vide sinon. */
     val rawValue: String = "",
+    val subjectCode: String = "",
 )
 
 /** Ce que veulent dire les valeurs textuelles d'une note, au lieu d'un « Abs » pour tout. */

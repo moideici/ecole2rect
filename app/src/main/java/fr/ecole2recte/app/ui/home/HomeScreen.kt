@@ -226,7 +226,7 @@ private fun FamilyCard(children: List<ChildSummary>, modifier: Modifier, onSelec
                     }
                     child.average?.let {
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(it, color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text(fr.ecole2recte.app.domain.AveragePresentation.number(it, fr.ecole2recte.app.ui.common.averageDigits()), color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             Text("moyenne", color = AppTheme.colors.muted, fontSize = 12.sp)
                         }
                     }
@@ -360,17 +360,27 @@ private fun ReminderCard(task: Homework, modifier: Modifier = Modifier) {
 
 @Composable
 private fun GradesSummary(grades: GradeOverview, modifier: Modifier = Modifier) {
+    val digits = fr.ecole2recte.app.ui.common.averageDigits()
+    val shown = fr.ecole2recte.app.domain.AveragePresentation.format(grades, digits)
     Card(
         modifier.fillMaxWidth().padding(horizontal = 18.dp),
         colors = CardDefaults.cardColors(AppTheme.colors.surface),
         shape = RoundedCornerShape(18.dp),
     ) {
-        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(rememberAnimatedDecimal(grades.average), color = AppTheme.colors.ink, fontSize = 36.sp, fontWeight = FontWeight.Bold)
-            Text(" / 20\nMoyenne générale", color = AppTheme.colors.muted, fontSize = 12.sp)
-            Spacer(Modifier.weight(1f))
-            if (grades.trend.isNotBlank()) {
-                Text(grades.trend, color = AppTheme.colors.positive, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Column(Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(rememberAnimatedDecimal(shown.average), color = AppTheme.colors.ink, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                Text(" / 20\nMoyenne générale", color = AppTheme.colors.muted, fontSize = 12.sp)
+                Spacer(Modifier.weight(1f))
+                if (grades.trend.isNotBlank()) {
+                    Text(shown.trend, color = AppTheme.colors.positive, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (!LocalPrivacy.current.hidesGrades) {
+                Text(fr.ecole2recte.app.domain.AveragePresentation.label(grades.averageSource, grades.verdict, digits), color = AppTheme.colors.muted, fontSize = 12.sp)
+                grades.verdict?.behind?.firstOrNull()?.let {
+                    Text(fr.ecole2recte.app.domain.AveragePresentation.behindText(it), color = AppTheme.colors.muted, fontSize = 12.sp)
+                }
             }
         }
     }

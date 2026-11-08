@@ -110,6 +110,7 @@ data class Highlight(
 enum class AverageSource(val shortLabel: String, val label: String) {
     /** Lue telle quelle dans la réponse d'ÉcoleDirecte. */
     Official("officielle", "Moyenne officielle, fournie par ÉcoleDirecte"),
+    Recomputed("recalculée", "Recalculée par l'app : le bulletin est en retard"),
 
     /** Calculée par l'app à partir des moyennes de matières officielles, pondérées par le coefficient de matière si connu. */
     FromSubjects(
@@ -120,7 +121,7 @@ enum class AverageSource(val shortLabel: String, val label: String) {
     /** Calculée par l'app à partir des notes visibles, ramenées sur 20 et pondérées par leur coefficient. */
     FromGrades(
         "calculée",
-        "Calculée par l'app à partir des notes visibles (peut être inférieure à la vraie : notes non publiées, coefficients de matière inconnus)",
+        "Calculée par l'app à partir des notes visibles (peut différer du bulletin : notes non publiées, coefficients de matière inconnus)",
     ),
 
     /** Aucune moyenne disponible. */
@@ -143,10 +144,17 @@ data class SubjectAverage(
     val maximum: String? = null,
     /** Vrai quand [average] est celle de l'établissement ; faux quand l'app l'a calculée avec les notes visibles. */
     val averageOfficial: Boolean = false,
+    val id: String = subject.name,
+    val subjectCode: String = "",
+    val isSubSubject: Boolean = false,
+    val verdict: AverageVerdict? = null,
+    val classAverageValue: Double? = null,
+    val minimumValue: Double? = null,
+    val maximumValue: Double? = null,
 )
 
 /** Une période du bulletin (trimestre, semestre) que l'on peut afficher, avec sa moyenne générale si elle est connue. */
-data class GradePeriod(val code: String, val name: String, val selected: Boolean, val average: String? = null)
+data class GradePeriod(val code: String, val name: String, val selected: Boolean, val average: String? = null, val value: Double? = null)
 
 data class GradeOverview(
     val average: String,
@@ -168,6 +176,8 @@ data class GradeOverview(
     val appreciation: String = "",
     /** D'où vient [average] : l'établissement ou un calcul de l'app. */
     val averageSource: AverageSource = AverageSource.None,
+    val verdict: AverageVerdict? = null,
+    val classAverageValue: Double? = null,
 )
 
 data class MessagePreview(

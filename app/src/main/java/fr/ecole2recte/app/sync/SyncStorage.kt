@@ -184,10 +184,16 @@ data class WidgetSnapshot(
     val average: String = "",
     val unread: Int = 0,
     val mails: List<WidgetMail> = emptyList(),
+    val averageLabel: String = "",
+    val officialAverage: String = "",
+    val averageBehind: String = "",
 ) {
     fun toJson(): String = JSONObject()
         .put("updatedAt", updatedAt)
         .put("average", average)
+        .put("averageLabel", averageLabel)
+        .put("officialAverage", officialAverage)
+        .put("averageBehind", averageBehind)
         .put("unread", unread)
         .put(
             "lessons",
@@ -249,6 +255,9 @@ data class WidgetSnapshot(
                     WidgetGradeItem(it.optString("subject"), it.optString("value"), it.optString("coef"), it.optString("label"), it.optInt("color"))
                 },
                 average = root.optString("average"),
+                averageLabel = root.optString("averageLabel"),
+                officialAverage = root.optString("officialAverage"),
+                averageBehind = root.optString("averageBehind"),
                 unread = root.optInt("unread"),
                 mails = root.objects("mails").map { WidgetMail(it.optString("sender"), it.optString("subject")) },
             )

@@ -95,7 +95,14 @@ fun WidgetTheming(colors: WidgetColors, content: @Composable () -> Unit) {
 
 /** L'instantané publié, déjà passé par le mode « montrer à quelqu'un » : les vues ne voient jamais les valeurs masquées. */
 fun loadSnapshot(context: Context): WidgetSnapshot? =
-    WidgetSnapshotStore(context).read()?.let { WidgetPrivacy.apply(it, PrivacySelection.mode(context)) }
+    WidgetSnapshotStore(context).read()?.let {
+        val digits = fr.ecole2recte.app.settings.AverageDecimals.read(context)
+        val formatted = it.copy(
+            average = fr.ecole2recte.app.domain.AveragePresentation.number(it.average, digits),
+            averageLabel = it.averageLabel + it.officialAverage.takeIf { value -> value.isNotBlank() }?.let { value -> " · bulletin ${fr.ecole2recte.app.domain.AveragePresentation.number(value, digits)}" }.orEmpty(),
+        )
+        WidgetPrivacy.apply(formatted, PrivacySelection.mode(context))
+    }
 
 fun style(color: GlanceColor, size: Int, bold: Boolean = false, strike: Boolean = false) = TextStyle(
     color = color,

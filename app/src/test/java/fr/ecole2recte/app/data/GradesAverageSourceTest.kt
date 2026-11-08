@@ -21,6 +21,52 @@ import java.time.ZoneId
 
 /** Une moyenne est « officielle » ou « calculée par l'app » : ce que dit l'écran doit être ce que fait le code. */
 class GradesAverageSourceTest {
+    @Test
+    fun `la capture garde les homonymes et range la specialite sous sa mere sans double comptage`() = runTest {
+        val fixture = javaClass.getResource("/captures/grades_subjects.json")!!.readText()
+        body = """{"code":200,"data":$fixture}"""
+        val overview = repository().grades()
+        assertEquals("13,00", overview.average)
+        assertEquals(4, overview.bySubject.size)
+        assertEquals(listOf(false, true, false, false), overview.bySubject.map { it.isSubSubject })
+        assertEquals(1, overview.bySubject.first().grades.size)
+        assertEquals(0, overview.bySubject[2].grades.size)
+        assertEquals(4, overview.bySubject.map { it.id }.distinct().size)
+    }
+
+    @Test
+    fun `une note rapprochee par code ne cree pas de ligne en double`() = runTest {
+        body = payload("""{"idPeriode":"A001","periode":"T1",$dates,"ensembleMatieres":{"disciplines":[
+            {"codeMatiere":"FR","discipline":"Français","moyenne":"12"}]}}""",
+            """{"id":1,"codeMatiere":"FR","libelleMatiere":"FRANCAIS ","valeur":"12","codePeriode":"A001"}""")
+        assertEquals(1, repository().grades().bySubject.size)
+    }
+
+    @Test
+    fun `une matiere en retard recalcule la generale avec les coefficients et garde le bulletin`() = runTest {
+        body = payload("""{"idPeriode":"A001","periode":"T1",$dates,"ensembleMatieres":{"dateCalcul":"2026-11-04","moyenneGenerale":"14,26","disciplines":[
+            {"codeMatiere":"FR","discipline":"Français","moyenne":"12","coef":2},
+            {"codeMatiere":"M","discipline":"Maths","moyenne":"16","coef":1}]}}""",
+            """{"id":1,"codeMatiere":"FR","libelleMatiere":"FRANCAIS ","valeur":"12","codePeriode":"A001","date":"2026-11-01"},
+            {"id":2,"codeMatiere":"FR","libelleMatiere":"FRANCAIS ","valeur":"18","codePeriode":"A001","date":"2026-11-05"}""")
+        val overview = repository().grades()
+        assertEquals(AverageSource.Recomputed, overview.averageSource)
+        assertEquals("15,33", overview.average)
+        assertEquals("15,00", overview.bySubject.first().average)
+        assertFalse(overview.bySubject.first().averageOfficial)
+        assertEquals(14.26, overview.verdict!!.official!!, .0001)
+        assertEquals(listOf("2"), overview.verdict!!.behind.map { it.id })
+    }
+
+    @Test
+    fun `sans matiere admissible les notes prennent le relais`() = runTest {
+        body = payload("""{"idPeriode":"A001","periode":"T1",$dates,"ensembleMatieres":{"disciplines":[
+            {"discipline":"Maths","moyenne":"20","coef":0}]}}""",
+            """{"id":1,"libelleMatiere":"Maths","valeur":"14","codePeriode":"A001"}""")
+        val overview = repository().grades()
+        assertEquals(AverageSource.FromGrades, overview.averageSource)
+        assertEquals("14,00", overview.average)
+    }
     private lateinit var server: MockWebServer
     private var body = ""
 
@@ -61,12 +107,12 @@ class GradesAverageSourceTest {
         )
         val overview = repository().grades()
         assertEquals(AverageSource.Official, overview.averageSource)
-        assertEquals("15,8", overview.average)
+        assertEquals("15,80", overview.average)
         val maths = overview.bySubject.first { it.subject.name == "Maths" }
         val english = overview.bySubject.first { it.subject.name == "Anglais" }
         assertTrue(maths.averageOfficial)
         assertFalse(english.averageOfficial)
-        assertEquals("12,0", english.average)
+        assertEquals("12,00", english.average)
     }
 
     @Test
@@ -79,7 +125,7 @@ class GradesAverageSourceTest {
         val overview = repository().grades()
         assertEquals(AverageSource.FromSubjects, overview.averageSource)
         // (16 x 4 + 13 x 1) / 5
-        assertEquals("15,4", overview.average)
+        assertEquals("15,40", overview.average)
         assertFalse(overview.averageSource.isOfficial)
     }
 
@@ -95,7 +141,7 @@ class GradesAverageSourceTest {
         val overview = repository().grades()
         assertEquals(AverageSource.FromGrades, overview.averageSource)
         // (16 x 2 + 10 x 1) / 3 : l'absence et la note non significative sont ignorées, 5/10 vaut 10/20.
-        assertEquals("14,0", overview.average)
+        assertEquals("14,00", overview.average)
         assertFalse(overview.bySubject.single().averageOfficial)
     }
 
@@ -115,7 +161,7 @@ class GradesAverageSourceTest {
             """{"id":1,"libelleMatiere":"MATHS","devoir":"DS","valeur":"12","noteSur":"20","coef":"1","codePeriode":"A002","date":"2026-11-03"}""",
         )
         val overview = repository().grades()
-        assertEquals(listOf("1er trimestre" to "14,2", "2e trimestre" to null), overview.periods.map { it.name to it.average })
+        assertEquals(listOf("1er trimestre" to "14,20", "2e trimestre" to null), overview.periods.map { it.name to it.average })
         // Choisie par les dates : le 2e trimestre, calculé faute de moyenne officielle.
         assertEquals("A002", overview.periodCode)
         assertEquals(AverageSource.FromGrades, overview.averageSource)

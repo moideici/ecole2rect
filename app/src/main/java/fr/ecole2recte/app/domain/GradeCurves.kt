@@ -7,19 +7,22 @@ data class SeriesPoint(val label: String, val date: String, val note: Double, va
 object GradeCurves {
     /**
      * L'évolution d'une matière : ses notes dans l'ordre des dates, avec la moyenne pondérée **cumulée** après
-     * chacune. C'est un calcul de l'application (toutes périodes confondues), pas la moyenne de l'établissement.
+     * chacune. [periodCode] limite la série à la période choisie ; null permet la vue annuelle.
      */
-    fun subjectSeries(all: List<GradeEntry>, subject: String): List<SeriesPoint> {
-        val used = all.filter { it.subject == subject && it.counted && it.value != null && it.coefficient > 0 && !it.date.isNullOrBlank() }
+    fun subjectSeries(all: List<GradeEntry>, subject: String, periodCode: String? = null): List<SeriesPoint> {
+        val used = all.filter { it.subject == subject && (periodCode == null || it.periodCode == periodCode) && it.counted && it.value != null && it.coefficient > 0 }
             .sortedBy { it.date }
-        return used.mapIndexed { index, grade ->
+        val dated = used.filter { !it.date.isNullOrBlank() }
+        val series = dated.mapIndexed { index, grade ->
             SeriesPoint(
                 label = grade.label,
                 date = grade.date.orEmpty(),
                 note = GradeMath.on20(grade.value!!, grade.scale),
-                runningAverage = GradeMath.weightedAverage(used.take(index + 1)) ?: 0.0,
+                runningAverage = GradeMath.weightedAverage(dated.take(index + 1)) ?: 0.0,
             )
         }
+        val undated = used.filter { it.date.isNullOrBlank() }
+        return if (undated.isEmpty()) series else series + SeriesPoint("Notes sans date", "", GradeMath.weightedAverage(undated)!!, GradeMath.weightedAverage(used)!!)
     }
 
     /** Bornes verticales d'une courbe : un peu de marge autour des valeurs, dans 0..20, avec une hauteur minimale de 2 points. */
@@ -39,9 +42,9 @@ object GradeCurves {
         if (high <= low) 0.5f else ((value - low) / (high - low)).toFloat().coerceIn(0f, 1f)
 
     /** La phrase lue par un lecteur d'écran à la place du dessin. */
-    fun describe(title: String, labels: List<String>, values: List<Double>): String {
+    fun describe(title: String, labels: List<String>, values: List<Double>, digits: Int = 1): String {
         if (values.isEmpty()) return "$title : aucune donnée."
-        val steps = values.indices.joinToString(", ") { "${labels.getOrElse(it) { "point ${it + 1}" }} ${GradeMath.decimal(values[it])}" }
+        val steps = values.indices.joinToString(", ") { "${labels.getOrElse(it) { "point ${it + 1}" }} ${FrenchFormat.decimal(values[it], digits)}" }
         return "$title : $steps."
     }
 }

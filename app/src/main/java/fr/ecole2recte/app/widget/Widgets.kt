@@ -187,6 +187,8 @@ class GradesWidget : GlanceAppWidget() {
                                     if (snapshot.average != MASKED) Text("  /20", style = style(c.muted, 15, bold = true), maxLines = 1)
                                 }
                                 Text("moyenne générale", style = style(c.muted, 12), maxLines = 1)
+                                if (snapshot.averageLabel.isNotBlank()) Text(snapshot.averageLabel, style = style(c.muted, 11), maxLines = 2)
+                                if (snapshot.averageBehind.isNotBlank() && height >= 150) Text(snapshot.averageBehind, style = style(c.muted, 11), maxLines = 2)
                             }
                             if (height >= 150) {
                                 Spacer(GlanceModifier.height(8.dp))

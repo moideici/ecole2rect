@@ -49,6 +49,7 @@ data class ApiPeriod(
     val end: String? = null,
     /** Appréciation générale du professeur principal. */
     val appreciation: String = "",
+    val computedOn: String? = null,
 )
 
 data class ApiSubjectAverage(
@@ -61,6 +62,10 @@ data class ApiSubjectAverage(
     val appreciation: String = "",
     val minimum: Double? = null,
     val maximum: Double? = null,
+    val subjectCode: String = "",
+    val subCode: String = "",
+    val isSubSubject: Boolean = false,
+    val isGroup: Boolean = false,
 )
 
 data class ApiGrade(
@@ -79,6 +84,7 @@ data class ApiGrade(
     val maximum: Double?,
     /** « Abs », « Disp », « NE »… quand la valeur n'est pas un nombre ; vide sinon. */
     val rawValue: String = "",
+    val subjectCode: String = "",
 )
 
 data class ApiGrades(
@@ -260,6 +266,7 @@ object Parsers {
                 start = raw.date("dateDebut"),
                 end = raw.date("dateFin"),
                 appreciation = set?.str("appreciationPP", "appreciationGenerale").orEmpty(),
+                computedOn = set?.date("dateCalcul"),
             )
             for (discipline in set?.opt("disciplines").objects()) {
                 val subject = discipline.str("discipline", "libelle", "codeMatiere")
@@ -275,6 +282,10 @@ object Parsers {
                     appreciation = appreciationOf(discipline),
                     minimum = discipline.num("moyenneMin"),
                     maximum = discipline.num("moyenneMax"),
+                    subjectCode = discipline.str("codeMatiere"),
+                    subCode = discipline.str("codeSousMatiere"),
+                    isSubSubject = discipline.flag("sousMatiere") || discipline.str("codeSousMatiere").isNotBlank(),
+                    isGroup = discipline.flag("groupeMatiere"),
                 )
             }
         }
@@ -295,12 +306,13 @@ object Parsers {
                 minimum = raw.num("minClasse"),
                 maximum = raw.num("maxClasse"),
                 rawValue = if (raw.num("valeur") == null) raw.str("valeur") else "",
+                subjectCode = raw.str("codeMatiere"),
             )
         }.distinctBy { it.id }.sortedByDescending { it.date.orEmpty() }
         return ApiGrades(
             periods = periods,
             grades = grades,
-            subjectAverages = averages.distinctBy { "${it.periodCode} ${it.subject}" },
+            subjectAverages = averages.distinctBy { listOf(it.periodCode, it.subjectCode, it.subCode, it.subject) },
         )
     }
 

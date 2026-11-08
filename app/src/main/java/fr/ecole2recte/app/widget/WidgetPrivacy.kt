@@ -21,6 +21,9 @@ object WidgetPrivacy {
             result = result.copy(
                 grades = result.grades.map { it.copy(value = MASKED, label = "") },
                 average = if (result.average.isBlank()) "" else MASKED,
+                averageLabel = "",
+                officialAverage = "",
+                averageBehind = "",
             )
         }
         if (mode.hidesMessages) {

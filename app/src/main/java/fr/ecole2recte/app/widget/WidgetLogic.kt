@@ -120,7 +120,10 @@ object WidgetLogic {
                     it.colorIndex,
                 )
             },
-            average = grades?.average.orEmpty().takeIf { it != "–" }.orEmpty(),
+            average = (grades?.verdict?.value?.toString()?.replace('.', ',') ?: grades?.average.orEmpty()).takeIf { it != "–" }.orEmpty(),
+            averageLabel = grades?.let { fr.ecole2recte.app.domain.AveragePresentation.label(it.averageSource, null, 2) }.orEmpty(),
+            officialAverage = grades?.verdict?.takeIf { it.origin == fr.ecole2recte.app.domain.AverageOrigin.Recomputed }?.official?.toString()?.replace('.', ',').orEmpty(),
+            averageBehind = grades?.verdict?.behind?.firstOrNull()?.let { fr.ecole2recte.app.domain.AveragePresentation.behindText(it) }.orEmpty(),
             unread = inbox.count { it.unread },
             mails = inbox.filter { it.unread }.take(3).map { WidgetMail(it.sender, it.preview) },
         )

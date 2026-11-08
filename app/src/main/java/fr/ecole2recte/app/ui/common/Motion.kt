@@ -90,7 +90,8 @@ fun rememberAnimatedDecimal(text: String): String {
     LaunchedEffect(text) {
         if (target != null && !reduceMotion) animated.animateTo(target, tween(durationMillis = 900, easing = FastOutSlowInEasing))
     }
-    return if (target == null) text else FrenchFormat.decimal(animated.value.toDouble())
+    val digits = text.substringAfter(',', "").length.coerceIn(1, 2)
+    return if (target == null) text else FrenchFormat.decimal(animated.value.toDouble(), digits)
 }
 
 /** Anneau de progression animé autour d'un contenu (prochain cours). */

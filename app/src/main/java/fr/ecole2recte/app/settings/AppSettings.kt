@@ -42,6 +42,16 @@ class AppSettings(context: Context) {
     private val mutableTextScale = MutableStateFlow(TextScale.parse(preferences.getString("text_scale", null)))
     val textScale: StateFlow<TextScale> = mutableTextScale.asStateFlow()
 
+    private val mutableAverageDecimals = MutableStateFlow(AverageDecimals.read(context))
+    val averageDecimals: StateFlow<Int> = mutableAverageDecimals.asStateFlow()
+
+    fun setAverageDecimals(digits: Int) {
+        val clean = fr.ecole2recte.app.domain.AveragePresentation.digits(digits)
+        preferences.edit().putInt(AverageDecimals.KEY, clean).apply()
+        mutableAverageDecimals.value = clean
+        refreshWidgets()
+    }
+
     fun setTextScale(scale: TextScale) {
         preferences.edit().putString("text_scale", scale.name).apply()
         mutableTextScale.value = scale

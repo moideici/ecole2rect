@@ -3,7 +3,6 @@ package fr.ecole2recte.app.data
 import fr.ecole2recte.app.data.api.ApiDay
 import fr.ecole2recte.app.data.api.ApiGrade
 import fr.ecole2recte.app.data.api.ApiGrades
-import fr.ecole2recte.app.data.api.ApiSubjectAverage
 import fr.ecole2recte.app.data.api.ApiHomework
 import fr.ecole2recte.app.data.api.ApiLesson
 import fr.ecole2recte.app.data.api.ApiMessage
@@ -29,7 +28,12 @@ import fr.ecole2recte.app.domain.HomeworkWrite
 import fr.ecole2recte.app.domain.GradePeriod
 import fr.ecole2recte.app.domain.StaleCause
 import fr.ecole2recte.app.domain.GradeEntry
-import fr.ecole2recte.app.domain.GradeMath
+import fr.ecole2recte.app.domain.AverageEngine
+import fr.ecole2recte.app.domain.SubjectIdentity
+import fr.ecole2recte.app.domain.AverageReconciliation
+import fr.ecole2recte.app.domain.AverageOrigin
+import fr.ecole2recte.app.domain.AverageVerdict
+import fr.ecole2recte.app.domain.AveragePresentation
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.AverageSource
 import fr.ecole2recte.app.domain.PeriodAverage
@@ -741,21 +745,36 @@ class EcoleDirecteRepository(
         counted = counted,
         periodCode = periodCode,
         rawValue = rawValue,
+        subjectCode = subjectCode,
     )
 
     private fun overview(payload: ApiGrades, requestedCode: String? = null): GradeOverview {
+        fun decimal(value: Double) = FrenchFormat.decimal(value, 2)
         val periods = payload.periods.filter { !it.annual }.ifEmpty { payload.periods }
         val current = periods.firstOrNull { it.code == requestedCode }
             ?: PeriodSelection.select(payload.periods, payload.grades, today())
 
         val periodGrades = payload.grades.filter { current != null && it.periodCode == current.code }.map { it.toEntry() }
         val official = payload.subjectAverages.filter { current != null && it.periodCode == current.code }
-        val names = (official.map { it.subject.prettySubject() } + periodGrades.map { it.subject }).distinct()
-        val bySubject = names.mapNotNull { name ->
-            val line = official.firstOrNull { it.subject.prettySubject() == name }
-            val grades = periodGrades.filter { it.subject == name }
+        val identities = official.map { SubjectIdentity(it.subjectCode, it.subCode, it.subject.prettySubject()) }.toMutableList()
+        val matched = periodGrades.groupBy { grade ->
+            SubjectIdentity.match(grade.subjectCode, grade.subject, identities) ?: identities.size.also {
+                identities += SubjectIdentity(grade.subjectCode, "", grade.subject)
+            }
+        }
+        val ordered = identities.indices.filter { official.getOrNull(it)?.isSubSubject != true }.flatMap { parent ->
+            listOf(parent) + identities.indices.filter { child ->
+                official.getOrNull(child)?.isSubSubject == true && identities[child].code.isNotBlank() && identities[child].code == identities[parent].code
+            }
+        }.distinct().let { it + identities.indices.filter { index -> index !in it } }
+        val bySubject = ordered.mapNotNull { index ->
+            val identity = identities[index]
+            val name = identity.name
+            val line = official.getOrNull(index)
+            val grades = matched[index].orEmpty().map { it.copy(subject = name) }
             // La moyenne de l'établissement prime ; à défaut, la moyenne pondérée des notes connues.
-            val average = line?.average ?: GradeMath.weightedAverage(grades)
+            val verdict = AverageReconciliation.reconcile(line?.average, grades, current?.computedOn)
+            val average = verdict.value
             if (average == null && grades.isEmpty()) return@mapNotNull null
             SubjectAverage(
                 subject = Subject(name, line?.teacher.orEmpty(), "", colorFor(line?.subject ?: name)),
@@ -766,29 +785,37 @@ class EcoleDirecteRepository(
                 appreciation = line?.appreciation.orEmpty(),
                 minimum = line?.minimum?.let(::decimal),
                 maximum = line?.maximum?.let(::decimal),
-                averageOfficial = line?.average != null,
+                averageOfficial = verdict.origin == AverageOrigin.Official,
+                id = identity.key,
+                subjectCode = identity.code,
+                isSubSubject = line?.isSubSubject == true,
+                verdict = verdict,
+                classAverageValue = line?.classAverage,
+                minimumValue = line?.minimum,
+                maximumValue = line?.maximum,
             )
         }
         // Moyenne générale : celle de l'établissement, sinon la moyenne des matières (pondérée par
         // leur coefficient quand il est connu), sinon celle de toutes les notes.
-        val fromSubjects = if (current?.average == null) weightedSubjects(official) else null
-        val fromGrades = if (current?.average == null && fromSubjects == null) GradeMath.weightedAverage(periodGrades) else null
-        val general = current?.average ?: fromSubjects ?: fromGrades
-        val source = when {
-            current?.average != null -> AverageSource.Official
-            fromSubjects != null -> AverageSource.FromSubjects
-            fromGrades != null -> AverageSource.FromGrades
-            else -> AverageSource.None
-        }
-        val previous = current?.let { c -> periods.takeWhile { it.code != c.code }.lastOrNull { it.average != null } }
-        val delta = if (general != null && previous?.average != null) general - previous.average else null
+        val behind = bySubject.flatMap { it.verdict?.behind.orEmpty() }.distinctBy { it.id }
+        val generalVerdict = AverageReconciliation.reconcile(current?.average, periodGrades, current?.computedOn)
+        val mustRecompute = behind.isNotEmpty() || generalVerdict.origin == AverageOrigin.Recomputed
+        val weights = bySubject.filter { mustRecompute || it.verdict?.official != null }.map { AverageEngine.SubjectWeight(it.id, it.verdict?.value, it.coefficient, it.isSubSubject) }
+        val result = AverageEngine.general(if (mustRecompute) null else current?.average, weights, periodGrades)
+        val general = result.value
+        val source = if (mustRecompute && general != null) AverageSource.Recomputed else result.source
+        val verdict = AverageVerdict(general, when {
+            source == AverageSource.Recomputed -> AverageOrigin.Recomputed
+            source == AverageSource.Official -> AverageOrigin.Official
+            general != null -> AverageOrigin.Computed
+            else -> AverageOrigin.None
+        }, current?.average, (behind + generalVerdict.behind).distinctBy { it.id })
+        val previous = current?.let { c -> periods.takeWhile { it.code != c.code }.asReversed().firstNotNullOfOrNull { p ->
+            overview(payload, p.code).takeIf { it.verdict?.value != null }
+        } }
         return GradeOverview(
             average = general?.let(::decimal) ?: "–",
-            trend = when {
-                delta == null || abs(delta) < 0.05 -> ""
-                delta > 0 -> "↗ +${decimal(delta)}"
-                else -> "↘ −${decimal(-delta)}"
-            },
+            trend = AveragePresentation.trend(general, source, previous?.verdict?.value, previous?.averageSource ?: AverageSource.None, 2),
             bySubject = bySubject,
             recent = payload.grades.filter { it.value != null }.take(6).map { it.toEntry() },
             all = payload.grades.filter { it.value != null }.map { it.toEntry() },
@@ -796,16 +823,12 @@ class EcoleDirecteRepository(
             classAverage = current?.classAverage?.let(::decimal),
             periodName = current?.name.orEmpty(),
             periodCode = current?.code.orEmpty(),
-            periods = periods.map { GradePeriod(it.code, it.name, selected = it.code == current?.code, average = it.average?.let(::decimal)) },
+            periods = periods.map { GradePeriod(it.code, it.name, selected = it.code == current?.code, average = it.average?.let(::decimal), value = it.average) },
             appreciation = current?.appreciation.orEmpty(),
             averageSource = source,
+            verdict = verdict,
+            classAverageValue = current?.classAverage,
         )
-    }
-
-    private fun weightedSubjects(official: List<ApiSubjectAverage>): Double? {
-        val withAverage = official.mapNotNull { line -> line.average?.let { it to (line.coefficient?.takeIf { c -> c > 0 } ?: 1.0) } }
-        if (withAverage.isEmpty()) return null
-        return withAverage.sumOf { it.first * it.second } / withAverage.sumOf { it.second }
     }
 
     private fun decimal(value: Double): String = FrenchFormat.decimal(value)

@@ -81,7 +81,7 @@ class GradesPeriodsTest {
         val overview = repository().grades()
         assertEquals("A002", overview.periodCode)
         assertEquals(listOf("1er trimestre" to false, "2e trimestre" to true), overview.periods.map { it.name to it.selected })
-        assertEquals("15,8", overview.average)
+        assertEquals("15,80", overview.average)
     }
 
     @Test
@@ -90,7 +90,7 @@ class GradesPeriodsTest {
         repository.grades()
         val first = repository.grades("A001")
         assertEquals("A001", first.periodCode)
-        assertEquals("14,2", first.average)
+        assertEquals("14,20", first.average)
         assertEquals(listOf("Maths", "Anglais"), first.bySubject.map { it.subject.name })
         assertEquals(1, gradeRequests.size)
         assertEquals(listOf(true, false), repository.grades("A001").periods.map { it.selected })
@@ -108,9 +108,9 @@ class GradesPeriodsTest {
         assertEquals("Bon début d'année.", overview.appreciation)
         val maths = overview.bySubject.first { it.subject.name == "Maths" }
         assertEquals("Très bon trimestre.", maths.appreciation)
-        assertEquals("6,5", maths.minimum)
-        assertEquals("18,0", maths.maximum)
-        assertEquals("12,5", maths.classAverage)
+        assertEquals("6,50", maths.minimum)
+        assertEquals("18,00", maths.maximum)
+        assertEquals("12,50", maths.classAverage)
         val english = overview.bySubject.first { it.subject.name == "Anglais" }
         assertEquals("", english.appreciation)
         assertNull(english.minimum)

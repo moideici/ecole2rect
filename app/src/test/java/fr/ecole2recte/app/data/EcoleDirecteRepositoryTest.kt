@@ -107,7 +107,7 @@ class EcoleDirecteRepositoryTest {
         assertEquals(listOf("10:15", "13:30"), home.today.map { it.start })
         assertEquals(listOf(false, true), home.today.map { it.canceled })
         assertEquals("Maths", home.reminder?.subject)
-        assertEquals("15,8", home.grades.average)
+        assertEquals("15,80", home.grades.average)
     }
 
     @Test
@@ -174,11 +174,11 @@ class EcoleDirecteRepositoryTest {
     @Test
     fun `les notes absentes ne sont pas des zeros et la tendance compare les periodes`() = runTest {
         val overview = repository(openStudent()).grades()
-        assertEquals("15,8", overview.average)
-        assertEquals("↗ +1,6", overview.trend)
+        assertEquals("15,80", overview.average)
+        assertEquals("↗ +1,60", overview.trend)
         // Une matière qui n'a qu'une absence reste visible, sans moyenne inventée.
         assertEquals(listOf("Maths", "Anglais"), overview.bySubject.map { it.subject.name })
-        assertEquals("17,5", overview.bySubject.first().average)
+        assertEquals("17,50", overview.bySubject.first().average)
         assertEquals("–", overview.bySubject.last().average)
         assertEquals(listOf("DS 1"), overview.bySubject.first().grades.map { it.label })
         assertEquals(listOf("DS 1"), overview.recent.map { it.label })
@@ -235,7 +235,7 @@ class EcoleDirecteRepositoryTest {
         }
         val overview = repository(session).grades()
         assertEquals(1, reopened)
-        assertEquals("15,8", overview.average)
+        assertEquals("15,80", overview.average)
         assertEquals(2, paths.count { it.endsWith("/notes.awp") })
     }
 
@@ -312,7 +312,7 @@ class EcoleDirecteRepositoryTest {
         repository(openStudent()).home()
         val home = repository(offlineSession()).home()
         assertEquals("Philosophie", home.nextClass?.subject?.name)
-        assertEquals("15,8", home.grades.average)
+        assertEquals("15,80", home.grades.average)
     }
 
     @Test

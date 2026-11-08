@@ -1,0 +1,9 @@
+{
+  "periodes": [{"idPeriode":"T1","periode":"Trimestre 1","ensembleMatieres":{"disciplines":[
+    {"codeMatiere":"FR","discipline":"Français","moyenne":"12","coef":2},
+    {"codeMatiere":"FR","codeSousMatiere":"SPE","sousMatiere":true,"discipline":"Spécialité","moyenne":"20","coef":9},
+    {"codeMatiere":"AUTRE","discipline":"Français","moyenne":"16","coef":1},
+    {"codeMatiere":"GR","discipline":"Groupe","groupeMatiere":true,"moyenne":"12","coef":1}
+  ]}}],
+  "notes":[{"id":"fictive","codeMatiere":"FR","libelleMatiere":"FRANCAIS ","valeur":"12","codePeriode":"T1"}]
+}

@@ -51,6 +51,7 @@ fun AppearanceCard() {
     val themeMode by settings.themeMode.collectAsStateWithLifecycle()
     val colorTheme by settings.colorTheme.collectAsStateWithLifecycle()
     val textScale by settings.textScale.collectAsStateWithLifecycle()
+    val averageDecimals by settings.averageDecimals.collectAsStateWithLifecycle()
     val appearance = themeMode.appearance(isSystemInDarkTheme())
     ListCard {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -83,6 +84,12 @@ fun AppearanceCard() {
                 }
             }
             TextPreview()
+            Text("Décimales des moyennes", color = AppTheme.colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(1, 2).forEach { digits ->
+                    FilterChip(selected = averageDecimals == digits, onClick = { settings.setAverageDecimals(digits) }, label = { Text("$digits") })
+                }
+            }
         }
     }
 }

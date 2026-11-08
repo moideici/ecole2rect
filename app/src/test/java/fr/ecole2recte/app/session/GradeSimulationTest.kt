@@ -162,5 +162,9 @@ class GradeSimulationTest {
             assertTrue("titre manquant : ${section.title}", md.contains("## ${section.title}\n"))
             section.paragraphs.forEach { assertTrue("ligne manquante : $it", md.contains(it)) }
         }
+        val expected = AverageMethod.sections.joinToString("\n\n") { section ->
+            "## ${section.title}\n\n" + section.paragraphs.joinToString("\n\n")
+        }
+        assertEquals(expected.trim(), ("## " + md.substringAfter("## ")).trim())
     }
 }

@@ -1,6 +1,11 @@
 package fr.ecole2recte.app.ui.grades
 
 import fr.ecole2recte.app.domain.FrenchFormat
+import fr.ecole2recte.app.domain.AveragePresentation
+import fr.ecole2recte.app.domain.AverageOrigin
+import fr.ecole2recte.app.domain.SubjectIdentity
+import fr.ecole2recte.app.ui.common.averageDigits
+import androidx.compose.material3.Switch
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -85,7 +90,8 @@ fun GradesRoute(onOpenMethod: () -> Unit = {}) {
     RefreshOnResume(viewModel)
     StateHost(state, onRetry = viewModel::retry, refreshing = refreshing, onRefresh = viewModel::pullToRefresh, notices = viewModel.notices) { grades ->
         val privacy = LocalPrivacy.current
-        GradesContent(remember(grades, privacy) { privacy.mask(grades) }, viewModel::selectPeriod, onOpenMethod)
+        val digits = averageDigits()
+        GradesContent(remember(grades, privacy, digits) { privacy.mask(AveragePresentation.format(grades, digits)) }, viewModel::selectPeriod, onOpenMethod)
     }
 }
 
@@ -117,8 +123,8 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
                 }
             }
         }
-        item { AverageCard(grades, onOpenMethod, Modifier.entrance(0)) }
-        item { SimulatorCard(grades.bySubject, Modifier.entrance(1)) }
+        item { AverageCard(grades, onOpenMethod, Modifier.entrance(0)) { opened = it } }
+        item { SimulatorCard(grades, Modifier.entrance(1)) }
         if (grades.recent.isNotEmpty()) {
             item { SectionLabel("Dernières notes") }
             item {
@@ -133,7 +139,7 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
         if (grades.bySubject.isEmpty()) item { EmptyState("Pas encore de notes") }
         item {
             Column {
-                grades.bySubject.forEachIndexed { index, line -> SubjectCard(line, grades.all, isNew, Modifier.entrance(index)) { opened = it } }
+                grades.bySubject.forEachIndexed { index, line -> SubjectCard(line, grades, isNew, Modifier.entrance(index).padding(start = if (line.isSubSubject) 20.dp else 0.dp)) { opened = it } }
             }
         }
     }
@@ -156,7 +162,8 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun AverageCard(grades: GradeOverview, onOpenMethod: () -> Unit, modifier: Modifier) {
+private fun AverageCard(grades: GradeOverview, onOpenMethod: () -> Unit, modifier: Modifier, onGrade: (GradeEntry) -> Unit) {
+    val digits = averageDigits()
     ListCard(modifier) {
         Column(Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
@@ -174,7 +181,12 @@ private fun AverageCard(grades: GradeOverview, onOpenMethod: () -> Unit, modifie
                 }
             }
             Text("Moyenne générale", color = AppTheme.colors.muted, fontSize = 13.sp)
-            AverageSourceTag(grades.averageSource)
+            if (grades.averageSource == AverageSource.Recomputed) {
+                Text(AveragePresentation.label(grades.averageSource, grades.verdict, digits), color = AppTheme.colors.warningTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                grades.verdict?.behind?.forEach { grade ->
+                    Text(AveragePresentation.behindText(grade), color = AppTheme.colors.accent, fontSize = 12.sp, modifier = Modifier.clickable { onGrade(grade) }.padding(vertical = 4.dp))
+                }
+            } else AverageSourceTag(grades.averageSource)
             grades.classAverage?.let {
                 Text("Moyenne de la classe : $it", color = AppTheme.colors.muted, fontSize = 13.sp)
             }
@@ -220,7 +232,7 @@ private fun AverageSourceTag(source: AverageSource) {
 private fun EvolutionChart(points: List<PeriodAverage>) {
     LineChart(
         line = points.map { ChartPoint(it.average, it.name.take(14)) },
-        description = GradeCurves.describe("Moyenne générale par période", points.map { it.name }, points.map { it.average }),
+        description = GradeCurves.describe("Moyenne générale par période", points.map { it.name }, points.map { it.average }, averageDigits()),
     )
 }
 
@@ -312,7 +324,8 @@ private fun GradePill(grade: GradeEntry) {
 }
 
 @Composable
-private fun SubjectCard(line: SubjectAverage, all: List<GradeEntry>, isNew: (GradeEntry) -> Boolean, modifier: Modifier, onGrade: (GradeEntry) -> Unit) {
+private fun SubjectCard(line: SubjectAverage, overview: GradeOverview, isNew: (GradeEntry) -> Boolean, modifier: Modifier, onGrade: (GradeEntry) -> Unit) {
+    val digits = averageDigits()
     var expanded by remember { mutableStateOf(false) }
     ListCard(modifier, onClick = { expanded = !expanded }) {
         Column {
@@ -336,12 +349,15 @@ private fun SubjectCard(line: SubjectAverage, all: List<GradeEntry>, isNew: (Gra
                     Text(line.average, color = AppTheme.colors.ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     if (line.average != "–") {
                         Text(
-                            if (line.averageOfficial) "officielle" else "calculée",
+                            AveragePresentation.label(if (line.verdict?.origin == AverageOrigin.Recomputed) AverageSource.Recomputed else if (line.averageOfficial) AverageSource.Official else AverageSource.FromGrades, line.verdict, digits),
                             color = if (line.averageOfficial) AppTheme.colors.muted else AppTheme.colors.warningTitle,
                             fontSize = 11.sp,
                         )
                     }
                 }
+            }
+            line.verdict?.behind?.forEach { grade ->
+                Text(AveragePresentation.behindText(grade), color = AppTheme.colors.accent, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 17.dp).clickable { onGrade(grade) }.padding(vertical = 4.dp))
             }
             AnimatedVisibility(expanded && line.grades.isNotEmpty()) {
                 Column(Modifier.padding(bottom = 12.dp)) {
@@ -365,8 +381,8 @@ private fun SubjectCard(line: SubjectAverage, all: List<GradeEntry>, isNew: (Gra
                             GradePill(grade)
                         }
                     }
-                    SubjectCurve(line.subject.name, all)
-                    SimulatorPanel(line.grades, line.subject.name, Modifier.padding(horizontal = 17.dp, vertical = 8.dp))
+                    SubjectCurve(line, overview.all)
+                    SimulatorPanel(line, overview, Modifier.padding(horizontal = 17.dp, vertical = 8.dp))
                 }
             }
         }
@@ -375,19 +391,29 @@ private fun SubjectCard(line: SubjectAverage, all: List<GradeEntry>, isNew: (Gra
 
 /** Évolution des notes d'une matière : la moyenne cumulée (courbe) et chaque note (carrés), dans l'ordre des dates. */
 @Composable
-private fun SubjectCurve(subject: String, all: List<GradeEntry>) {
-    val series = remember(subject, all) { GradeCurves.subjectSeries(all, subject) }
-    if (series.size < 2) return
+private fun SubjectCurve(line: SubjectAverage, all: List<GradeEntry>) {
+    val subject = line.subject.name
+    var wholeYear by remember(line.id) { mutableStateOf(false) }
+    val data = if (!wholeYear) line.grades else all.filter {
+        if (line.subjectCode.isNotBlank()) it.subjectCode == line.subjectCode && (!line.isSubSubject || SubjectIdentity.normalized(it.subject) == SubjectIdentity.normalized(subject))
+        else SubjectIdentity.normalized(it.subject) == SubjectIdentity.normalized(subject)
+    }
+    val series = remember(line.id, data) { GradeCurves.subjectSeries(data.map { it.copy(subject = subject) }, subject) }
     Column(Modifier.padding(horizontal = 17.dp).padding(top = 10.dp)) {
-        Text("Évolution", color = AppTheme.colors.muted, fontSize = 12.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Toute l'année", color = AppTheme.colors.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Switch(wholeYear, { wholeYear = it })
+        }
+        Text(if (wholeYear) "Évolution · toute l'année, calculée par l'app" else "Évolution · période affichée, calculée par l'app", color = AppTheme.colors.muted, fontSize = 12.sp)
         Spacer(Modifier.height(4.dp))
         LineChart(
-            line = series.map { ChartPoint(it.runningAverage, shortDate(it.date)) },
+            line = series.map { ChartPoint(it.runningAverage, if (it.date.isBlank()) "Sans date" else shortDate(it.date)) },
             dots = series.map { it.note },
             description = GradeCurves.describe(
                 "Moyenne de $subject après chaque note",
                 series.map { shortDate(it.date) },
                 series.map { it.runningAverage },
+                averageDigits(),
             ),
         )
     }
@@ -395,6 +421,7 @@ private fun SubjectCurve(subject: String, all: List<GradeEntry>) {
 
 @Composable
 private fun GradeDetail(grade: GradeEntry) {
+    val digits = averageDigits()
     Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(grade.subject, color = subjectTextColor(grade.subject, grade.colorIndex), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Text(grade.label.ifBlank { "Évaluation" }, color = AppTheme.colors.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -409,9 +436,9 @@ private fun GradeDetail(grade: GradeEntry) {
         if (!grade.counted) Text("Cette note ne compte pas dans la moyenne.", color = AppTheme.colors.muted, fontSize = 14.sp)
         DetailLine("Coefficient", format(grade.coefficient))
         shortDate(grade.date).takeIf { it.isNotBlank() }?.let { DetailLine("Date", it) }
-        grade.classAverage?.let { DetailLine("Moyenne de la classe", format(it)) }
-        grade.minimum?.let { DetailLine("Note la plus basse", format(it)) }
-        grade.maximum?.let { DetailLine("Note la plus haute", format(it)) }
+        grade.classAverage?.let { DetailLine("Moyenne de la classe", FrenchFormat.decimal(it, digits)) }
+        grade.minimum?.let { DetailLine("Note la plus basse", FrenchFormat.decimal(it, digits)) }
+        grade.maximum?.let { DetailLine("Note la plus haute", FrenchFormat.decimal(it, digits)) }
     }
 }
 
