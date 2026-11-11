@@ -45,7 +45,7 @@ import fr.ecole2recte.app.ui.common.ListCard
 import fr.ecole2recte.app.ui.common.rememberAppContainer
 import fr.ecole2recte.app.ui.theme.AppTheme
 
-private const val ISSUES_URL = "https://github.com/moidefr/ecole2rect/issues/new"
+private const val ISSUES_URL = "https://github.com/moideici/ecole2rect/issues/new"
 
 /**
  * « Signaler un problème » : prépare un rapport que l'utilisateur relit, puis partage lui-même.
