@@ -1,5 +1,7 @@
 # ecole2recte
 
+> Ce dépôt (`ecole2rect`) est l'**application Android**. Le client **web** (monorepo pnpm) est dans [ecole2recte](https://github.com/moideici/ecole2recte).
+
 Client Android **non officiel** pour ÉcoleDirecte : emploi du temps, devoirs, notes et
 messages dans une application lisible, personnalisable et utilisable hors ligne.
 
@@ -121,3 +123,7 @@ Plans de travail : [`PLAN-REFONTE.md`](PLAN-REFONTE.md), [`PLAN-PATCH.md`](PLAN-
 qu'une maquette** : les données sont écrites en dur et rien n'est envoyé nulle part. Elle reste
 à la racine parce que GitHub Pages sert ces fichiers depuis la racine du dépôt. Ouvrir
 `index.html` dans un navigateur, ou `python -m http.server 8080`.
+
+## Licence
+
+Code publié sous [licence MIT](LICENSE). Historique des versions : [CHANGELOG.md](CHANGELOG.md).
