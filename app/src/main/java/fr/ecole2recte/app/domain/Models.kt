@@ -104,23 +104,23 @@ data class Highlight(
 )
 
 /**
- * D'où vient une moyenne affichée. Voir `docs/MOYENNES.md` : l'application lit la moyenne de
- * l'établissement quand elle existe, sinon elle la calcule, et ce calcul peut différer de la vraie.
+ * D'où vient une moyenne affichée. Voir `docs/MOYENNES.md` : le calcul est celui du site, à l'identique
+ * ([Averages]) ; la moyenne de l'établissement prime, sauf quand elle date d'avant des notes déjà saisies.
  */
 enum class AverageSource(val shortLabel: String, val label: String) {
-    /** Lue telle quelle dans la réponse d'ÉcoleDirecte. */
+    /** Lue telle quelle dans la réponse d'ÉcoleDirecte, et elle connaît les dernières notes. */
     Official("officielle", "Moyenne officielle, fournie par ÉcoleDirecte"),
 
-    /** Calculée par l'app à partir des moyennes de matières officielles, pondérées par le coefficient de matière si connu. */
-    FromSubjects(
-        "calculée",
-        "Calculée par l'app à partir des moyennes de matières (peut différer de la vraie, qui dépend de coefficients et de notes que l'app ne voit pas)",
+    /** Celle d'ÉcoleDirecte a été calculée avant des notes déjà saisies : l'app affiche la sienne, à jour. */
+    Recomputed(
+        "recalculée",
+        "Recalculée par l'app : la moyenne officielle ne compte pas encore les dernières notes",
     ),
 
-    /** Calculée par l'app à partir des notes visibles, ramenées sur 20 et pondérées par leur coefficient. */
-    FromGrades(
+    /** ÉcoleDirecte n'en publie pas : l'app la calcule à partir des matières, sinon des notes visibles. */
+    Computed(
         "calculée",
-        "Calculée par l'app à partir des notes visibles (peut être inférieure à la vraie : notes non publiées, coefficients de matière inconnus)",
+        "Calculée par l'app (peut différer de la vraie, qui dépend de coefficients et de notes que l'app ne voit pas)",
     ),
 
     /** Aucune moyenne disponible. */
@@ -128,6 +128,15 @@ enum class AverageSource(val shortLabel: String, val label: String) {
     ;
 
     val isOfficial: Boolean get() = this == Official
+
+    companion object {
+        fun of(origin: AverageOrigin): AverageSource = when (origin) {
+            AverageOrigin.Official -> Official
+            AverageOrigin.Recomputed -> Recomputed
+            AverageOrigin.Computed -> Computed
+            AverageOrigin.None -> None
+        }
+    }
 }
 
 data class SubjectAverage(
@@ -143,6 +152,10 @@ data class SubjectAverage(
     val maximum: String? = null,
     /** Vrai quand [average] est celle de l'établissement ; faux quand l'app l'a calculée avec les notes visibles. */
     val averageOfficial: Boolean = false,
+    /** D'où vient [average] (officielle, recalculée, calculée). */
+    val averageSource: AverageSource = if (averageOfficial) AverageSource.Official else AverageSource.None,
+    /** La moyenne publiée par l'établissement quand l'app l'a écartée parce qu'elle date d'avant des notes. */
+    val officialAverage: String? = null,
 )
 
 /** Une période du bulletin (trimestre, semestre) que l'on peut afficher, avec sa moyenne générale si elle est connue. */
@@ -168,6 +181,12 @@ data class GradeOverview(
     val appreciation: String = "",
     /** D'où vient [average] : l'établissement ou un calcul de l'app. */
     val averageSource: AverageSource = AverageSource.None,
+    /** La moyenne générale publiée, quand l'app l'a recalculée parce qu'elle ne comptait pas les dernières notes. */
+    val officialAverage: String? = null,
+    /** Combien de notes la moyenne générale publiée ne comptait pas encore. */
+    val notCountedYet: Int = 0,
+    /** Les matières de la période (publiées ou seulement notées), pour les courbes calculées comme sur le site. */
+    val subjects: List<PublishedAverage> = emptyList(),
 )
 
 data class MessagePreview(

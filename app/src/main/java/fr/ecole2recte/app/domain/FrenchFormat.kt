@@ -59,6 +59,13 @@ object FrenchFormat {
     /** « 12,5 » : virgule décimale française. [digits] décimales (une par défaut). */
     fun decimal(value: Double, digits: Int = 1): String = String.format(locale, "%.${digits}f", value)
 
+    /**
+     * « 14,26 » : une moyenne au centième, arrondie exactement comme le site (`toFixed(2)` de JavaScript : la valeur
+     * binaire exacte, arrondie au plus proche, à l'écart de zéro en cas d'égalité). Seul l'affichage arrondit.
+     */
+    fun average(value: Double): String =
+        java.math.BigDecimal(value).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString().replace('.', ',')
+
     /** « 07 » : deux chiffres, toujours ASCII. */
     fun twoDigits(value: Int): String = String.format(locale, "%02d", value)
 

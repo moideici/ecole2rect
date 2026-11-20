@@ -90,7 +90,9 @@ fun rememberAnimatedDecimal(text: String): String {
     LaunchedEffect(text) {
         if (target != null && !reduceMotion) animated.animateTo(target, tween(durationMillis = 900, easing = FastOutSlowInEasing))
     }
-    return if (target == null) text else FrenchFormat.decimal(animated.value.toDouble())
+    // Autant de décimales que le texte reçu (une moyenne arrive au centième) ; à l'arrivée, le texte exact.
+    val digits = text.substringAfter(',', "").length
+    return if (target == null || animated.value == target) text else FrenchFormat.decimal(animated.value.toDouble(), digits)
 }
 
 /** Anneau de progression animé autour d'un contenu (prochain cours). */

@@ -50,6 +50,7 @@ import androidx.compose.runtime.LaunchedEffect
 import fr.ecole2recte.app.domain.GradeMath
 import fr.ecole2recte.app.domain.GradeOverview
 import fr.ecole2recte.app.domain.PeriodAverage
+import fr.ecole2recte.app.domain.PublishedAverage
 import fr.ecole2recte.app.domain.SubjectAverage
 import fr.ecole2recte.app.ui.common.EmptyState
 import fr.ecole2recte.app.ui.common.GradesViewModel
@@ -133,7 +134,7 @@ private fun GradesContent(grades: GradeOverview, onSelectPeriod: (String) -> Uni
         if (grades.bySubject.isEmpty()) item { EmptyState("Pas encore de notes") }
         item {
             Column {
-                grades.bySubject.forEachIndexed { index, line -> SubjectCard(line, grades.all, isNew, Modifier.entrance(index)) { opened = it } }
+                grades.bySubject.forEachIndexed { index, line -> SubjectCard(line, grades.periodCode, grades.subjects, isNew, Modifier.entrance(index)) { opened = it } }
             }
         }
     }
@@ -175,6 +176,18 @@ private fun AverageCard(grades: GradeOverview, onOpenMethod: () -> Unit, modifie
             }
             Text("Moyenne générale", color = AppTheme.colors.muted, fontSize = 13.sp)
             AverageSourceTag(grades.averageSource)
+            if (grades.averageSource == AverageSource.Recomputed && grades.officialAverage != null) {
+                val count = grades.notCountedYet
+                Text(
+                    "Le bulletin publie ${grades.officialAverage}, calculée avant " +
+                        (if (count > 1) "les $count dernières notes" else "la dernière note") +
+                        " : celle-ci compte toutes les notes connues.",
+                    color = AppTheme.colors.muted,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
             grades.classAverage?.let {
                 Text("Moyenne de la classe : $it", color = AppTheme.colors.muted, fontSize = 13.sp)
             }
@@ -312,7 +325,14 @@ private fun GradePill(grade: GradeEntry) {
 }
 
 @Composable
-private fun SubjectCard(line: SubjectAverage, all: List<GradeEntry>, isNew: (GradeEntry) -> Boolean, modifier: Modifier, onGrade: (GradeEntry) -> Unit) {
+private fun SubjectCard(
+    line: SubjectAverage,
+    periodCode: String,
+    subjects: List<PublishedAverage>,
+    isNew: (GradeEntry) -> Boolean,
+    modifier: Modifier,
+    onGrade: (GradeEntry) -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
     ListCard(modifier, onClick = { expanded = !expanded }) {
         Column {
@@ -336,7 +356,7 @@ private fun SubjectCard(line: SubjectAverage, all: List<GradeEntry>, isNew: (Gra
                     Text(line.average, color = AppTheme.colors.ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     if (line.average != "–") {
                         Text(
-                            if (line.averageOfficial) "officielle" else "calculée",
+                            line.averageSource.shortLabel.ifBlank { if (line.averageOfficial) "officielle" else "calculée" },
                             color = if (line.averageOfficial) AppTheme.colors.muted else AppTheme.colors.warningTitle,
                             fontSize = 11.sp,
                         )
@@ -365,7 +385,7 @@ private fun SubjectCard(line: SubjectAverage, all: List<GradeEntry>, isNew: (Gra
                             GradePill(grade)
                         }
                     }
-                    SubjectCurve(line.subject.name, all)
+                    SubjectCurve(line.subject.name, line.grades, periodCode, subjects)
                     SimulatorPanel(line.grades, line.subject.name, Modifier.padding(horizontal = 17.dp, vertical = 8.dp))
                 }
             }
@@ -373,17 +393,20 @@ private fun SubjectCard(line: SubjectAverage, all: List<GradeEntry>, isNew: (Gra
     }
 }
 
-/** Évolution des notes d'une matière : la moyenne cumulée (courbe) et chaque note (carrés), dans l'ordre des dates. */
+/**
+ * Évolution d'une matière dans la période : la moyenne cumulée à chaque date de note (courbe, calculée comme sur
+ * le site) et les notes de ce jour-là (carrés).
+ */
 @Composable
-private fun SubjectCurve(subject: String, all: List<GradeEntry>) {
-    val series = remember(subject, all) { GradeCurves.subjectSeries(all, subject) }
+private fun SubjectCurve(subject: String, grades: List<GradeEntry>, periodCode: String, subjects: List<PublishedAverage>) {
+    val series = remember(subject, grades, periodCode) { GradeCurves.subjectSeries(grades, periodCode, subjects, subject) }
     if (series.size < 2) return
     Column(Modifier.padding(horizontal = 17.dp).padding(top = 10.dp)) {
         Text("Évolution", color = AppTheme.colors.muted, fontSize = 12.sp)
         Spacer(Modifier.height(4.dp))
         LineChart(
             line = series.map { ChartPoint(it.runningAverage, shortDate(it.date)) },
-            dots = series.map { it.note },
+            dots = series.map { it.notes },
             description = GradeCurves.describe(
                 "Moyenne de $subject après chaque note",
                 series.map { shortDate(it.date) },
