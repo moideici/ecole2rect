@@ -118,12 +118,16 @@ chaque push, et garde les rapports en artefact. Un APK signé n'est produit que 
 Plans de travail : [`PLAN-REFONTE.md`](PLAN-REFONTE.md), [`PLAN-PATCH.md`](PLAN-PATCH.md),
 [`RAPPORT-CRITIQUE.md`](RAPPORT-CRITIQUE.md).
 
+## Site
+
+La racine du site GitHub Pages (`index.html`) redirige vers la page de connexion du vrai client web,
+`https://ed.moideici.tech/connexion` (dépôt [`ecole2recte`](https://github.com/moideici/ecole2recte)).
+
 ## Maquette web
 
-`index.html`, `styles.css` et `app.js` forment la maquette statique de l'accueil. **Ce n'est
-qu'une maquette** : les données sont écrites en dur et rien n'est envoyé nulle part. Elle reste
-à la racine parce que GitHub Pages sert ces fichiers depuis la racine du dépôt. Ouvrir
-`index.html` dans un navigateur, ou `python -m http.server 8080`.
+`maquette/` contient `index.html`, `styles.css` et `app.js` : la maquette statique de l'accueil. **Ce n'est
+qu'une maquette** : les données sont écrites en dur et rien n'est envoyé nulle part. Elle est publiée sur
+`/maquette/`. Ouvrir `maquette/index.html` dans un navigateur, ou `python -m http.server 8080`.
 
 ## Licence
 
