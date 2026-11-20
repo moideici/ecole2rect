@@ -2,6 +2,15 @@
 
 Toutes les évolutions notables de ce projet. Les versions suivent [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Modifié
+- Moyennes : le calcul est désormais celui du site ecole2recte, à l'identique (`Averages`). Moyenne publiée
+  gardée sauf quand elle date d'avant des notes déjà saisies (« recalculée »), matières seulement notées comptées,
+  sous-matières non comptées deux fois, coefficient nul ou négatif valant 1, barème nul écarté, générale
+  recalculée dès qu'une matière l'est, courbes par date dans la période, affichage au centième comme sur le site.
+- Test de parité `AveragesParityTest` sur des cas produits par le code du site (`tools/parite-moyennes/generer.mjs`).
+
 ## [0.2.0] : première version publique
 
 Instantané du dépôt au moment de son ouverture au public. Détail de l'historique ci-dessous, par mois.

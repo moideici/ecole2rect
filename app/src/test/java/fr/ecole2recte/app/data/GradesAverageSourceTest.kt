@@ -61,12 +61,13 @@ class GradesAverageSourceTest {
         )
         val overview = repository().grades()
         assertEquals(AverageSource.Official, overview.averageSource)
-        assertEquals("15,8", overview.average)
+        assertEquals("15,80", overview.average)
         val maths = overview.bySubject.first { it.subject.name == "Maths" }
         val english = overview.bySubject.first { it.subject.name == "Anglais" }
         assertTrue(maths.averageOfficial)
         assertFalse(english.averageOfficial)
-        assertEquals("12,0", english.average)
+        assertEquals("12,00", english.average)
+        assertEquals(AverageSource.Computed, english.averageSource)
     }
 
     @Test
@@ -77,9 +78,9 @@ class GradesAverageSourceTest {
             """{"id":1,"libelleMatiere":"MATHS","devoir":"DS","valeur":"16","noteSur":"20","coef":"1","codePeriode":"A001","date":"2026-10-03"}""",
         )
         val overview = repository().grades()
-        assertEquals(AverageSource.FromSubjects, overview.averageSource)
+        assertEquals(AverageSource.Computed, overview.averageSource)
         // (16 x 4 + 13 x 1) / 5
-        assertEquals("15,4", overview.average)
+        assertEquals("15,40", overview.average)
         assertFalse(overview.averageSource.isOfficial)
     }
 
@@ -93,9 +94,9 @@ class GradesAverageSourceTest {
                {"id":4,"libelleMatiere":"MATHS","devoir":"Bonus","valeur":"20","noteSur":"20","coef":"1","nonSignificatif":true,"codePeriode":"A001","date":"2026-10-13"}""",
         )
         val overview = repository().grades()
-        assertEquals(AverageSource.FromGrades, overview.averageSource)
+        assertEquals(AverageSource.Computed, overview.averageSource)
         // (16 x 2 + 10 x 1) / 3 : l'absence et la note non significative sont ignorées, 5/10 vaut 10/20.
-        assertEquals("14,0", overview.average)
+        assertEquals("14,00", overview.average)
         assertFalse(overview.bySubject.single().averageOfficial)
     }
 
@@ -115,9 +116,43 @@ class GradesAverageSourceTest {
             """{"id":1,"libelleMatiere":"MATHS","devoir":"DS","valeur":"12","noteSur":"20","coef":"1","codePeriode":"A002","date":"2026-11-03"}""",
         )
         val overview = repository().grades()
-        assertEquals(listOf("1er trimestre" to "14,2", "2e trimestre" to null), overview.periods.map { it.name to it.average })
+        // Chaque puce porte la moyenne générale qu'on verrait en la choisissant : officielle, sinon calculée.
+        assertEquals(listOf("1er trimestre" to "14,20", "2e trimestre" to "12,00"), overview.periods.map { it.name to it.average })
         // Choisie par les dates : le 2e trimestre, calculé faute de moyenne officielle.
         assertEquals("A002", overview.periodCode)
-        assertEquals(AverageSource.FromGrades, overview.averageSource)
+        assertEquals(AverageSource.Computed, overview.averageSource)
+    }
+
+    @Test
+    fun `une moyenne publiee avant la derniere note est recalculee, comme sur le site`() = runTest {
+        body = payload(
+            """{"idPeriode":"A001","periode":"1er trimestre",$dates,"ensembleMatieres":{"moyenneGenerale":"10,67","disciplines":[
+                {"discipline":"MATHS","moyenne":"12","coef":"4"},{"discipline":"ANGLAIS","moyenne":"8","coef":"2"}]}}""",
+            """{"id":1,"libelleMatiere":"MATHS","devoir":"DS 1","valeur":"12","noteSur":"20","coef":"1","codePeriode":"A001","date":"2026-09-01"},
+               {"id":2,"libelleMatiere":"MATHS","devoir":"DS 2","valeur":"16","noteSur":"20","coef":"1","codePeriode":"A001","date":"2026-09-15"},
+               {"id":3,"libelleMatiere":"ANGLAIS","devoir":"Oral","valeur":"8","noteSur":"20","coef":"1","codePeriode":"A001","date":"2026-09-10"}""",
+        )
+        val overview = repository().grades()
+        // Maths publiée 12 : c'est la moyenne d'avant le 16 du 15 septembre. L'app affiche 14, et la générale suit.
+        val maths = overview.bySubject.first { it.subject.name == "Maths" }
+        assertEquals("14,00", maths.average)
+        assertEquals(AverageSource.Recomputed, maths.averageSource)
+        assertEquals("12,00", maths.officialAverage)
+        // (14 x 4 + 8 x 2) / 6
+        assertEquals("12,00", overview.average)
+        assertEquals(AverageSource.Recomputed, overview.averageSource)
+        assertEquals("10,67", overview.officialAverage)
+        assertEquals(1, overview.notCountedYet)
+    }
+
+    @Test
+    fun `une sous-matiere ne compte pas deux fois dans la moyenne generale`() = runTest {
+        body = payload(
+            """{"idPeriode":"A001","periode":"1er trimestre",$dates,"ensembleMatieres":{"disciplines":[
+                {"discipline":"MATHS","moyenne":"10","coef":"2"},
+                {"discipline":"SPE MATHS","codeSousMatiere":"SPE","moyenne":"18","coef":"2"}]}}""",
+            "",
+        )
+        assertEquals("10,00", repository().grades().average)
     }
 }

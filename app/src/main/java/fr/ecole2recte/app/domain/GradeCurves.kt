@@ -1,23 +1,25 @@
 package fr.ecole2recte.app.domain
 
-/** Un point de la courbe d'une matière : la note (sur 20) et la moyenne de la matière à ce moment-là. */
-data class SeriesPoint(val label: String, val date: String, val note: Double, val runningAverage: Double)
+/**
+ * Un point de la courbe d'une matière : la date, la moyenne de la matière à cette date (cumulée depuis le début
+ * de la période) et les notes (sur 20) obtenues ce jour-là.
+ */
+data class SeriesPoint(val date: String, val runningAverage: Double, val notes: List<Double>)
 
 /** Calculs derrière les courbes d'évolution, séparés de l'écran pour être testés. */
 object GradeCurves {
     /**
-     * L'évolution d'une matière : ses notes dans l'ordre des dates, avec la moyenne pondérée **cumulée** après
-     * chacune. C'est un calcul de l'application (toutes périodes confondues), pas la moyenne de l'établissement.
+     * L'évolution d'une matière dans la période : un point par date de note, avec la moyenne pondérée **cumulée**
+     * à cette date ([Averages.averageSeries], comme sur le site). C'est un calcul de l'application, pas la
+     * moyenne de l'établissement.
      */
-    fun subjectSeries(all: List<GradeEntry>, subject: String): List<SeriesPoint> {
-        val used = all.filter { it.subject == subject && it.counted && it.value != null && it.coefficient > 0 && !it.date.isNullOrBlank() }
-            .sortedBy { it.date }
-        return used.mapIndexed { index, grade ->
+    fun subjectSeries(grades: List<GradeEntry>, periodCode: String, subjects: List<PublishedAverage>, subject: String): List<SeriesPoint> {
+        val counted = Averages.gradesFor(grades, periodCode, subject)
+        return Averages.averageSeries(grades, periodCode, subjects, subject).map { point ->
             SeriesPoint(
-                label = grade.label,
-                date = grade.date.orEmpty(),
-                note = GradeMath.on20(grade.value!!, grade.scale),
-                runningAverage = GradeMath.weightedAverage(used.take(index + 1)) ?: 0.0,
+                date = point.date,
+                runningAverage = point.value,
+                notes = counted.filter { it.date == point.date }.mapNotNull { Averages.outOfTwenty(it) },
             )
         }
     }

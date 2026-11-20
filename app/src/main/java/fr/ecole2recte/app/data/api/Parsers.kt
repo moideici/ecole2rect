@@ -61,6 +61,8 @@ data class ApiSubjectAverage(
     val appreciation: String = "",
     val minimum: Double? = null,
     val maximum: Double? = null,
+    /** Renseigné pour une sous-matière (une spécialité sous son tronc commun), comme sur le site. */
+    val parentSubject: String = "",
 )
 
 data class ApiGrade(
@@ -275,6 +277,8 @@ object Parsers {
                     appreciation = appreciationOf(discipline),
                     minimum = discipline.num("moyenneMin"),
                     maximum = discipline.num("moyenneMax"),
+                    // Une sous-matière se range sous sa mère : la moyenne générale ne la compte pas deux fois.
+                    parentSubject = if (discipline.str("codeSousMatiere").isNotEmpty()) discipline.str("discipline") else "",
                 )
             }
         }
@@ -296,11 +300,12 @@ object Parsers {
                 maximum = raw.num("maxClasse"),
                 rawValue = if (raw.num("valeur") == null) raw.str("valeur") else "",
             )
-        }.distinctBy { it.id }.sortedByDescending { it.date.orEmpty() }
+        }.sortedByDescending { it.date.orEmpty() }.distinctBy { it.id }
         return ApiGrades(
             periods = periods,
             grades = grades,
-            subjectAverages = averages.distinctBy { "${it.periodCode} ${it.subject}" },
+            // Une sous-matière peut porter le nom de sa mère : la clé la distingue, comme sur le site.
+            subjectAverages = averages.distinctBy { "${it.periodCode}\u0000${it.subject}\u0000${it.parentSubject}" },
         )
     }
 

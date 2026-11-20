@@ -22,9 +22,10 @@ messages dans une application lisible, personnalisable et utilisable hors ligne.
   alterne ; « Ajouter au calendrier » pour un cours ou un contrôle, sans permission. Voir [Exports](docs/EXPORTS.md).
 - **Notes** : moyennes par matière et par période, appréciations, valeurs textuelles
   (Abs, Disp, NE), moyenne de la classe et extrêmes (avec l'écart de chaque note à la classe),
-  simulateur d'objectif, courbes d'évolution, pastille « Nouveau » pendant trois jours. Une moyenne est
-  toujours étiquetée **officielle** (fournie par ÉcoleDirecte) ou **calculée par l'app** (estimation, souvent
-  un peu plus basse) : voir [Comment la moyenne est calculée](docs/MOYENNES.md).
+  simulateur d'objectif, courbes d'évolution, pastille « Nouveau » pendant trois jours. Les moyennes sont
+  calculées **exactement comme sur le site** ecole2recte et toujours étiquetées **officielle** (fournie par
+  ÉcoleDirecte), **recalculée** (la moyenne publiée ne comptait pas encore les dernières notes) ou **calculée**
+  (ÉcoleDirecte n'en publie pas) : voir [Comment la moyenne est calculée](docs/MOYENNES.md).
 - **Messages** : boîte de réception, pièces jointes ouvertes seulement après confirmation,
   « lu / non lu » modifiable **sur le téléphone seulement** (rien n'est écrit chez ÉcoleDirecte).
 - **Recherche** : une barre à l'accueil et dans Plus cherche dans les devoirs, messages (expéditeur, objet),

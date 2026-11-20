@@ -38,46 +38,11 @@ object RawGrade {
 data class PeriodAverage(val name: String, val average: Double)
 
 /**
- * Calculs de moyenne, séparés de l'écran pour être testés.
+ * Petits calculs d'affichage autour d'une note, séparés de l'écran pour être testés.
  *
- * Toutes les notes sont ramenées sur 20 avant d'être combinées, et seules comptent celles qui
- * ont une valeur et qui comptent dans la moyenne (jamais « Abs », jamais un zéro inventé).
+ * Les moyennes ne se calculent pas ici : elles viennent d'[Averages], la copie exacte du calcul du site.
  */
 object GradeMath {
-    fun on20(value: Double, scale: Double): Double = if (scale <= 0) value else value / scale * 20.0
-
-    private fun counted(grades: List<GradeEntry>) = grades.filter { it.counted && it.value != null && it.coefficient > 0 }
-
-    /** Moyenne pondérée sur 20, ou `null` s'il n'y a rien à moyenner. */
-    fun weightedAverage(grades: List<GradeEntry>): Double? {
-        val used = counted(grades)
-        val weight = used.sumOf { it.coefficient }
-        if (weight <= 0) return null
-        return used.sumOf { on20(it.value!!, it.scale) * it.coefficient } / weight
-    }
-
-    /**
-     * La note (sur 20) à obtenir à une prochaine évaluation de coefficient [coefficient] pour
-     * atteindre la moyenne [target]. Peut dépasser 20 (objectif hors d'atteinte) ou être
-     * négative (objectif déjà acquis) : c'est à l'écran de le dire.
-     */
-    fun requiredGrade(grades: List<GradeEntry>, target: Double, coefficient: Double): Double? {
-        if (coefficient <= 0) return null
-        val used = counted(grades)
-        val weight = used.sumOf { it.coefficient }
-        val points = used.sumOf { on20(it.value!!, it.scale) * it.coefficient }
-        return (target * (weight + coefficient) - points) / coefficient
-    }
-
-    /** La moyenne qu'on aurait avec une note supplémentaire. */
-    fun averageWith(grades: List<GradeEntry>, value: Double, coefficient: Double): Double? {
-        if (coefficient <= 0) return weightedAverage(grades)
-        val used = counted(grades)
-        val weight = used.sumOf { it.coefficient } + coefficient
-        val points = used.sumOf { on20(it.value!!, it.scale) * it.coefficient } + value * coefficient
-        return points / weight
-    }
-
     /**
      * L'écart entre la note et la moyenne de la classe à ce devoir, dans l'unité de la note (la
      * moyenne de classe est donnée sur le même barème que la note). `null` sans note ou sans moyenne de classe.

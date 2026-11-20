@@ -29,6 +29,7 @@ data class PrivacyMode(val enabled: Boolean = false, val hideMessages: Boolean =
             appreciation = "",
             minimum = null,
             maximum = null,
+            officialAverage = null,
         )
 
     fun mask(overview: GradeOverview): GradeOverview =
@@ -43,6 +44,9 @@ data class PrivacyMode(val enabled: Boolean = false, val hideMessages: Boolean =
             classAverage = null,
             periods = overview.periods.map { it.copy(average = it.average?.let { _ -> MASKED }) },
             appreciation = "",
+            officialAverage = null,
+            notCountedYet = 0,
+            subjects = emptyList(),
         )
 
     fun mask(child: ChildSummary): ChildSummary =

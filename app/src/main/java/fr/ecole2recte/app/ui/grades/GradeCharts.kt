@@ -34,16 +34,16 @@ data class ChartPoint(val value: Double, val label: String)
 
 /**
  * Courbe dessinée en Canvas, sans bibliothèque. [line] relie les points ; [dots] (facultatif) ajoute des
- * carrés vides, un par point, pour les notes elles-mêmes. Lisible en clair comme en sombre (couleurs du thème),
- * et décrite en une phrase par [description] pour un lecteur d'écran : le dessin ne porte pas seul l'information,
- * les valeurs sont aussi écrites sur le graphique.
+ * carrés vides pour les notes elles-mêmes, autant que de notes à ce point (plusieurs notes le même jour).
+ * Lisible en clair comme en sombre (couleurs du thème), et décrite en une phrase par [description] pour un
+ * lecteur d'écran : le dessin ne porte pas seul l'information, les valeurs sont aussi écrites sur le graphique.
  */
 @Composable
 fun LineChart(
     line: List<ChartPoint>,
     description: String,
     modifier: Modifier = Modifier,
-    dots: List<Double>? = null,
+    dots: List<List<Double>>? = null,
     height: Dp = 104.dp,
 ) {
     if (line.isEmpty()) return
@@ -53,7 +53,7 @@ fun LineChart(
     val surface = AppTheme.colors.surface
     val faint = muted.copy(alpha = .25f)
     val measurer = rememberTextMeasurer()
-    val all = line.map { it.value } + dots.orEmpty()
+    val all = line.map { it.value } + dots.orEmpty().flatten()
     val (low, high) = GradeCurves.yRange(all)
     val few = line.size <= 6
 
@@ -82,10 +82,12 @@ fun LineChart(
                 drawPath(path, accent, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
             }
             // Les notes : des carrés vides (forme différente des ronds de la courbe, lisible sans couleur).
-            dots?.forEachIndexed { index, value ->
+            dots?.forEachIndexed { index, values ->
                 if (index < n) {
                     val side = 9.dp.toPx()
-                    drawRect(ink.copy(alpha = .75f), Offset(x(index) - side / 2, y(value) - side / 2), Size(side, side), style = Stroke(width = 2.dp.toPx()))
+                    values.forEach { value ->
+                        drawRect(ink.copy(alpha = .75f), Offset(x(index) - side / 2, y(value) - side / 2), Size(side, side), style = Stroke(width = 2.dp.toPx()))
+                    }
                 }
             }
             line.forEachIndexed { index, point ->

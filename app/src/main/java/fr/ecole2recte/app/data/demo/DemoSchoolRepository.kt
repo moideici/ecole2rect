@@ -40,11 +40,11 @@ class DemoSchoolRepository(private val firstName: String? = null) : SchoolReposi
         Homework("Reading comprehension", "Anglais", "Jeudi 10 septembre", 1),
     )
 
-    private val averages = listOf("14,0", "17,5", "16,0", "15,5")
+    private val averages = listOf("14,00", "17,50", "16,00", "15,50")
 
     private val grades = GradeOverview(
-        average = "15,8",
-        trend = "↗ +1,2",
+        average = "15,75",
+        trend = "↗ +1,20",
         bySubject = subjects.mapIndexed { index, subject -> SubjectAverage(subject, averages[index]) },
     )
 

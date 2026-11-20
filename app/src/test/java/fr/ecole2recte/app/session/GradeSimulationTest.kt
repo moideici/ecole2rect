@@ -26,13 +26,14 @@ class GradeSimulationTest {
     ) = GradeEntry("$subject-$date-$value", subject, 0, label, value, scale, coef, date, classAverage, null, null, counted)
 
     @Test
-    fun `la note necessaire est arrondie au dixieme superieur`() {
+    fun `la note necessaire est celle du site, ecrite au centieme`() {
         // Moyenne 12 (coef 1) ; objectif 13,1 avec une evaluation coef 1 : 13,1 x 2 - 12 = 14,2
         val need = GradeSimulation.need(listOf(grade(12.0)), "13,1", "1") as Need.Needed
         assertEquals(14.2, need.grade, 0.0001)
-        // 14,01 reste a 14,1 : jamais promettre trop peu.
+        // 13,005 x 2 - 12 = 14,01 : pas d'arrondi dans le calcul, le centieme a l'affichage.
         val tight = GradeSimulation.need(listOf(grade(12.0)), "13,005", "1") as Need.Needed
-        assertEquals(14.1, tight.grade, 0.0001)
+        assertEquals(14.01, tight.grade, 0.0001)
+        assertEquals("Il te faut au moins 14,01 / 20 à la prochaine évaluation.", GradeSimulation.message(tight))
     }
 
     @Test
@@ -50,7 +51,7 @@ class GradeSimulationTest {
     }
 
     @Test
-    fun `un vingt exact reste atteignable malgre l'arrondi`() {
+    fun `un vingt exact reste atteignable`() {
         // Moyenne 10 ; objectif 15 avec coef 1 : il faut 20 pile.
         val need = GradeSimulation.need(listOf(grade(10.0)), "15", "1") as Need.Needed
         assertEquals(20.0, need.grade, 0.0001)
@@ -88,8 +89,11 @@ class GradeSimulationTest {
         val projection = GradeSimulation.projection(listOf(grade(12.0)), "16", "1") as Projection.Value
         assertEquals(12.0, projection.current!!, 0.0001)
         assertEquals(14.0, projection.projected, 0.0001)
-        assertEquals("Ta moyenne passerait de 12,0 à 14,0 / 20.", GradeSimulation.message(projection))
-        assertEquals("Ta moyenne serait de 16,0 / 20.", GradeSimulation.message(GradeSimulation.projection(emptyList(), "16", "1")))
+        assertEquals("Ta moyenne passerait de 12,00 à 14,00 / 20.", GradeSimulation.message(projection))
+        assertEquals("Ta moyenne serait de 16,00 / 20.", GradeSimulation.message(GradeSimulation.projection(emptyList(), "16", "1")))
+        // Comme sur le site, une note non significative ou sans valeur n'entre pas dans le calcul.
+        val ignored = GradeSimulation.projection(listOf(grade(12.0), grade(0.0, counted = false), grade(null)), "16", "1") as Projection.Value
+        assertEquals(14.0, ignored.projected, 0.0001)
     }
 
     @Test
@@ -126,11 +130,13 @@ class GradeSimulationTest {
             grade(0.0, date = "2026-10-25", counted = false),
             grade(null, date = "2026-10-26"),
             grade(8.0, scale = 10.0, date = "2026-11-01"),
+            grade(4.0, date = "2026-11-01"),
         )
-        val series = GradeCurves.subjectSeries(all, "Maths")
+        val series = GradeCurves.subjectSeries(all, "", emptyList(), "Maths")
         assertEquals(listOf("2026-10-01", "2026-10-20", "2026-11-01"), series.map { it.date })
-        assertEquals(listOf(10.0, 16.0, 16.0), series.map { it.note })
-        assertEquals(listOf(10.0, 13.0, 14.0), series.map { it.runningAverage })
+        // Un point par date : deux notes le même jour, deux carrés.
+        assertEquals(listOf(listOf(10.0), listOf(16.0), listOf(16.0, 4.0)), series.map { it.notes })
+        assertEquals(listOf(10.0, 13.0, 11.5), series.map { it.runningAverage })
     }
 
     @Test
